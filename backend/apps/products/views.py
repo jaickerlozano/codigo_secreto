@@ -1,5 +1,5 @@
 from django.db import transaction
-from rest_framework import viewsets
+from rest_framework import viewsets, serializers
 from rest_framework.response import Response 
 from .serializers import ProductSerializer, SupplierSerializer, CategorySerializer, StockMovementSerializer
 from .models import Product, Supplier, Category, StockMovement
@@ -13,28 +13,53 @@ class ProductViewSet(viewsets.ModelViewSet):
         """
         Crear un producto y registrar un movimiento de stock inicial si se proporciona current_stock
         """
-        initial_stock = int(request.data.get('current_stock', 0))
-
-        if initial_stock and int(initial_stock) < 0:
-            raise serializers.ValidationError({
-                "current_stock": "El stock inicial no puede ser menor que cero."
-            })
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        # Creamos el producto usando el serializer normal
         with transaction.atomic():
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            product = serializer.save()  # Guardamos el producto para obtener su ID
-
-            # Si se proporcionó un stock inicial mayor a 0, registramos un movimiento de stock IN
-            if initial_stock and int(initial_stock) > 0:
+            # Guardamos el producto. Al ser válido, 'current_stock' ya es un entero seguro.
+            product = serializer.save()
+            
+            # Registramos el movimiento de stock IN solo si es mayor que cero
+            if product.current_stock > 0:
                 StockMovement.objects.create(
                     product=product,
                     type='IN',
-                    quantity=int(initial_stock)
+                    quantity=product.current_stock
+                )
+                
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        """
+        Actualizar un producto y registrar un movimiento de stock si se cambia el current_stock
+        """
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        old_stock = instance.current_stock
+        new_stock = request.data.get('current_stock', old_stock)
+
+        # 1. Instanciamos y validamos primero. El serializer convierte todo a tipos correctos.
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            # 2. Guardamos los cambios en la base de datos
+            product = serializer.save()
+
+            # 3. Obtenemos el nuevo stock directamente del objeto ya guardado (garantiza que es un entero)
+            new_stock = product.current_stock
+
+            # 4. Si el stock cambió, registramos el movimiento con datos limpios
+            if new_stock != old_stock:
+                movement_type = 'IN' if new_stock > old_stock else 'OUT'
+                StockMovement.objects.create(
+                    product=product,
+                    type=movement_type,
+                    quantity=abs(new_stock - old_stock)
                 )
 
-        return Response(serializer.data, status=201)
+        return Response(serializer.data)
 
 
 class SupplierViewSet(viewsets.ModelViewSet):
