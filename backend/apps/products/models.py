@@ -33,3 +33,19 @@ class Category(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class StockMovement(models.Model):
+    TYPES = (('IN', 'Entrada'), ('OUT', 'Salida'))
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='stock_movements')
+    type = models.CharField(max_length=3, choices=TYPES)
+    quantity = models.PositiveIntegerField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.product.name} - {self.type} - {self.quantity}"
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name_plural = 'Stock Movements'
+        verbose_name = 'Stock Movement' 
