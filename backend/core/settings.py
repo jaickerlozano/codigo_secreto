@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     'rest_framework',
+    'drf_spectacular',
 
     'apps.products'
 ]
@@ -130,4 +131,16 @@ REST_FRAMEWORK = {
     # Use page number pagination by default, with a page size of 10 items.
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
+
+    # Use drf-spectacular's AutoSchema class by default for generating API schemas.
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+# Settings for drf-spectacular
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Código Secreto Management API',
+    'DESCRIPTION': 'API for managing products, suppliers, and categories in the Código Secreto inventory system.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    # OTHER SETTINGS
 }
