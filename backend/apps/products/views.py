@@ -1,14 +1,18 @@
 from django.db import transaction
-from rest_framework import viewsets, serializers, mixins, status
+from rest_framework import viewsets, serializers, mixins, status, filters
 from rest_framework.response import Response
 from .serializers import ProductSerializer, SupplierSerializer, CategorySerializer, StockMovementSerializer
 from .models import Product, Supplier, Category, StockMovement
 from django.db.models import F
+from django_filters.rest_framework import DjangoFilterBackend
 
 # Create your views here.
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['supplier', 'category']
+    search_fields = ['name', 'description']
 
     def create(self, request, *args, **kwargs):
         """
