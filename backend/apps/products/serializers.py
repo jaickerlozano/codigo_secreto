@@ -6,6 +6,14 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = '__all__'
 
+    # Para evitar que el cliente intente manipular el stock directamente, lo dejamos como read-only. El stock se maneja a través de movimientos de stock.
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+            
+        # Si la instancia ya existe, estamos actualizando (PUT/PATCH)
+        if self.instance is not None:
+            self.fields['current_stock'].read_only = True
+
 
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
