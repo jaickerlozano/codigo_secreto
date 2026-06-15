@@ -31,38 +31,6 @@ class ProductViewSet(viewsets.ModelViewSet):
                 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    # def update(self, request, *args, **kwargs):
-    #     """
-    #     Actualizar un producto y registrar un movimiento de stock si se cambia el current_stock
-    #     """
-    #     partial = kwargs.pop('partial', False)
-    #     instance = self.get_object()
-    #     old_stock = instance.current_stock
-    #     new_stock = request.data.get('current_stock', old_stock)
-
-    #     # 1. Instanciamos y validamos primero. El serializer convierte todo a tipos correctos.
-    #     serializer = self.get_serializer(instance, data=request.data, partial=partial)
-    #     serializer.is_valid(raise_exception=True)
-
-    #     with transaction.atomic():
-    #         # 2. Guardamos los cambios en la base de datos
-    #         product = serializer.save()
-
-    #         # 3. Obtenemos el nuevo stock directamente del objeto ya guardado (garantiza que es un entero)
-    #         product = Product.objects.select_for_update().get(id=product.id)  # Bloqueamos la fila para evitar condiciones de carrera
-    #         new_stock = product.current_stock
-
-    #         # 4. Si el stock cambió, registramos el movimiento con datos limpios
-    #         if new_stock != old_stock:
-    #             movement_type = 'IN' if new_stock > old_stock else 'OUT'
-    #             StockMovement.objects.create(
-    #                 product=product,
-    #                 type=movement_type,
-    #                 quantity=abs(new_stock - old_stock)
-    #             )
-
-    #     return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 class SupplierViewSet(viewsets.ModelViewSet):
     queryset = Supplier.objects.all()
