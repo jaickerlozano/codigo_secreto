@@ -114,3 +114,34 @@ class StockMovementViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, m
             product.save()
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Eliminar un movimiento de stock. Esto no revertirá el cambio en el stock del producto, ya que los movimientos son registros históricos.
+        """
+        instance = self.get_object()
+        product_instance = instance.product
+        movement_type = instance.type
+        quantity = instance.quantity
+
+        with transaction.atomic():
+            # Bloqueamos la fila del producto para evitar condiciones de carrera
+            product = Product.objects.select_for_update().get(id=product_instance.id)
+
+            # Revertimos el movimiento en el stock del producto
+            if movement_type == 'IN':
+                if quantity > product.current_stock:
+                    raise serializers.ValidationError({
+                        "detail": f"No se puede eliminar este movimiento porque revertiría el stock a un valor negativo. Stock actual: {product.current_stock}."
+                    })
+                product.current_stock -= quantity
+            else:
+                product.current_stock += quantity
+
+            # Guardamos el producto con su nuevo stock modificado
+            product.save()
+
+            # Finalmente, eliminamos el movimiento
+            self.perform_destroy(instance)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
