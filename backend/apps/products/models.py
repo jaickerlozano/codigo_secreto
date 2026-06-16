@@ -29,11 +29,21 @@ class Supplier(models.Model):
 
 class Category(models.Model):
     name = models.CharField(max_length=255)
-    description = models.TextField()
+    description = models.TextField(null=True, blank=True)
+
+    # Este campo será para crear la jerarquía de categorías. Si es null, es una categoría raíz. Si tiene valor, es una subcategoría de la categoría indicada.
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories')
 
     def __str__(self):
-        return self.name
-
+        category_name = self.name or "Categoría sin nombre"
+        
+        # Evaluamos si tiene padre de forma plana (sin recursión)
+        if self.parent_id and self.parent:
+            # self.parent.name obtiene el string del padre directamente, evitando bucles infinitos
+            parent_name = self.parent.name or "Categoría Padre"
+            return f"{parent_name} > {category_name}"
+            
+        return category_name
 
 class StockMovement(models.Model):
     TYPES = (('IN', 'Entrada'), ('OUT', 'Salida'))

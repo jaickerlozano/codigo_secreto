@@ -22,9 +22,19 @@ class SupplierSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
+    # Campo dinámico que llamará recursivamente a este mismo serializador para traer a las hijas
+    subcategories = serializers.SerializerMethodField()
+
     class Meta:
         model = Category
-        fields = '__all__'
+        fields = ['id', 'name', 'description', 'parent', 'subcategories']
+
+    def get_subcategories(self, obj):   
+        # Si la categoría tiene subcategorías, las serializamos usando este mismo molde
+        if obj.subcategories.exists():
+            return CategorySerializer(obj.subcategories.all(), many=True).data
+        return []
+    
 
 
 class StockMovementSerializer(serializers.ModelSerializer):

@@ -11,8 +11,32 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['supplier', 'category']
+    # Quito 'category' de filterset_fields porque ahora haremos un filtro personalizado más potente
+    filterset_fields = ['supplier']
     search_fields = ['name', 'description']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        category_id = self.request.query_params.get('category')
+
+        if category_id:
+            try:
+                # Buscamos la categoría solicitada
+                category = Category.objects.get(id=category_id)
+                
+                # Expresión recursiva de Django: busca la categoría seleccionada
+                # Y ADEMÁS busca en cualquier nivel de subcategoría descendiente
+                descendants = Category.objects.filter(pk=category_id) | Category.objects.filter(parent=category)
+                
+                # Para cubrir hasta 3 niveles de profundidad (Padre -> Hijo -> Nieto)
+                sub_descendants = Category.objects.filter(parent__in=descendants)
+                all_categories = descendants | sub_descendants
+
+                queryset = queryset.filter(category__in=all_categories)
+            except Category.DoesNotExist:
+                pass
+                
+        return queryset
 
     def create(self, request, *args, **kwargs):
         """
@@ -44,6 +68,15 @@ class SupplierViewSet(viewsets.ModelViewSet):
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        # Si el frontend consulta `/api/categories/?menu=true`,
+        # solo devolvemos las categorías principales (Padres raíces).
+        if self.request.query_params.get('menu') == 'true':
+            return queryset.filter(parent__isnull=True)
+        return queryset
+    
 
 # Habilito solo lectura, creación y eliminación de movimientos de stock. No se pueden actualizar.
 class StockMovementViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mixins.ListModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
