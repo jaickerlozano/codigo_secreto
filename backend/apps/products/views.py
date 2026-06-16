@@ -63,11 +63,15 @@ class ProductViewSet(viewsets.ModelViewSet):
 class SupplierViewSet(viewsets.ModelViewSet):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name']
 
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', 'description']
 
     def get_queryset(self):
         queryset = super().get_queryset()
