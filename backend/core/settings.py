@@ -37,7 +37,8 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'django_filters',
 
-    'apps.products'
+    'apps.products',
+    'apps.authentication',
 ]
 
 MIDDLEWARE = [
@@ -135,6 +136,9 @@ REST_FRAMEWORK = {
 
     # Use drf-spectacular's AutoSchema class by default for generating API schemas.
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+
+    # Enable filtering by default using django-filter
+    'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
 }
 
 # Settings for drf-spectacular
@@ -145,3 +149,5 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
     # OTHER SETTINGS
 }
+
+AUTH_USER_MODEL = 'authentication.User'
