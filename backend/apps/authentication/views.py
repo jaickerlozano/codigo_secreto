@@ -1,5 +1,9 @@
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.utils import extend_schema
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
+from .serializers import RegisterSerializer
 
 # Create your views here.
 @extend_schema(
@@ -24,3 +28,26 @@ class CustomTokenRefreshView(TokenRefreshView):
     Vista personalizada para renovar el token de acceso del cliente.
     """
     pass
+
+
+@extend_schema(
+    summary="Registrar un nuevo cliente",
+    description="Permite a los usuarios de la tienda crear una cuenta de cliente. Crea el usuario y su perfil de despacho de forma automática.",
+    tags=["Autenticación"],
+    request=RegisterSerializer
+)
+class RegisterView(generics.CreateAPIView):
+    """
+    Vista para el registro público de nuevos clientes en la plataforma.
+    """
+    permission_classes = [AllowAny] # Permite el acceso a usuarios no logueados
+    serializer_class = RegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            "message": "Usuario registrado con éxito de forma segura."
+        }, status=status.HTTP_201_CREATED)
