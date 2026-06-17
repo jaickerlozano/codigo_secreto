@@ -94,33 +94,7 @@ class StockMovementViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, m
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Extraigo los datos validados SIN guardarlos aún en la base de datos
-        validated_data = serializer.validated_data
-        product_instance = validated_data['product']
-        movement_type = validated_data['type']
-        quantity = validated_data['quantity']
-
-        with transaction.atomic():
-            # 1. Bloqueo la fila del producto INMEDIATAMENTE antes de leer su stock actual
-            product = Product.objects.select_for_update().get(id=product_instance.id)
-
-            # 2. Ejecuto la validación de negocio con el stock real y fresco de la base de datos
-            if movement_type == 'OUT':
-                if quantity > product.current_stock:
-                    raise serializers.ValidationError({
-                        "quantity": f"Stock insuficiente. Stock actual disponible: {product.current_stock}."
-                    })
-                # Restamos directamente en memoria (es seguro gracias a select_for_update)
-                product.current_stock -= quantity
-            else:
-                # Sumamos directamente en memoria
-                product.current_stock += quantity
-
-            # 3. Guardamos primero el movimiento (ahora que sabemos que es válido)
-            movement = serializer.save()
-
-            # 4. Guardamos el producto con su nuevo stock modificado
-            product.save()
+        self.perform_create(serializer)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 

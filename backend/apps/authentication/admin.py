@@ -51,7 +51,7 @@ class ProductAdmin(admin.ModelAdmin):
 @admin.register(StockMovement)
 class StockMovementAdmin(admin.ModelAdmin):
     list_display = ('id', 'product', 'get_type_badge', 'quantity', 'timestamp')
-    list_filter = ('type', 'timestamp', 'product')
+    list_filter = ('movement_type', 'timestamp', 'product')
     search_fields = ('product__name',)
     ordering = ('-timestamp',)
     
@@ -60,7 +60,7 @@ class StockMovementAdmin(admin.ModelAdmin):
 
     def get_type_badge(self, obj):
         # CORRECCIÓN: Añadimos marcadores {0} para cumplir la regla estricta de Django 6
-        if obj.type == 'IN':
+        if obj.movement_type == 'IN':
             return format_html('<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "ENTRADA")
         return format_html('<span style="background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "SALIDA")
     get_type_badge.short_description = "Tipo"

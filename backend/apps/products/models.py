@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import models, transaction
+from django.core.exceptions import ValidationError 
 
 # Create your models here.
 class Product(models.Model):
@@ -48,12 +49,48 @@ class Category(models.Model):
 class StockMovement(models.Model):
     TYPES = (('IN', 'Entrada'), ('OUT', 'Salida'))
     product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='stock_movements')
-    type = models.CharField(max_length=3, choices=TYPES)
+    movement_type = models.CharField(max_length=3, choices=TYPES)
     quantity = models.PositiveIntegerField()
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.product.name} - {self.type} - {self.quantity}"
+        return f"{self.product.name} - {self.movement_type} - {self.quantity}"
+
+    def clean(self):
+        super().clean()
+        
+        # Validamos solo si es un registro nuevo y están todos los datos necesarios
+        if not self.pk and self.product_id and self.movement_type == 'OUT' and self.quantity:
+            # Consultamos el stock actual de forma plana para la validación del formulario
+            if self.quantity > self.product.current_stock:
+                raise ValidationError({
+                    "quantity": f"Stock insuficiente. Stock actual disponible: {self.product.current_stock}."
+                })
+
+    def save(self, *args, **kwargs):
+        # Si el registro ya existe, bloqueamos su edición (regla de oro histórica)
+        if self.pk:
+            return
+
+        self.full_clean()
+
+        with transaction.atomic():
+            # 1. Bloqueo la fila del producto INMEDIATAMENTE antes de leer su stock actual
+            product = Product.objects.select_for_update().get(id=self.product_id)
+
+            # 2. Ejecuto la validación de negocio con el stock real y fresco de la base de datos
+            if self.movement_type == 'OUT':
+                # Restamos directamente en memoria (es seguro gracias a select_for_update)
+                product.current_stock -= self.quantity
+            else:
+                # Sumamos directamente en memoria
+                product.current_stock += self.quantity
+
+            # 3. Guardamos primero el movimiento (ahora que sabemos que es válido)
+            product.save()
+
+            # 4. Guardamos el movimiento de stock en la base de datos de forma nativa
+            super().save(*args, **kwargs)
 
     class Meta:
         ordering = ['-timestamp']
