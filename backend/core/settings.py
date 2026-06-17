@@ -139,6 +139,10 @@ REST_FRAMEWORK = {
 
     # Enable filtering by default using django-filter
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
+
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
 }
 
 # Settings for drf-spectacular
