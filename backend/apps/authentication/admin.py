@@ -51,6 +51,7 @@ class ProductAdmin(admin.ModelAdmin):
 @admin.register(StockMovement)
 class StockMovementAdmin(admin.ModelAdmin):
     list_display = ('id', 'product', 'get_type_badge', 'quantity', 'timestamp')
+    list_display_links = ('id', 'product') 
     list_filter = ('movement_type', 'timestamp', 'product')
     search_fields = ('product__name',)
     ordering = ('-timestamp',)

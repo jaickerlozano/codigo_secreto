@@ -16,6 +16,10 @@ class Product(models.Model):
     def __str__(self):
         return self.name
 
+    class Meta:
+        verbose_name_plural = 'Productos'
+        verbose_name = 'Producto'
+
 
 class Supplier(models.Model):
     name = models.CharField(max_length=255)
@@ -27,6 +31,9 @@ class Supplier(models.Model):
     def __str__(self):
         return self.name
 
+    class Meta:
+        verbose_name_plural = 'Proveedores'
+        verbose_name = 'Proveedor'
 
 class Category(models.Model):
     name = models.CharField(max_length=255)
@@ -45,6 +52,10 @@ class Category(models.Model):
             return f"{parent_name} > {category_name}"
             
         return category_name
+
+    class Meta:
+        verbose_name_plural = 'Categorías'
+        verbose_name = 'Categoría'
 
 class StockMovement(models.Model):
     TYPES = (('IN', 'Entrada'), ('OUT', 'Salida'))
@@ -95,5 +106,5 @@ class StockMovement(models.Model):
 
     class Meta:
         ordering = ['-timestamp']
-        verbose_name_plural = 'Stock Movements'
-        verbose_name = 'Stock Movement' 
+        verbose_name_plural = 'Movimientos de Stock'
+        verbose_name = 'Movimiento de Stock' 
