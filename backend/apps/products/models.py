@@ -49,6 +49,7 @@ class Category(models.Model):
 class StockMovement(models.Model):
     TYPES = (('IN', 'Entrada'), ('OUT', 'Salida'))
     product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='stock_movements')
+    description = models.TextField(null=True, blank=True)
     movement_type = models.CharField(max_length=3, choices=TYPES)
     quantity = models.PositiveIntegerField()
     timestamp = models.DateTimeField(auto_now_add=True)

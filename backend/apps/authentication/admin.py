@@ -55,7 +55,12 @@ class StockMovementAdmin(admin.ModelAdmin):
     search_fields = ('product__name',)
     ordering = ('-timestamp',)
     
+    # Bloquea la edición de movimientos existentes en el Admin
     def has_change_permission(self, request, obj=None):
+        return False
+
+    # Bloquea la eliminación de movimientos existentes en el Admin
+    def has_delete_permission(self, request, obj=None):
         return False
 
     def get_type_badge(self, obj):
