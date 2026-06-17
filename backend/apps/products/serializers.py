@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Product, Supplier, Category, StockMovement
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
@@ -42,4 +43,13 @@ class StockMovementSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = StockMovement
-        fields = ['id', 'product', 'type', 'quantity', 'timestamp', 'alert']
+        fields = ['id', 'product', 'movement_type', 'quantity', 'timestamp', 'alert']
+
+    # Captura el error del modelo y lo traduce a formato API (JSON)
+    def create(self, validated_data):
+        try:
+            # Llama al save() inteligente del modelo que ya programamos
+            return super().create(validated_data)
+        except DjangoValidationError as e:
+            # Traduce el error nativo de Django a un ValidationError de Django REST Framework
+            raise serializers.ValidationError(e.message_dict)

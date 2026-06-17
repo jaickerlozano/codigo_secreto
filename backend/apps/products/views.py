@@ -53,7 +53,7 @@ class ProductViewSet(viewsets.ModelViewSet):
             if product.current_stock > 0:
                 StockMovement.objects.create(
                     product=product,
-                    type='IN',
+                    movement_type='IN',
                     quantity=product.current_stock
                 )
                 

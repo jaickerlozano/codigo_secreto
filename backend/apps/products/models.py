@@ -3,15 +3,15 @@ from django.core.exceptions import ValidationError
 
 # Create your models here.
 class Product(models.Model):
-    name = models.CharField(max_length=255)
-    description = models.TextField(null=True, blank=True)
-    category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products')
-    supplier = models.ForeignKey('Supplier', on_delete=models.CASCADE, related_name='products')
+    name = models.CharField(max_length=255, verbose_name='nombre')
+    description = models.TextField(null=True, blank=True, verbose_name='descripción')
+    category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products', verbose_name='categoría')
+    supplier = models.ForeignKey('Supplier', on_delete=models.CASCADE, related_name='products', verbose_name='proveedor')
     current_stock = models.PositiveIntegerField(default=0)
     minimum_stock = models.PositiveIntegerField(default=0)
     price = models.IntegerField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='fecha de actualización')
 
     def __str__(self):
         return self.name
@@ -22,11 +22,11 @@ class Product(models.Model):
 
 
 class Supplier(models.Model):
-    name = models.CharField(max_length=255)
-    contact = models.CharField(max_length=255)
-    email = models.EmailField()
-    phone = models.CharField(max_length=20)
-    address = models.TextField()
+    name = models.CharField(max_length=255, verbose_name='nombre')
+    contact = models.CharField(max_length=255, verbose_name='contacto')
+    email = models.EmailField(verbose_name='correo electrónico')
+    phone = models.CharField(max_length=20, verbose_name='teléfono')
+    address = models.TextField(verbose_name='dirección')
 
     def __str__(self):
         return self.name
@@ -36,11 +36,11 @@ class Supplier(models.Model):
         verbose_name = 'Proveedor'
 
 class Category(models.Model):
-    name = models.CharField(max_length=255)
-    description = models.TextField(null=True, blank=True)
+    name = models.CharField(max_length=255, verbose_name='nombre')
+    description = models.TextField(null=True, blank=True, verbose_name='descripción')
 
     # Este campo será para crear la jerarquía de categorías. Si es null, es una categoría raíz. Si tiene valor, es una subcategoría de la categoría indicada.
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories', verbose_name='categoría padre')
 
     def __str__(self):
         category_name = self.name or "Categoría sin nombre"
@@ -59,11 +59,11 @@ class Category(models.Model):
 
 class StockMovement(models.Model):
     TYPES = (('IN', 'Entrada'), ('OUT', 'Salida'))
-    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='stock_movements')
-    description = models.TextField(null=True, blank=True)
-    movement_type = models.CharField(max_length=3, choices=TYPES)
-    quantity = models.PositiveIntegerField()
-    timestamp = models.DateTimeField(auto_now_add=True)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='stock_movements', verbose_name='producto')
+    description = models.TextField(null=True, blank=True, verbose_name='descripción')
+    movement_type = models.CharField(max_length=3, choices=TYPES, verbose_name='tipo de movimiento')
+    quantity = models.PositiveIntegerField(verbose_name='cantidad')
+    timestamp = models.DateTimeField(auto_now_add=True, verbose_name='fecha y hora')
 
     def __str__(self):
         return f"{self.product.name} - {self.movement_type} - {self.quantity}"
