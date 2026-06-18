@@ -46,3 +46,13 @@ class RegisterSerializer(serializers.ModelSerializer):
             CustomerProfile.objects.create(user=user)
             
         return user
+
+
+class UserMeSerializer(serializers.ModelSerializer):
+    # Campo booleano explícito para que el frontend sepa si mostrarle o no el panel de administración
+    is_admin = serializers.BooleanField(source='is_staff', read_only=True)
+
+    class Meta:
+        model = User
+        # Entregamos datos limpios de identidad, excluyendo contraseñas por seguridad
+        fields = ('id', 'first_name', 'last_name', 'email', 'rut', 'phone', 'is_admin')

@@ -2,8 +2,9 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
-from .serializers import RegisterSerializer
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from .serializers import RegisterSerializer, UserMeSerializer
+from rest_framework.views import APIView
 
 # Create your views here.
 @extend_schema(
@@ -51,3 +52,21 @@ class RegisterView(generics.CreateAPIView):
         return Response({
             "message": "Usuario registrado con éxito de forma segura."
         }, status=status.HTTP_201_CREATED)
+
+
+class UserMeView(APIView):
+    """
+    Endpoint protegido para obtener la información detallada del usuario autenticado actual.
+    """
+    permission_classes = [IsAuthenticated] # OBLIGATORIO: Bloquea el acceso a invitados
+
+    @extend_schema(
+        summary="Obtener perfil del usuario autenticado",
+        description="Lee el token JWT enviado en las cabeceras y devuelve los datos personales del usuario conectado.",
+        tags=["Autenticación"],
+        responses={200: UserMeSerializer}
+    )
+    def get(self, request):
+        # request.user contiene automáticamente al usuario dueño del token JWT
+        serializer = UserMeSerializer(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)

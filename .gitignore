@@ -175,3 +175,6 @@ Desktop.ini
 .gga
 .atl
 AGENTS.md
+
+# Bloquear carpeta de pruebas locales de la API con credenciales
+backend/api_requests/
