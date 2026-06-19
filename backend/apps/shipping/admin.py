@@ -12,7 +12,7 @@ class RegionAdmin(admin.ModelAdmin):
     ordering = ('ordinal_number',)
     # Permite ver y editar todas las comunas de una región en la misma pantalla
     inlines = [ComunaInline]
-
+    list_display_links = ['id', 'name']
 
 @admin.register(Comuna)
 class ComunaAdmin(admin.ModelAdmin):
@@ -20,6 +20,7 @@ class ComunaAdmin(admin.ModelAdmin):
     list_filter = ('region', 'is_active')
     search_fields = ('name', 'region__name')
     list_editable = ('is_active',) # Permite activar/desactivar comunas directo desde la lista
+    list_display_links = ['id', 'name']
 
     def price_clp(self, obj):
         return f"${obj.shipping_cost:,}".replace(",", ".")

@@ -13,6 +13,7 @@ class Region(models.Model):
         ordering = ['ordinal_number']
         verbose_name = 'Región'
         verbose_name_plural = 'Regiones'
+        
 
 
 class Comuna(models.Model):
