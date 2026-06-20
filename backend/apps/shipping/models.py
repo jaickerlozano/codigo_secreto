@@ -15,7 +15,6 @@ class Region(models.Model):
         verbose_name_plural = 'Regiones'
         
 
-
 class Comuna(models.Model):
     name = models.CharField(max_length=100, verbose_name='nombre')
     # Cada comuna pertenece obligatoriamente a una única región

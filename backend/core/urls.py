@@ -1,15 +1,21 @@
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
+from rest_framework.routers import SimpleRouter
 from apps.products.views import ProductViewSet, SupplierViewSet, CategoryViewSet, StockMovementViewSet
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from apps.authentication.views import CustomTokenObtainPairView, CustomTokenRefreshView, RegisterView, UserMeView
+from apps.shipping.views import RegionViewSet, ComunaViewSet
 
+router = SimpleRouter()
 router = routers.DefaultRouter()
 router.register(r'products', ProductViewSet, 'products')
 router.register(r'suppliers', SupplierViewSet, 'suppliers')
 router.register(r'categories', CategoryViewSet, 'categories')
 router.register(r'stock-movements', StockMovementViewSet, 'stock_movements')
+router.register(r'shipping/regions', RegionViewSet, basename='region')
+router.register(r'shipping/comunas', ComunaViewSet, basename='comuna')
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
