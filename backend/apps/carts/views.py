@@ -61,3 +61,43 @@ class MyCartView(APIView):
         cart.refresh_from_db()
         # Devolvemos el carrito actualizado
         return Response(CartSerializer(cart).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        summary="Remover o disminuir producto del carrito",
+        description="Recibe un product_id y la cantidad a quitar. Si la cantidad del carro llega a cero o menos, el ítem se elimina por completo.",
+        tags=["Carrito"],
+        request=AddToCartSerializer, # Reutilizamos el mismo serializador para validar la entrada
+        responses={200: CartSerializer}
+    )
+    def delete(self, request):
+        # 1. Validamos los datos de entrada (product_id y quantity a restar)
+        serializer = AddToCartSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        product_id = serializer.validated_data['product_id']
+        quantity_to_subtract = serializer.validated_data['quantity']
+        cart = request.user.cart
+
+        try:
+            # 2. Buscamos si el producto realmente existe en el carro del usuario
+            cart_item = CartItem.objects.get(cart=cart, product_id=product_id)
+            
+            if cart_item.quantity <= quantity_to_subtract:
+                # Si lo que quiere restar es mayor o igual a lo que tiene, borramos el registro completo
+                cart_item.delete()
+            else:
+                # Si aún quedan unidades tras la resta, disminuimos la cantidad de forma segura
+                CartItem.objects.filter(id=cart_item.id).update(
+                    quantity=F('quantity') - quantity_to_subtract
+                )
+            
+            # 3. Refrescamos el carro desde la base de datos para recalcular los subtotales reales
+            cart.refresh_from_db()
+            return Response(CartSerializer(cart).data, status=status.HTTP_200_OK)
+
+        except CartItem.DoesNotExist:
+            # Si intentan restar un producto que no está en el carro, respondemos con un error limpio
+            return Response(
+                {"detail": "El producto seleccionado no se encuentra en tu carrito de compras."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
