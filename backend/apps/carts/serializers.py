@@ -31,3 +31,15 @@ class CartSerializer(serializers.ModelSerializer):
         # Recorremos en un bucle simple de Python todos los ítems asociados a ESTE carro
         # y sumamos sus subtotales de forma aislada y segura.
         return sum(item.subtotal for item in obj.items.all())
+
+
+class AddToCartSerializer(serializers.ModelSerializer):
+    # Validamos que el ID del producto que envía el frontend realmente exista en la tienda
+    product_id = serializers.IntegerField(required=True)
+    quantity = serializers.IntegerField(required=True, min_value=1)
+
+    def validate_product_id(self, value):
+        from apps.products.models import Product
+        if not Product.objects.filter(id=value).exists():
+            raise serializers.ValidationError("El producto seleccionado no existe.")
+        return value
