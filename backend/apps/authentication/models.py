@@ -1,5 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.db.models.signals import post_save # --> Escuchador post guardado
+from django.dispatch import receiver # --> Decorador Receptor
 
 # Modelo de usuario personalizado para permitir campos adicionales como RUT, teléfono, etc.
 # Sirve tanto para clientes como para administradores, diferenciados por el campo is_staff
@@ -27,3 +29,20 @@ class CustomerProfile(models.Model):
 
     def __str__(self):
         return f"Customer Profile for {self.user.email}"
+    
+
+@receiver(post_save, sender=User)
+def create_user_dependencies(sender, instance, created, **kwargs):
+    """
+    Se ejecuta automáticamente MILISEGUNDOS DESPUÉS de que un usuario es guardado.
+    'created' es un booleano que viene en True SOLO cuando el registro es nuevo.
+    """
+    if created:
+        # Importamos localmente para evitar importaciones circulares en Python
+        from apps.carts.models import Cart
+
+        # 1. Creamos su perfil de despacho (sustituye cualquier lógica manual previa)
+        CustomerProfile.objects.get_or_create(user=instance)
+
+        # 2. Creamos su carro de compras único y personal
+        Cart.objects.get_or_create(user=instance)
