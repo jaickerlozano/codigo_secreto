@@ -33,7 +33,7 @@ class CartSerializer(serializers.ModelSerializer):
         return sum(item.subtotal for item in obj.items.all())
 
 
-class AddToCartSerializer(serializers.ModelSerializer):
+class AddToCartSerializer(serializers.Serializer):
     # Validamos que el ID del producto que envía el frontend realmente exista en la tienda
     product_id = serializers.IntegerField(required=True)
     quantity = serializers.IntegerField(required=True, min_value=1)

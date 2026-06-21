@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema
 from .models import Cart, CartItem
 from .serializers import CartSerializer, AddToCartSerializer
+from django.db.models import F
 
 
 # Create your views here.
@@ -36,22 +37,27 @@ class MyCartView(APIView):
         # 1. Validamos los datos de entrada con el serializador auxiliar
         serializer = AddToCartSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
+        
         product_id = serializer.validated_data['product_id']
         quantity = serializer.validated_data['quantity']
-        cart = request.user.cart # Carro del cliente actual
-        
+        cart = request.user.cart
+
         # 2. APLICAMOS TU LÓGICA: Buscamos si el producto ya existe en ESTE carro
         cart_item, created = CartItem.objects.get_or_create(
             cart=cart,
             product_id=product_id,
-            defaults={'quantity': quantity} # Si es nuevo, se guarda con esta cantidad inicial
+            defaults={'quantity': quantity}
         )
 
         if not created:
-            # Si NO es nuevo (ya existía), sumamos la cantidad que envió el frontend
-            cart_item.quantity += quantity
-            cart_item.save()
-        
-        # 3. Devolvemos el carrito completo actualizado con el formato del CartSerializer
+            # CORRECCIÓN EXTRA SEGURA: Actualizamos directo en la BD con filter y update
+            # Esto se salta cualquier bloqueo del método save() y fuerza la suma inmediata
+            CartItem.objects.filter(id=cart_item.id).update(
+                quantity=F('quantity') + quantity
+            )
+
+        # 🔥 CORRECCIÓN CRUCIAL: Obligamos al objeto 'cart' a borrar su caché en memoria
+        # y traer los datos frescos y sumados desde la base de datos SQL.
+        cart.refresh_from_db()
+        # Devolvemos el carrito actualizado
         return Response(CartSerializer(cart).data, status=status.HTTP_201_CREATED)
