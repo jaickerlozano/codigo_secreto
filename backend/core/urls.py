@@ -6,6 +6,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, Spec
 from apps.authentication.views import CustomTokenObtainPairView, CustomTokenRefreshView, RegisterView, UserMeView
 from apps.shipping.views import RegionViewSet, ComunaViewSet
 from apps.carts.views import MyCartView 
+from apps.orders.views import OrderViewSet
 
 # Configuración limpia del Router (Solo para ViewSets)
 router = routers.DefaultRouter()
@@ -15,6 +16,7 @@ router.register(r'categories', CategoryViewSet, 'categories')
 router.register(r'stock-movements', StockMovementViewSet, 'stock_movements')
 router.register(r'shipping/regions', RegionViewSet, basename='region')
 router.register(r'shipping/comunas', ComunaViewSet, basename='comuna')
+router.register(r'orders', OrderViewSet, basename='orders')
 
 urlpatterns = [
     path('admin/', admin.site.urls),

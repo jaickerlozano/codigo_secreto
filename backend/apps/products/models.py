@@ -2,6 +2,7 @@ from django.db import models, transaction
 from django.core.exceptions import ValidationError 
 
 # Create your models here.
+
 class Product(models.Model):
     name = models.CharField(max_length=255, verbose_name='nombre')
     description = models.TextField(null=True, blank=True, verbose_name='descripción')

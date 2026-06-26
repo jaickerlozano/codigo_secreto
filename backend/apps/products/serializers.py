@@ -48,7 +48,7 @@ class StockMovementSerializer(serializers.ModelSerializer):
     # Captura el error del modelo y lo traduce a formato API (JSON)
     def create(self, validated_data):
         try:
-            # Llama al save() inteligente del modelo que ya programamos
+            # Llama al save() inteligente del modelo que ya programé
             return super().create(validated_data)
         except DjangoValidationError as e:
             # Traduce el error nativo de Django a un ValidationError de Django REST Framework
