@@ -1,53 +1,101 @@
 from rest_framework import serializers
 from django.db import transaction
-from apps.carts.models import Cart
+from apps.products.models import Product
 from .models import Order, OrderItem
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    """Molde para ver los productos ya comprados y congelados"""
     class Meta:
         model = OrderItem
         fields = ['id', 'product_id', 'product_name', 'price', 'quantity', 'subtotal']
 
 
 class OrderSerializer(serializers.ModelSerializer):
-    # Mostramos los ítems del pedido usando el serializador de arriba
     items = OrderItemSerializer(many=True, read_only=True)
+    
+    # NUEVO: El frontend debe enviar la lista de productos solo si compra como invitado
+    guest_items = serializers.JSONField(write_only=True, required=False, help_text="Lista de productos para invitados")
 
     class Meta:
         model = Order
-        # Campos que el frontend completará en el formulario, y los que Django calculará solos
         fields = [
             'id', 'phone', 'comuna', 'shipping_address', 'apartment_office', 
+            'guest_email', 'guest_name', 'guest_items',
             'subtotal', 'shipping_cost', 'total', 'status', 'created_at', 'items'
         ]
-        # Estos campos los calcula el backend en base al carrito; el frontend NO los puede digitar
         read_only_fields = ['subtotal', 'shipping_cost', 'total', 'status', 'created_at']
 
-    def create(self, validated_data):
-        # 1. Conseguimos al usuario que está comprando a través del contexto de la petición de DRF
+    def validate(self, attrs):
         user = self.context['request'].user
         
-        # 2. Obtenemos su carrito de compras de la Base de Datos
-        cart = user.cart
-        cart_items = cart.items.all()
+        # SI ES INVITADO (No está autenticado)
+        if not user or user.is_anonymous:
+            if not attrs.get('guest_email') or not attrs.get('guest_name'):
+                raise serializers.ValidationError({
+                    "detail": "Para compras como invitado, el correo y el nombre son obligatorios."
+                })
+            if not attrs.get('guest_items'):
+                raise serializers.ValidationError({
+                    "guest_items": "Debes enviar la lista de productos del carrito local."
+                })
+        return attrs
 
-        # Si el carrito está vacío, detenemos la operación de inmediato
-        if not cart_items.exists():
-            raise serializers.ValidationError({"detail": "No puedes crear un pedido con el carrito vacío."})
-
-        # 3. Calculamos los montos financieros en base a su carro y la comuna elegida
+    def create(self, validated_data):
+        user = self.context['request'].user
         comuna_seleccionada = validated_data['comuna']
-        
-        subtotal_productos = sum(item.subtotal for item in cart_items)
         costo_envio_chile = comuna_seleccionada.shipping_cost
+        
+        # Inicializamos variables para el bucle de clonación
+        productos_a_comprar = []
+        subtotal_productos = 0
+
+        # LÓGICA RUTA A: USUARIO REGISTRADO (Usa el carro de la Base de Datos)
+        if user and user.is_authenticated:
+            cart = user.cart
+            cart_items = cart.items.all()
+
+            if not cart_items.exists():
+                raise serializers.ValidationError({"detail": "No puedes crear un pedido con el carrito vacío."})
+
+            subtotal_productos = sum(item.subtotal for item in cart_items)
+            
+            for item in cart_items:
+                productos_a_comprar.append({
+                    'product': item.product,
+                    'name': item.product.name,
+                    'price': item.product.price,
+                    'quantity': item.quantity
+                })
+        
+        # LÓGICA RUTA B: INVITADO ANÓNIMO (Lee la lista del LocalStorage que envía el Frontend)
+        else:
+            guest_items = validated_data.pop('guest_items')
+            for item in guest_items:
+                try:
+                    product = Product.objects.get(id=item['product_id'])
+                    quantity = int(item['quantity'])
+                    
+                    if quantity < 1:
+                        continue
+                        
+                    subtotal_productos += (product.price * quantity)
+                    productos_a_comprar.append({
+                        'product': product,
+                        'name': product.name,
+                        'price': product.price,
+                        'quantity': quantity
+                    })
+                except (Product.DoesNotExist, KeyError, ValueError):
+                    raise serializers.ValidationError({"guest_items": "Uno de los productos enviados no es válido."})
+
         total_final = subtotal_productos + costo_envio_chile
 
-        # 4. Iniciamos un bloque atómico para asegurar que se guarde TODO o NADA si hay un fallo eléctrico
+        # PROCESO DE GUARDADO ATÓMICO (Sirve para ambos casos)
         with transaction.atomic():
-            # Creamos la cabecera del Pedido asociándolo al usuario actual
             order = Order.objects.create(
-                user=user,
+                # CORRECCIÓN: Evaluamos de forma segura si el usuario está autenticado
+                user=user if user.is_authenticated else None,
+                guest_email=validated_data.get('guest_email'),
+                guest_name=validated_data.get('guest_name'),
                 phone=validated_data['phone'],
                 comuna=comuna_seleccionada,
                 shipping_address=validated_data['shipping_address'],
@@ -57,17 +105,19 @@ class OrderSerializer(serializers.ModelSerializer):
                 total=total_final
             )
 
-            # 5. REGLA DE ORO: Clonamos y congelamos cada producto del carrito dentro del pedido
-            for item in cart_items:
+            # Clonamos y congelamos los productos recolectados
+            for prod in productos_a_comprar:
                 OrderItem.objects.create(
                     order=order,
-                    product=item.product,
-                    product_name=item.product.name, # Congelamos el nombre por si cambia mañana
-                    price=item.product.price,       # Congelamos el precio de este milisegundo
-                    quantity=item.quantity
+                    product=prod['product'],
+                    product_name=prod['name'],
+                    price=prod['price'],
+                    quantity=prod['quantity']
                 )
 
-            # 6. Una vez que el pedido se guardó a salvo, VACIAMOS el carro del cliente automáticamente
-            cart_items.delete()
+            # Si era un usuario registrado, limpiamos su carro de la BD
+            if user and user.is_authenticated:
+                cart_items.delete()
 
         return order
+

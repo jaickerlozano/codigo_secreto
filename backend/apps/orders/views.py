@@ -1,9 +1,8 @@
 from rest_framework import viewsets, mixins
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from .models import Order
 from .serializers import OrderSerializer
 
-# Habilitamos solo lectura (List/Retrieve) y creación (Create). No se permiten ediciones ni eliminaciones históricas.
 class OrderViewSet(mixins.CreateModelMixin,
                    mixins.RetrieveModelMixin,
                    mixins.ListModelMixin,
@@ -11,11 +10,19 @@ class OrderViewSet(mixins.CreateModelMixin,
     
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
-    permission_classes = [IsAuthenticated] # 🛡️ Solo clientes logueados pueden comprar
+
+    def get_permissions(self):
+        """
+        Permite que CUALQUIERA (incluidos invitados) pueda hacer un POST para comprar.
+        Pero exige estar Autenticado para ver la lista de pedidos del historial.
+        """
+        if self.action == 'create':
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     def get_queryset(self):
-        # Medida de seguridad: Si es superusuario, puede ver todas las órdenes de la tienda.
-        # Si es un cliente común, SOLO puede ver su propio historial de pedidos.
+        # Los administradores ven todo. Los clientes registrados solo ven lo suyo.
+        # Los invitados no tienen historial ejecutable por GET masivo.
         if self.request.user.is_staff:
             return Order.objects.all()
         return Order.objects.filter(user=self.request.user)
