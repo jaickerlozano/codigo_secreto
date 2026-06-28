@@ -7,6 +7,7 @@ from apps.authentication.views import CustomTokenObtainPairView, CustomTokenRefr
 from apps.shipping.views import RegionViewSet, ComunaViewSet
 from apps.carts.views import MyCartView 
 from apps.orders.views import OrderViewSet
+from apps.payments.views import InitiatePaymentView
 
 # Configuración limpia del Router (Solo para ViewSets)
 router = routers.DefaultRouter()
@@ -30,6 +31,9 @@ urlpatterns = [
     
     # Ruta manual para la APIView del carrito de compras
     path('api/cart/me/', MyCartView.as_view(), name='my_cart'),
+
+    # Ruta manual para la APIView del inicio de pago
+    path('api/payments/initiate/', InitiatePaymentView.as_view(), name='payment_initiate'),
     
     # Swagger / OpenAPI schema endpoints
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
