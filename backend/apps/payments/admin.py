@@ -22,8 +22,10 @@ class TransactionAdmin(admin.ModelAdmin):
     def status_badge(self, obj):
         from django.utils.html import format_html
         if obj.status == 'APPROVED':
-            return format_html('<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 4px; font-weight: bold;">APROBADO</span>')
+            # Inyectamos el texto pasándolo como argumento seguro después de la coma utilizando {0}
+            return format_html('<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "APROBADO")
         elif obj.status == 'REJECTED':
-            return format_html('<span style="background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 4px; font-weight: bold;">RECHAZADO</span>')
-        return format_html('<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 4px; font-weight: bold;">PENDIENTE</span>')
+            return format_html('<span style="background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "RECHAZADO")
+        
+        return format_html('<span style="background: #fff3cd; color: #856404; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "PENDIENTE")
     status_badge.short_description = "Estado"
