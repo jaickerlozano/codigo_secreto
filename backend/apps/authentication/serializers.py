@@ -32,6 +32,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             email = validated_data['email']
             
             # Creamos el usuario utilizando el método seguro create_user (encripta la contraseña)
+            # El signal post_save se encarga automáticamente de crear CustomerProfile y Cart
             user = User.objects.create_user(
                 username=email,
                 email=email,
@@ -41,9 +42,6 @@ class RegisterSerializer(serializers.ModelSerializer):
                 phone=validated_data.get('phone', ''),
                 password=validated_data['password']
             )
-            
-            # Creamos automáticamente su perfil de despacho enlazado y vacío
-            CustomerProfile.objects.create(user=user)
             
         return user
 
