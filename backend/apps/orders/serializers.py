@@ -92,7 +92,7 @@ class OrderSerializer(serializers.ModelSerializer):
         # PROCESO DE GUARDADO ATÓMICO (Sirve para ambos casos)
         with transaction.atomic():
             order = Order.objects.create(
-                # CORRECCIÓN: Evaluamos de forma segura si el usuario está autenticado
+                # Evaluamos de forma segura si el usuario está autenticado
                 user=user if user.is_authenticated else None,
                 guest_email=validated_data.get('guest_email'),
                 guest_name=validated_data.get('guest_name'),
