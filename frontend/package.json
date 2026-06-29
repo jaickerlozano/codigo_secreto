@@ -9,9 +9,13 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "api:gen": "openapi-typescript ${VITE_API_URL:-http://localhost:8000}/api/schema/ -o src/api/schema.d.ts"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.101.2",
+    "openapi-fetch": "^0.17.0",
+    "openapi-react-query": "^0.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
@@ -26,6 +30,7 @@
     "@vitest/coverage-v8": "^4.1.9",
     "jsdom": "^29.1.1",
     "msw": "^2.14.6",
+    "openapi-typescript": "^7.13.0",
     "oxlint": "^1.69.0",
     "tailwindcss": "^4.3.2",
     "typescript": "~6.0.2",
