@@ -1,5 +1,7 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
 
+import { LoginPage } from '@/features/auth'
+
 import App from './App'
 
 export const routes: RouteObject[] = [
@@ -18,12 +20,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'login',
-        element: (
-          <section className="mx-auto max-w-md rounded-xl border border-base-700 bg-base-800 p-8 text-center">
-            <h1 className="mb-4 text-2xl font-bold text-neon-magenta-500">Iniciar sesión</h1>
-            <p className="text-base-300">Formulario de login próximamente.</p>
-          </section>
-        ),
+        element: <LoginPage />,
       },
       {
         path: '*',
