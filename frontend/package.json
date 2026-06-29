@@ -18,6 +18,7 @@
     "openapi-react-query": "^0.5.4",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-error-boundary": "^6.1.2",
     "react-router": "^7.18.1"
   },
   "devDependencies": {
