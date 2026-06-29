@@ -11,6 +11,7 @@ class Product(models.Model):
     current_stock = models.PositiveIntegerField(default=0)
     minimum_stock = models.PositiveIntegerField(default=0)
     price = models.IntegerField()
+    image = models.ImageField(upload_to='products/', blank=True, null=True, verbose_name='imagen')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='fecha de actualización')
 
