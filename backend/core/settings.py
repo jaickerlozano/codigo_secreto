@@ -148,8 +148,17 @@ REST_FRAMEWORK = {
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
 
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "apps.authentication.authentication.CookieJWTAuthentication",
     ),
+}
+
+SIMPLE_JWT = {
+    "JWT_AUTH_COOKIE": "access_token",
+    "JWT_AUTH_REFRESH_COOKIE": "refresh_token",
+    "JWT_AUTH_HTTPONLY": True,
+    "JWT_COOKIE_SECURE": False,  # Dev: True en producción con HTTPS
+    "JWT_COOKIE_SAMESITE": "Lax",
+    "JWT_COOKIE_PATH": "/",
 }
 
 # Settings for drf-spectacular
