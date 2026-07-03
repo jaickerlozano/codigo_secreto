@@ -66,6 +66,20 @@
   --shadow-glow-lime: 0 0 24px rgba(163, 230, 53, 0.4);
 }
 
+:root {
+  /* Brand gradient - fuchsia to violet */
+  --gradient-brand: linear-gradient(135deg, #ff2bd6, #a855f7);
+  --gradient-brand-hover: linear-gradient(135deg, #ff4ddb, #b56df8);
+
+  /* Glow effects */
+  --shadow-glow-brand: 0 0 24px rgba(255, 43, 214, 0.4);
+  --shadow-glow-brand-sm: 0 0 12px rgba(255, 43, 214, 0.3);
+  --shadow-glow-cyan: 0 0 24px rgba(0, 240, 255, 0.4);
+
+  /* Circuit overlay pattern (used in AgeGate and Hero) */
+  --circuit-overlay: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
 html {
   color-scheme: dark;
 }
