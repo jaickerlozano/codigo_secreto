@@ -119,7 +119,7 @@ export function useProductFilters({
     }
 
     return result
-  }, [selectedCategories, experience, priceRange, sort, availableRange])
+  }, [selectedCategories, experience, priceRange, sort])
 
   return {
     filteredProducts,

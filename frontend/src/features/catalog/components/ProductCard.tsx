@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { motion } from 'motion/react'
 import { Check, Eye } from 'lucide-react'
 
@@ -51,6 +52,12 @@ export function ProductCard({
       transition={{ duration: 0.2 }}
       className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-neon-magenta/40 hover:shadow-[0_0_24px_rgba(255,43,214,0.12)]"
     >
+      <Link
+        to={`/product/${product.id}`}
+        className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        aria-label={`Ver detalles de ${product.name}`}
+      />
+
       <div
         className={`relative flex aspect-square items-center justify-center overflow-hidden bg-gradient-to-br ${product.gradient}`}
       >
@@ -67,7 +74,7 @@ export function ProductCard({
           }}
           aria-hidden="true"
         />
-        <div className="absolute inset-0 flex items-center justify-center gap-3 bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+        <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <button
             type="button"
             onClick={() => onQuickView(product)}
@@ -135,7 +142,7 @@ export function ProductCard({
         <button
           type="button"
           onClick={handleAdd}
-          className={`w-full rounded-xl py-2.5 text-[13px] font-bold uppercase tracking-wide transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
+          className={`relative z-10 w-full rounded-xl py-2.5 text-[13px] font-bold uppercase tracking-wide transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
             added
               ? 'bg-neon-lime text-background'
               : 'text-white hover:shadow-[0_0_18px_rgba(255,43,214,0.45)]'

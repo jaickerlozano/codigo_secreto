@@ -1,14 +1,23 @@
 import { render, screen } from '@testing-library/react'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 
 import { PRODUCTS } from '../data/products'
 import { ProductCard } from './ProductCard'
 
+function renderWithRouter(ui: React.ReactNode) {
+  const router = createMemoryRouter(
+    [{ path: '/', element: ui }],
+    { initialEntries: ['/'] },
+  )
+  return render(<RouterProvider router={router} />)
+}
+
 describe('ProductCard', () => {
   it('renders product name, price and add-to-cart button', () => {
     const product = PRODUCTS[0]
 
-    render(
+    renderWithRouter(
       <ProductCard
         product={product}
         onAddToCart={vi.fn()}

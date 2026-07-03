@@ -9,7 +9,7 @@ import {
   Truck,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
 const ORDER_STORAGE_KEY = 'cs-last-order'
 
@@ -216,6 +216,22 @@ export function ConfirmationPage() {
         >
           Volver al inicio
         </motion.button>
+
+        {orderNumber && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7 }}
+            className="mt-4"
+          >
+            <Link
+              to={`/order/${orderNumber}`}
+              className="block w-full rounded-xl border border-neon-cyan/40 bg-transparent py-3.5 text-center text-sm font-bold uppercase tracking-wide text-neon-cyan transition-all hover:border-neon-cyan hover:bg-neon-cyan/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan"
+            >
+              Rastrear mi pedido
+            </Link>
+          </motion.div>
+        )}
       </motion.div>
     </main>
   )

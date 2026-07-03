@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { Link } from 'react-router'
 
 import { useCartStore } from '@/features/cart'
 
-import type { Category, Product } from '../types'
+import type { Product } from '../types'
 import { CATEGORIES, PRODUCTS, REVIEWS } from '../data'
 import { CategoryGrid } from '../components/CategoryGrid'
 import { ProductCard } from '../components/ProductCard'
@@ -17,59 +17,40 @@ import { TrustSection } from '../components/sections/TrustSection'
 export function HomePage() {
   const [selectedProduct, setSelectedProduct] =
     useState<Product | null>(null)
-  const [activeCategory, setActiveCategory] = useState<string | null>(
-    null,
-  )
   const addItem = useCartStore((state) => state.addItem)
-
-  const filteredProducts = activeCategory
-    ? PRODUCTS.filter((product) => product.category === activeCategory)
-    : PRODUCTS
 
   const handleAddToCart = (product: Product) => {
     addItem(product)
-  }
-
-  const handleCategoryClick = (category: Category) => {
-    setActiveCategory((previous) =>
-      previous === category.id ? null : category.id,
-    )
   }
 
   return (
     <div className="flex flex-col">
       <HeroSection />
       <BenefitsSection />
-      <CategoryGrid
-        categories={CATEGORIES}
-        activeCategoryId={activeCategory ?? undefined}
-        onCategoryClick={handleCategoryClick}
-      />
+
+      <CategoryGrid categories={CATEGORIES} viewAllHref="/category/todos" />
 
       <section id="catalogo" className="py-8 px-4 pb-20" aria-label="Productos">
         <div className="mx-auto max-w-6xl">
           <div className="mb-8 flex items-end justify-between">
             <div>
               <h2 className="text-2xl font-extrabold uppercase tracking-wide text-foreground">
-                {activeCategory ?? 'Los más vendidos'}
+                Los más vendidos
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {filteredProducts.length} productos
+                {PRODUCTS.length} productos
               </p>
             </div>
-            {activeCategory && (
-              <button
-                type="button"
-                onClick={() => setActiveCategory(null)}
-                className="flex items-center gap-1.5 rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <X size={12} /> Limpiar filtro
-              </button>
-            )}
+            <Link
+              to="/category/todos"
+              className="text-xs font-semibold text-neon-magenta transition-colors hover:text-neon-magenta/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Ver todos
+            </Link>
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {filteredProducts.map((product) => (
+            {PRODUCTS.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
