@@ -19,7 +19,7 @@ describe('ProductModal', () => {
       document.querySelector('[role="dialog"]'),
     ).toBeTruthy()
     expect(
-      document.body.contains(screen.getByText(PRODUCTS[0].name)),
-    ).toBe(true)
+      screen.getByRole('button', { name: /Agregar al carrito/i }),
+    ).toBeDefined()
   })
 })

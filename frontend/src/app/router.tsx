@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
 
 import { LoginPage } from '@/features/auth'
+import { HomePage } from '@/features/catalog'
 
 import App from './App'
 
@@ -11,12 +12,7 @@ export const routes: RouteObject[] = [
     children: [
       {
         index: true,
-        element: (
-          <section className="rounded-xl border border-base-700 bg-base-800 p-8 text-center">
-            <h1 className="mb-4 text-3xl font-bold text-neon-cyan-500">Código Secreto</h1>
-            <p className="text-base-300">Bienvenido a la tienda.</p>
-          </section>
-        ),
+        element: <HomePage />,
       },
       {
         path: 'login',

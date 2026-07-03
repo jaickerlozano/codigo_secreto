@@ -12,12 +12,14 @@ function renderWithProviders(ui: React.ReactNode) {
 }
 
 describe('router', () => {
-  it('renders the home placeholder at /', () => {
+  it('renders the home catalog at /', () => {
     const router = createMemoryRouter(routes, { initialEntries: ['/'] })
     renderWithProviders(<RouterProvider router={router} />)
 
-    expect(screen.getByRole('heading', { name: 'Código Secreto' })).toBeDefined()
-    expect(screen.getByText('Bienvenido a la tienda.')).toBeDefined()
+    expect(
+      screen.getByRole('heading', { name: 'Categorías destacadas' }),
+    ).toBeDefined()
+    expect(screen.getByText('Los más vendidos')).toBeDefined()
   })
 
   it('renders the login page at /login', () => {
