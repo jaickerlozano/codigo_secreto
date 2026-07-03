@@ -1,9 +1,10 @@
-import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
+import { createBrowserRouter, type RouteObject } from 'react-router'
 
 import { LoginPage } from '@/features/auth'
 import { CategoryPage, HomePage, ProductDetailPage } from '@/features/catalog'
 import { CheckoutPage } from '@/features/checkout'
 import { ConfirmationPage, OrderTrackingPage } from '@/features/orders'
+import { NotFoundPage } from '@/pages/NotFoundPage'
 
 import App from './App'
 
@@ -42,7 +43,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: '*',
-        element: <Navigate to="/" replace />,
+        element: <NotFoundPage />,
       },
     ],
   },
