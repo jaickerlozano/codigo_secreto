@@ -1,4 +1,5 @@
 @import './fonts.css';
+@import './animations.css';
 @import "tailwindcss";
 
 @theme {
@@ -94,4 +95,31 @@ body {
 
 #root {
   min-height: 100svh;
+}
+
+/* Final utility helpers */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Focus ring consistent with the neon theme */
+.focus-ring-neon {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-ring);
+}
+
+/* Reduced motion: disable CSS transitions globally for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
