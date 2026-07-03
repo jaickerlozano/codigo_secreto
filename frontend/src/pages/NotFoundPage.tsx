@@ -3,8 +3,10 @@ import { Link } from 'react-router'
 import { Home, Search } from 'lucide-react'
 
 import { SEO } from '@/components/SEO'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 
 export function NotFoundPage() {
+  const prefersReduced = useReducedMotion()
   return (
     <main
       id="main-content"
@@ -18,9 +20,9 @@ export function NotFoundPage() {
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={prefersReduced ? false : { opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        transition={prefersReduced ? { duration: 0 } : { duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
         className="relative z-10 w-full max-w-md"
       >
         <h1

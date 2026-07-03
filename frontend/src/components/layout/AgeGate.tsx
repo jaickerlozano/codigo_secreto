@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { LogoBadge } from '@/components/brand/CSLogo'
 
 interface AgeGateProps {
@@ -11,6 +12,7 @@ const STORAGE_KEY = 'cs-age-verified'
 
 export function AgeGate({ onAccept }: AgeGateProps) {
   const [visible, setVisible] = useState(false)
+  const prefersReduced = useReducedMotion()
 
   useEffect(() => {
     const verified = window.localStorage.getItem(STORAGE_KEY)
@@ -34,10 +36,10 @@ export function AgeGate({ onAccept }: AgeGateProps) {
       {visible && (
         <motion.div
           key="age-gate"
-          initial={{ opacity: 0 }}
+          initial={prefersReduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.35 }}
+          transition={prefersReduced ? { duration: 0 } : { duration: 0.35 }}
           className="fixed inset-0 z-[9999] flex items-center justify-center bg-background px-4"
           role="dialog"
           aria-modal="true"

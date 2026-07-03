@@ -1,5 +1,7 @@
 import { Check } from 'lucide-react'
 
+import { useReducedMotion } from '@/hooks/useReducedMotion'
+
 import type { CheckoutStep } from '../types'
 
 interface CheckoutProgressProps {
@@ -14,6 +16,7 @@ export function CheckoutProgress({
   totalSteps = 5,
 }: CheckoutProgressProps) {
   const labels = STEP_LABELS.slice(0, totalSteps)
+  const prefersReduced = useReducedMotion()
 
   return (
     <nav aria-label="Progreso del checkout" className="mb-10 px-2">
@@ -25,7 +28,7 @@ export function CheckoutProgress({
         />
         {/* Active connecting line */}
         <li
-          className="absolute top-4 left-0 hidden h-px bg-neon-magenta transition-all duration-500 md:block"
+          className={`absolute top-4 left-0 hidden h-px bg-neon-magenta md:block ${prefersReduced ? '' : 'transition-all duration-500'}`}
           style={{ width: `${((currentStep - 1) / (totalSteps - 1)) * 100}%` }}
           aria-hidden="true"
         />
@@ -41,7 +44,9 @@ export function CheckoutProgress({
               className="relative z-10 flex flex-1 flex-col items-center gap-2"
             >
               <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
+                  prefersReduced ? '' : 'transition-all'
+                } ${
                   isCompleted || isCurrent
                     ? 'text-white'
                     : 'bg-secondary text-muted-foreground'

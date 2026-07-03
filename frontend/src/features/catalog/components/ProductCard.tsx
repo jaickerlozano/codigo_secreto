@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { motion } from 'motion/react'
 import { Check, Eye } from 'lucide-react'
 
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
 
 import type { Product } from '../types'
@@ -32,6 +33,7 @@ export function ProductCard({
   onQuickView,
 }: ProductCardProps) {
   const [added, setAdded] = useState(false)
+  const prefersReduced = useReducedMotion()
 
   const discount =
     product.originalPrice && product.originalPrice > 0
@@ -48,8 +50,8 @@ export function ProductCard({
 
   return (
     <motion.article
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.2 }}
+      whileHover={prefersReduced ? undefined : { scale: 1.02 }}
+      transition={prefersReduced ? { duration: 0 } : { duration: 0.2 }}
       className="group relative overflow-hidden rounded-2xl border border-border bg-card hover:border-neon-magenta/40 hover:shadow-[0_0_24px_rgba(255,43,214,0.12)]"
     >
       <Link

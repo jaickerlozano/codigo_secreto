@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Lock, Minus, Package, Plus, ShoppingCart, X } from 'lucide-react'
 
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
 
 import { useCartStore } from '../store'
@@ -25,6 +26,7 @@ export function CartDrawer() {
   const totalItems = getTotalItems()
   const progress = getFreeShippingProgress()
   const remaining = Math.max(30000 - subtotal, 0)
+  const prefersReduced = useReducedMotion()
 
   return (
     <AnimatePresence>
@@ -36,18 +38,23 @@ export function CartDrawer() {
           aria-label="Carrito de compras"
         >
           <motion.div
-            initial={{ opacity: 0 }}
+            initial={prefersReduced ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={prefersReduced ? { duration: 0 } : undefined}
             className="absolute inset-0 bg-black/75 backdrop-blur-sm"
             onClick={closeCart}
             aria-hidden="true"
           />
           <motion.div
-            initial={{ x: '100%' }}
+            initial={prefersReduced ? false : { x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+            transition={
+              prefersReduced
+                ? { duration: 0 }
+                : { type: 'spring', damping: 28, stiffness: 280 }
+            }
             className="relative flex h-full w-full max-w-[400px] flex-col border-l border-white/[0.06] bg-card"
           >
             <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-5">
@@ -184,9 +191,9 @@ export function CartDrawer() {
                     <motion.div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
                       <motion.div
                         className="h-full rounded-full bg-neon-lime"
-                        initial={{ width: 0 }}
+                        initial={prefersReduced ? false : { width: 0 }}
                         animate={{ width: `${progress}%` }}
-                        transition={{ duration: 0.5 }}
+                        transition={prefersReduced ? { duration: 0 } : { duration: 0.5 }}
                         role="progressbar"
                         aria-valuenow={subtotal}
                         aria-valuemin={0}

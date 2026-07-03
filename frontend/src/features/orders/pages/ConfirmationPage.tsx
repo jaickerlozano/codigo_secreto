@@ -11,6 +11,8 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
+import { useReducedMotion } from '@/hooks/useReducedMotion'
+
 const ORDER_STORAGE_KEY = 'cs-last-order'
 
 const TIMELINE = [
@@ -24,6 +26,7 @@ export function ConfirmationPage() {
   const navigate = useNavigate()
   const [orderNumber, setOrderNumber] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const prefersReduced = useReducedMotion()
 
   useEffect(() => {
     const stored = sessionStorage.getItem(ORDER_STORAGE_KEY)
@@ -54,19 +57,19 @@ export function ConfirmationPage() {
       className="flex min-h-screen items-center justify-center px-4 py-16"
     >
       <motion.div
-        initial={{ opacity: 0, y: 30 }}
+        initial={prefersReduced ? false : { opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        transition={prefersReduced ? { duration: 0 } : { duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
         className="w-full max-w-md text-center"
       >
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
+          initial={prefersReduced ? false : { scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.1, duration: 0.4 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.1, duration: 0.4 }}
           className="relative mx-auto mb-8 h-24 w-24"
         >
           <div
-            className="absolute inset-0 animate-ping rounded-full bg-neon-lime/15"
+            className={`absolute inset-0 rounded-full bg-neon-lime/15 ${prefersReduced ? '' : 'animate-ping'}`}
             aria-hidden="true"
           />
           <div className="relative flex h-24 w-24 items-center justify-center rounded-full border border-neon-lime/25 bg-neon-lime/10">
@@ -79,18 +82,18 @@ export function ConfirmationPage() {
         </motion.div>
 
         <motion.h1
-          initial={{ opacity: 0, y: 10 }}
+          initial={prefersReduced ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.2 }}
           className="mb-3 text-3xl font-extrabold uppercase tracking-wide text-foreground"
         >
           ¡Pedido confirmado!
         </motion.h1>
 
         <motion.p
-          initial={{ opacity: 0 }}
+          initial={prefersReduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.3 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.3 }}
           className="mx-auto mb-10 max-w-xs text-sm leading-relaxed text-muted-foreground"
         >
           Recibirás una confirmación discreta en tu email en los próximos
@@ -98,9 +101,9 @@ export function ConfirmationPage() {
         </motion.p>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={prefersReduced ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.35 }}
           className="mb-5 rounded-2xl border border-white/[0.06] bg-card p-6 text-left"
         >
           <div className="mb-5 flex items-center justify-between border-b border-white/[0.06] pb-5">
@@ -151,9 +154,9 @@ export function ConfirmationPage() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={prefersReduced ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.45 }}
           className="mb-8 rounded-2xl border border-white/[0.06] bg-card p-6 text-left"
         >
           <p className="mb-5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
@@ -188,9 +191,9 @@ export function ConfirmationPage() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={prefersReduced ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.55 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.55 }}
           className="mb-8 flex items-start gap-3 rounded-2xl border border-neon-lime/20 bg-neon-lime/10 p-4 text-left"
         >
           <Truck
@@ -206,9 +209,9 @@ export function ConfirmationPage() {
         </motion.div>
 
         <motion.button
-          initial={{ opacity: 0, y: 10 }}
+          initial={prefersReduced ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.6 }}
           type="button"
           onClick={handleGoHome}
           className="w-full rounded-xl py-4 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -219,9 +222,9 @@ export function ConfirmationPage() {
 
         {orderNumber && (
           <motion.div
-            initial={{ opacity: 0 }}
+            initial={prefersReduced ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.7 }}
+            transition={prefersReduced ? { duration: 0 } : { delay: 0.7 }}
             className="mt-4"
           >
             <Link
