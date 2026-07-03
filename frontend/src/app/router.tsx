@@ -3,7 +3,7 @@ import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
 import { LoginPage } from '@/features/auth'
 import { CategoryPage, HomePage, ProductDetailPage } from '@/features/catalog'
 import { CheckoutPage } from '@/features/checkout'
-import { ConfirmationPage } from '@/features/orders'
+import { ConfirmationPage, OrderTrackingPage } from '@/features/orders'
 
 import App from './App'
 
@@ -35,6 +35,10 @@ export const routes: RouteObject[] = [
       {
         path: 'confirmation',
         element: <ConfirmationPage />,
+      },
+      {
+        path: 'order/:orderId',
+        element: <OrderTrackingPage />,
       },
       {
         path: '*',
