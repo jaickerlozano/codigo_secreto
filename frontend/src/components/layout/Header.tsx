@@ -1,10 +1,19 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Heart, Menu, Search, ShoppingCart, User, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 import { CSLogo } from '@/components/brand/CSLogo'
 import { CartDrawer, useCartStore } from '@/features/cart'
+
+const FOCUSABLE_SELECTORS = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ')
 
 interface HeaderProps {
   wishlistCount?: number
@@ -19,6 +28,47 @@ export function Header({
   const navigate = useNavigate()
   const cartCount = useCartStore((state) => state.getTotalItems())
   const toggleCart = useCartStore((state) => state.toggleCart)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (menuOpen) {
+      const firstFocusable = menuRef.current?.querySelector(
+        FOCUSABLE_SELECTORS,
+      ) as HTMLElement | null
+      firstFocusable?.focus()
+    } else {
+      menuButtonRef.current?.focus()
+    }
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (!menuOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !menuRef.current) return
+
+      const focusable = Array.from(
+        menuRef.current.querySelectorAll(FOCUSABLE_SELECTORS),
+      ) as HTMLElement[]
+      if (focusable.length === 0) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [menuOpen])
 
   const handleHome = () => {
     navigate('/')
@@ -102,11 +152,13 @@ export function Header({
             </AnimatePresence>
           </button>
           <button
+            ref={menuButtonRef}
             type="button"
             onClick={() => setMenuOpen(!menuOpen)}
             className="md:hidden p-2.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
             aria-label={menuOpen ? 'Cerrar menú' : 'Abrir menú'}
             aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
           >
             {menuOpen ? <X size={19} /> : <Menu size={19} />}
           </button>
@@ -143,6 +195,8 @@ export function Header({
       <AnimatePresence>
         {menuOpen && (
           <motion.div
+            ref={menuRef}
+            id="mobile-menu"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

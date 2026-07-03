@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -10,9 +10,20 @@ interface AgeGateProps {
 
 const STORAGE_KEY = 'cs-age-verified'
 
+const FOCUSABLE_SELECTORS = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ')
+
 export function AgeGate({ onAccept }: AgeGateProps) {
   const [visible, setVisible] = useState(false)
   const prefersReduced = useReducedMotion()
+  const containerRef = useRef<HTMLDivElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     const verified = window.localStorage.getItem(STORAGE_KEY)
@@ -20,6 +31,46 @@ export function AgeGate({ onAccept }: AgeGateProps) {
       setVisible(true)
     }
   }, [])
+
+  useEffect(() => {
+    if (visible) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement
+      const firstFocusable = containerRef.current?.querySelector(
+        FOCUSABLE_SELECTORS,
+      ) as HTMLElement | null
+      firstFocusable?.focus()
+    } else if (previouslyFocusedRef.current) {
+      previouslyFocusedRef.current.focus()
+    }
+  }, [visible])
+
+  useEffect(() => {
+    if (!visible) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !containerRef.current) return
+
+      const focusable = Array.from(
+        containerRef.current.querySelectorAll(FOCUSABLE_SELECTORS),
+      ) as HTMLElement[]
+      if (focusable.length === 0) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [visible])
 
   const handleAccept = () => {
     window.localStorage.setItem(STORAGE_KEY, 'true')
@@ -35,6 +86,7 @@ export function AgeGate({ onAccept }: AgeGateProps) {
     <AnimatePresence>
       {visible && (
         <motion.div
+          ref={containerRef}
           key="age-gate"
           initial={prefersReduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}

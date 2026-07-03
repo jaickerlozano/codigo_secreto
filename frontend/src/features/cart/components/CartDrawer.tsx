@@ -1,10 +1,20 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Lock, Minus, Package, Plus, ShoppingCart, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
 
 import { useCartStore } from '../store'
+
+const FOCUSABLE_SELECTORS = [
+  'button:not([disabled])',
+  'a[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(', ')
 
 export function CartDrawer() {
   const {
@@ -27,6 +37,48 @@ export function CartDrawer() {
   const progress = getFreeShippingProgress()
   const remaining = Math.max(30000 - subtotal, 0)
   const prefersReduced = useReducedMotion()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement
+      const firstFocusable = panelRef.current?.querySelector(
+        FOCUSABLE_SELECTORS,
+      ) as HTMLElement | null
+      firstFocusable?.focus()
+    } else if (previouslyFocusedRef.current) {
+      previouslyFocusedRef.current.focus()
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !panelRef.current) return
+
+      const focusable = Array.from(
+        panelRef.current.querySelectorAll(FOCUSABLE_SELECTORS),
+      ) as HTMLElement[]
+      if (focusable.length === 0) return
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen])
 
   return (
     <AnimatePresence>
@@ -47,6 +99,7 @@ export function CartDrawer() {
             aria-hidden="true"
           />
           <motion.div
+            ref={panelRef}
             initial={prefersReduced ? false : { x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
@@ -56,6 +109,7 @@ export function CartDrawer() {
                 : { type: 'spring', damping: 28, stiffness: 280 }
             }
             className="relative flex h-full w-full max-w-[400px] flex-col border-l border-white/[0.06] bg-card"
+            aria-label="Carrito de compras"
           >
             <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-5">
               <h2 className="flex items-center gap-2.5 text-[15px] font-extrabold uppercase tracking-wide text-foreground">

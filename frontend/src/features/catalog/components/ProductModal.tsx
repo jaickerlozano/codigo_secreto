@@ -50,7 +50,10 @@ export function ProductModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl overflow-hidden border-white/10 bg-[#141414] p-0">
+      <DialogContent
+        aria-label={`Vista rápida de ${product.name}`}
+        className="max-w-2xl overflow-hidden border-white/10 bg-[#141414] p-0"
+      >
         <DialogTitle className="sr-only">{product.name}</DialogTitle>
         <DialogDescription className="sr-only">
           Vista rápida de {product.name}

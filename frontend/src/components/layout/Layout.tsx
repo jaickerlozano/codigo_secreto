@@ -18,8 +18,7 @@ export function Layout({ wishlistCount = 0 }: LayoutProps) {
 
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2.5 focus:text-primary-foreground focus:rounded-xl focus:font-bold focus:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        style={{ background: 'var(--gradient-brand)' }}
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:bg-neon-magenta-500 focus:text-white focus:px-4 focus:py-2 focus:rounded"
       >
         Saltar al contenido
       </a>
