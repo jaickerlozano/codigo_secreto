@@ -1,24 +1,42 @@
-import { Link, Outlet } from 'react-router'
+import { Outlet } from 'react-router'
 
-export function Layout() {
+import { AgeGate } from './AgeGate'
+import { Footer } from './Footer'
+import { Header } from './Header'
+import { WhatsAppFAB } from './WhatsAppFAB'
+
+interface LayoutProps {
+  cartCount?: number
+  wishlistCount?: number
+}
+
+const CATEGORIES = ['Vibradores', 'Para Parejas', 'Bienestar', 'Masajeadores', 'Kits', 'Lencería']
+
+export function Layout({ cartCount = 0, wishlistCount = 0 }: LayoutProps) {
   return (
-    <div className="flex min-h-screen flex-col bg-base-900 text-base-100">
-      <header className="border-b border-base-700 bg-base-800/50 px-6 py-4 backdrop-blur">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between">
-          <Link to="/" className="text-xl font-bold text-neon-cyan-500">
-            Código Secreto
-          </Link>
-          <Link
-            to="/login"
-            className="rounded-md border border-neon-cyan-500 px-4 py-2 text-sm font-medium text-neon-cyan-500 transition hover:bg-neon-cyan-500/10"
-          >
-            Iniciar sesión
-          </Link>
-        </nav>
-      </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <AgeGate />
+
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2.5 focus:text-primary-foreground focus:rounded-xl focus:font-bold focus:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        style={{ background: 'var(--gradient-brand)' }}
+      >
+        Saltar al contenido
+      </a>
+
+      <Header
+        cartCount={cartCount}
+        wishlistCount={wishlistCount}
+        categories={CATEGORIES}
+      />
+
+      <main id="main-content" className="flex-1">
         <Outlet />
       </main>
+
+      <Footer />
+      <WhatsAppFAB />
     </div>
   )
 }
