@@ -1,0 +1,335 @@
+/* ============================================
+   CÓDIGO SECRETO — Design Tokens
+   Intimate Wellness eCommerce (Chile)
+   NEON PALETTE — Dark mode with vibrant accents
+   ============================================ */
+
+:root {
+  /* ========================================
+     COLOR PALETTE
+     Dark-first with neon accents
+     Sophisticated, modern, breaks taboos
+     ======================================== */
+  
+  /* Base: Deep blacks and dark grays */
+  --color-base-950: #000000;
+  --color-base-900: #0a0a0a;
+  --color-base-850: #0f0f0f;
+  --color-base-800: #141414;
+  --color-base-750: #1a1a1a;
+  --color-base-700: #1f1f1f;
+  --color-base-650: #242424;
+  --color-base-600: #2a2a2a;
+  --color-base-550: #333333;
+  --color-base-500: #3d3d3d;
+  --color-base-450: #4a4a4a;
+  --color-base-400: #575757;
+  --color-base-350: #6b6b6b;
+  --color-base-300: #808080;
+  --color-base-250: #999999;
+  --color-base-200: #b3b3b3;
+  --color-base-150: #cccccc;
+  --color-base-100: #e6e6e6;
+  --color-base-50: #f5f5f5;
+  
+  /* Neon Primary: Electric Magenta (sensual, bold) */
+  --color-neon-magenta-900: #4d0026;
+  --color-neon-magenta-800: #80003d;
+  --color-neon-magenta-700: #b30054;
+  --color-neon-magenta-600: #e6006b;
+  --color-neon-magenta-500: #ff006e;
+  --color-neon-magenta-400: #ff3388;
+  --color-neon-magenta-300: #ff66a3;
+  --color-neon-magenta-200: #ff99bd;
+  --color-neon-magenta-100: #ffccd9;
+  --color-neon-magenta-50: #ffe6ed;
+  --color-neon-magenta-glow: rgba(255, 0, 110, 0.5);
+  
+  /* Neon Secondary: Cyan (fresh, modern, trustworthy) */
+  --color-neon-cyan-900: #003d4d;
+  --color-neon-cyan-800: #006680;
+  --color-neon-cyan-700: #008fb3;
+  --color-neon-cyan-600: #00b8e6;
+  --color-neon-cyan-500: #00d9ff;
+  --color-neon-cyan-400: #33e1ff;
+  --color-neon-cyan-300: #66e9ff;
+  --color-neon-cyan-200: #99f1ff;
+  --color-neon-cyan-100: #ccf8ff;
+  --color-neon-cyan-50: #e6fcff;
+  --color-neon-cyan-glow: rgba(0, 217, 255, 0.5);
+  
+  /* Neon Tertiary: Violet (sophisticated, mysterious) */
+  --color-neon-violet-900: #2d004d;
+  --color-neon-violet-800: #4d0080;
+  --color-neon-violet-700: #6b00b3;
+  --color-neon-violet-600: #8a00e6;
+  --color-neon-violet-500: #b14aed;
+  --color-neon-violet-400: #c770f2;
+  --color-neon-violet-300: #d996f7;
+  --color-neon-violet-200: #e8bcfb;
+  --color-neon-violet-100: #f3dffd;
+  --color-neon-violet-50: #f9effe;
+  --color-neon-violet-glow: rgba(177, 74, 237, 0.5);
+  
+  /* Neon Accent: Lime (energy, CTAs, success) */
+  --color-neon-lime-900: #3d4d00;
+  --color-neon-lime-800: #668000;
+  --color-neon-lime-700: #8fb300;
+  --color-neon-lime-600: #b8e600;
+  --color-neon-lime-500: #d4ff00;
+  --color-neon-lime-400: #dcff33;
+  --color-neon-lime-300: #e4ff66;
+  --color-neon-lime-200: #ecff99;
+  --color-neon-lime-100: #f4ffcc;
+  --color-neon-lime-50: #fafff0;
+  --color-neon-lime-glow: rgba(212, 255, 0, 0.5);
+  
+  /* Semantic: Success (neon green) */
+  --color-success-900: #003d1a;
+  --color-success-800: #00662d;
+  --color-success-700: #008f40;
+  --color-success-600: #00b853;
+  --color-success-500: #00e676;
+  --color-success-400: #33eb91;
+  --color-success-300: #66f0ac;
+  --color-success-200: #99f5c7;
+  --color-success-100: #ccfae3;
+  --color-success-50: #e6fdf1;
+  --color-success-glow: rgba(0, 230, 118, 0.5);
+  
+  /* Semantic: Warning (neon amber) */
+  --color-warning-900: #4d3d00;
+  --color-warning-800: #806600;
+  --color-warning-700: #b38f00;
+  --color-warning-600: #e6b800;
+  --color-warning-500: #ffcc00;
+  --color-warning-400: #ffd633;
+  --color-warning-300: #ffe066;
+  --color-warning-200: #ffeb99;
+  --color-warning-100: #fff5cc;
+  --color-warning-50: #fffae6;
+  --color-warning-glow: rgba(255, 204, 0, 0.5);
+  
+  /* Semantic: Error (neon red) */
+  --color-error-900: #4d0000;
+  --color-error-800: #800000;
+  --color-error-700: #b30000;
+  --color-error-600: #e60000;
+  --color-error-500: #ff1744;
+  --color-error-400: #ff4569;
+  --color-error-300: #ff738e;
+  --color-error-200: #ffa1b3;
+  --color-error-100: #ffd0d9;
+  --color-error-50: #ffe6eb;
+  --color-error-glow: rgba(255, 23, 68, 0.5);
+  
+  /* Semantic colors (dark mode default) */
+  --color-background: var(--color-base-900);
+  --color-surface: var(--color-base-800);
+  --color-surface-elevated: var(--color-base-750);
+  --color-surface-overlay: var(--color-base-700);
+  --color-text-primary: var(--color-base-100);
+  --color-text-secondary: var(--color-base-250);
+  --color-text-tertiary: var(--color-base-400);
+  --color-text-inverse: var(--color-base-900);
+  --color-border: var(--color-base-600);
+  --color-border-strong: var(--color-base-450);
+  --color-border-focus: var(--color-neon-magenta-500);
+  
+  /* Neon accents (use sparingly) */
+  --color-accent-primary: var(--color-neon-magenta-500);
+  --color-accent-secondary: var(--color-neon-cyan-500);
+  --color-accent-tertiary: var(--color-neon-violet-500);
+  --color-accent-highlight: var(--color-neon-lime-500);
+  
+  /* ========================================
+     TYPOGRAPHY
+     Inter: UI clarity
+     Playfair Display: elegant headlines
+     ======================================== */
+  
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-serif: 'Playfair Display', Georgia, serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  
+  /* Type scale (1.250 ratio) */
+  --font-size-xs: 0.75rem;    /* 12px */
+  --font-size-sm: 0.875rem;   /* 14px */
+  --font-size-base: 1rem;     /* 16px - MINIMUM body */
+  --font-size-lg: 1.125rem;   /* 18px */
+  --font-size-xl: 1.25rem;    /* 20px */
+  --font-size-2xl: 1.563rem;  /* 25px */
+  --font-size-3xl: 1.953rem;  /* 31px */
+  --font-size-4xl: 2.441rem;  /* 39px */
+  --font-size-5xl: 3.052rem;  /* 49px */
+  
+  /* Line heights */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  
+  /* Font weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* Letter spacing */
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.02em;
+  --letter-spacing-wider: 0.05em;
+  
+  /* ========================================
+     SPACING
+     4px base unit, 8-point grid
+     ======================================== */
+  
+  --space-0: 0;
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.25rem;   /* 20px */
+  --space-6: 1.5rem;    /* 24px */
+  --space-8: 2rem;      /* 32px */
+  --space-10: 2.5rem;   /* 40px */
+  --space-12: 3rem;     /* 48px */
+  --space-16: 4rem;     /* 64px */
+  --space-20: 5rem;     /* 80px */
+  --space-24: 6rem;     /* 96px */
+  
+  /* ========================================
+     BORDER RADIUS
+     Subtle curves, not overly rounded
+     ======================================== */
+  
+  --radius-none: 0;
+  --radius-sm: 0.25rem;   /* 4px */
+  --radius-md: 0.375rem;  /* 6px */
+  --radius-lg: 0.5rem;    /* 8px */
+  --radius-xl: 0.75rem;   /* 12px */
+  --radius-2xl: 1rem;     /* 16px */
+  --radius-full: 9999px;
+  
+  /* ========================================
+     SHADOWS & GLOW EFFECTS
+     Neon glow for interactive elements
+     ======================================== */
+  
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4), 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
+  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+  
+  /* Neon glow effects (use sparingly on hover/focus) */
+  --glow-magenta-sm: 0 0 10px var(--color-neon-magenta-glow);
+  --glow-magenta-md: 0 0 20px var(--color-neon-magenta-glow);
+  --glow-magenta-lg: 0 0 30px var(--color-neon-magenta-glow);
+  --glow-cyan-sm: 0 0 10px var(--color-neon-cyan-glow);
+  --glow-cyan-md: 0 0 20px var(--color-neon-cyan-glow);
+  --glow-cyan-lg: 0 0 30px var(--color-neon-cyan-glow);
+  --glow-violet-sm: 0 0 10px var(--color-neon-violet-glow);
+  --glow-violet-md: 0 0 20px var(--color-neon-violet-glow);
+  --glow-lime-sm: 0 0 10px var(--color-neon-lime-glow);
+  --glow-lime-md: 0 0 20px var(--color-neon-lime-glow);
+  
+  /* Focus ring */
+  --shadow-focus: 0 0 0 3px var(--color-neon-magenta-glow);
+  
+  /* ========================================
+     TRANSITIONS
+     Smooth, not distracting
+     ======================================== */
+  
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* ========================================
+     Z-INDEX
+     Layered system for overlays
+     ======================================== */
+  
+  --z-index-dropdown: 1000;
+  --z-index-sticky: 1020;
+  --z-index-fixed: 1030;
+  --z-index-modal-backdrop: 1040;
+  --z-index-modal: 1050;
+  --z-index-popover: 1060;
+  --z-index-tooltip: 1070;
+  --z-index-toast: 1080;
+  
+  /* ========================================
+     BREAKPOINTS (mobile-first)
+     ======================================== */
+  
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
+  
+  /* ========================================
+     COMPONENT TOKENS
+     ======================================== */
+  
+  /* Buttons */
+  --button-padding-x: var(--space-6);
+  --button-padding-y: var(--space-3);
+  --button-font-weight: var(--font-weight-semibold);
+  --button-border-radius: var(--radius-lg);
+  --button-primary-bg: var(--color-neon-magenta-500);
+  --button-primary-text: var(--color-base-50);
+  --button-primary-hover: var(--color-neon-magenta-400);
+  --button-primary-glow: var(--glow-magenta-sm);
+  --button-secondary-bg: transparent;
+  --button-secondary-text: var(--color-neon-cyan-500);
+  --button-secondary-border: var(--color-neon-cyan-500);
+  --button-secondary-hover: var(--color-neon-cyan-500);
+  --button-secondary-hover-text: var(--color-base-900);
+  
+  /* Inputs */
+  --input-padding-x: var(--space-4);
+  --input-padding-y: var(--space-3);
+  --input-border-radius: var(--radius-md);
+  --input-bg: var(--color-base-800);
+  --input-border-color: var(--color-base-600);
+  --input-border-color-focus: var(--color-neon-magenta-500);
+  --input-text: var(--color-base-100);
+  --input-placeholder: var(--color-base-450);
+  --input-glow-focus: var(--glow-magenta-sm);
+  
+  /* Cards */
+  --card-padding: var(--space-6);
+  --card-border-radius: var(--radius-xl);
+  --card-bg: var(--color-base-800);
+  --card-border: var(--color-base-700);
+  --card-shadow: var(--shadow-md);
+  --card-hover-border: var(--color-neon-magenta-500);
+  --card-hover-glow: var(--glow-magenta-sm);
+  
+  /* Modals */
+  --modal-padding: var(--space-8);
+  --modal-border-radius: var(--radius-2xl);
+  --modal-bg: var(--color-base-800);
+  --modal-shadow: var(--shadow-2xl);
+  --modal-backdrop-bg: rgba(0, 0, 0, 0.85);
+  --modal-backdrop-blur: blur(8px);
+  
+  /* Badges */
+  --badge-padding-x: var(--space-3);
+  --badge-padding-y: var(--space-1);
+  --badge-border-radius: var(--radius-full);
+  --badge-font-size: var(--font-size-xs);
+  --badge-font-weight: var(--font-weight-semibold);
+  
+  /* Product cards */
+  --product-card-image-ratio: 1 / 1;
+  --product-card-border-radius: var(--radius-xl);
+  --product-card-hover-scale: 1.02;
+  --product-card-quick-view-bg: rgba(0, 0, 0, 0.7);
+}
