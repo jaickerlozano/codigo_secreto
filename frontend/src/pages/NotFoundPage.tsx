@@ -2,12 +2,16 @@ import { motion } from 'motion/react'
 import { Link } from 'react-router'
 import { Home, Search } from 'lucide-react'
 
+import { SEO } from '@/components/SEO'
+
 export function NotFoundPage() {
   return (
     <main
       id="main-content"
       className="flex min-h-[80vh] flex-col items-center justify-center px-4 py-20 text-center"
     >
+      <SEO pageTitle="Página no encontrada" />
+
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[500px] h-[500px] bg-neon-magenta-500/8 rounded-full blur-[180px]" />
         <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-neon-violet-500/8 rounded-full blur-[120px]" />

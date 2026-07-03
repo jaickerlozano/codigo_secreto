@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Check, Heart, PackageX } from 'lucide-react'
 
+import { SEO } from '@/components/SEO'
 import { useCartStore } from '@/features/cart'
 import { formatCLP } from '@/lib/format'
 
@@ -53,10 +54,12 @@ export function ProductDetailPage() {
 
   if (!product) {
     return (
-      <main
-        id="main-content"
-        className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
-      >
+      <>
+        <SEO pageTitle="Producto no encontrado" />
+        <main
+          id="main-content"
+          className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
+        >
         <PackageX size={48} className="mb-4 text-muted-foreground" />
         <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">
           Producto no encontrado
@@ -71,7 +74,8 @@ export function ProductDetailPage() {
         >
           Volver al inicio
         </Link>
-      </main>
+        </main>
+      </>
     )
   }
 
@@ -93,9 +97,15 @@ export function ProductDetailPage() {
   ).slice(0, 4)
 
   return (
-    <main id="main-content" className="px-4 py-8">
-      <div className="mx-auto max-w-6xl">
-        <motion.div
+    <>
+      <SEO
+        pageTitle={product.name}
+        description={product.shortDesc ?? product.description}
+        ogType="product"
+      />
+      <main id="main-content" className="px-4 py-8">
+        <div className="mx-auto max-w-6xl">
+          <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -331,5 +341,6 @@ export function ProductDetailPage() {
         onAddToCart={(item) => addItemWithQuantity(item, 1)}
       />
     </main>
+    </>
   )
 }

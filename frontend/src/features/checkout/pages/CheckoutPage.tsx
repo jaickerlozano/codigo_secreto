@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
 
+import { SEO } from '@/components/SEO'
 import { useCartStore } from '@/features/cart'
 
 import { CheckoutProgress } from '../components/CheckoutProgress'
@@ -54,70 +55,73 @@ export function CheckoutPage() {
   }
 
   return (
-    <main id="main-content" className="min-h-screen py-8 px-4">
-      <div className="mx-auto max-w-5xl">
-        <CheckoutProgress currentStep={currentStep} />
+    <>
+      <SEO pageTitle="Checkout" />
+      <main id="main-content" className="min-h-screen py-8 px-4">
+        <div className="mx-auto max-w-5xl">
+          <CheckoutProgress currentStep={currentStep} />
 
-        <div className="grid gap-8 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <div className="rounded-2xl border border-white/[0.06] bg-card p-6">
-              {currentStep === 1 && (
-                <StepContact
-                  defaultValues={data.contact}
-                  onSubmit={(contact) => {
-                    setContact(contact)
-                    nextStep()
-                  }}
-                />
-              )}
-              {currentStep === 2 && (
-                <StepAddress
-                  defaultValues={data.address}
-                  onSubmit={(address) => {
-                    setAddress(address)
-                    nextStep()
-                  }}
-                  onBack={prevStep}
-                />
-              )}
-              {currentStep === 3 && (
-                <StepShipping
-                  defaultValues={data.shipping}
-                  onSubmit={(shipping) => {
-                    setShipping(shipping)
-                    nextStep()
-                  }}
-                  onBack={prevStep}
-                />
-              )}
-              {currentStep === 4 && (
-                <StepPayment
-                  defaultValues={data.payment}
-                  onSubmit={(payment) => {
-                    setPayment(payment)
-                    nextStep()
-                  }}
-                  onBack={prevStep}
-                />
-              )}
-              {currentStep === 5 && (
-                <StepReview
-                  data={data}
-                  subtotal={subtotal}
-                  shippingCost={shippingCost}
-                  total={total}
-                  onEditStep={goToStep}
-                  onTermsChange={setTermsAccepted}
-                  onBack={prevStep}
-                  onConfirm={handleConfirm}
-                />
-              )}
+          <div className="grid gap-8 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <div className="rounded-2xl border border-white/[0.06] bg-card p-6">
+                {currentStep === 1 && (
+                  <StepContact
+                    defaultValues={data.contact}
+                    onSubmit={(contact) => {
+                      setContact(contact)
+                      nextStep()
+                    }}
+                  />
+                )}
+                {currentStep === 2 && (
+                  <StepAddress
+                    defaultValues={data.address}
+                    onSubmit={(address) => {
+                      setAddress(address)
+                      nextStep()
+                    }}
+                    onBack={prevStep}
+                  />
+                )}
+                {currentStep === 3 && (
+                  <StepShipping
+                    defaultValues={data.shipping}
+                    onSubmit={(shipping) => {
+                      setShipping(shipping)
+                      nextStep()
+                    }}
+                    onBack={prevStep}
+                  />
+                )}
+                {currentStep === 4 && (
+                  <StepPayment
+                    defaultValues={data.payment}
+                    onSubmit={(payment) => {
+                      setPayment(payment)
+                      nextStep()
+                    }}
+                    onBack={prevStep}
+                  />
+                )}
+                {currentStep === 5 && (
+                  <StepReview
+                    data={data}
+                    subtotal={subtotal}
+                    shippingCost={shippingCost}
+                    total={total}
+                    onEditStep={goToStep}
+                    onTermsChange={setTermsAccepted}
+                    onBack={prevStep}
+                    onConfirm={handleConfirm}
+                  />
+                )}
+              </div>
             </div>
-          </div>
 
-          <OrderSummary shippingCost={shippingCost} />
+            <OrderSummary shippingCost={shippingCost} />
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   )
 }

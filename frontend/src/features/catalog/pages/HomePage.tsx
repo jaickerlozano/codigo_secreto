@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router'
 
+import { SEO } from '@/components/SEO'
 import { useCartStore } from '@/features/cart'
 
 import type { Product } from '../types'
@@ -25,6 +26,7 @@ export function HomePage() {
 
   return (
     <div className="flex flex-col">
+      <SEO />
       <HeroSection />
       <BenefitsSection />
 

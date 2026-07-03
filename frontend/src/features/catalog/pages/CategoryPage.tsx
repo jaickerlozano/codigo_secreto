@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { motion } from 'motion/react'
 import { ArrowLeft, PackageX } from 'lucide-react'
 
+import { SEO } from '@/components/SEO'
 import { useCartStore } from '@/features/cart'
 import {
   Select,
@@ -45,10 +46,12 @@ export function CategoryPage() {
 
   if (!isAllView && !currentCategory) {
     return (
-      <main
-        id="main-content"
-        className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
-      >
+      <>
+        <SEO pageTitle="Categoría no encontrada" />
+        <main
+          id="main-content"
+          className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
+        >
         <PackageX size={48} className="mb-4 text-muted-foreground" />
         <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">
           Categoría no encontrada
@@ -63,17 +66,26 @@ export function CategoryPage() {
         >
           Volver al inicio
         </Link>
-      </main>
+        </main>
+      </>
     )
   }
 
   const heading = currentCategory?.name ?? 'Todos los productos'
   const resultCount = filters.filteredProducts.length
 
+  const categoryDescription = `Explora ${heading.toLowerCase()} en Código Secreto. Envío discreto a todo Chile.`
+
   return (
-    <main id="main-content" className="px-4 py-8">
-      <div className="mx-auto max-w-7xl">
-        <motion.div
+    <>
+      <SEO
+        pageTitle={heading}
+        description={categoryDescription}
+        ogType="website"
+      />
+      <main id="main-content" className="px-4 py-8">
+        <div className="mx-auto max-w-7xl">
+          <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -196,5 +208,6 @@ export function CategoryPage() {
         onAddToCart={addItem}
       />
     </main>
+    </>
   )
 }
