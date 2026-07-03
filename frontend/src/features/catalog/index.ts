@@ -9,6 +9,7 @@ export { PaymentLogosSection } from './components/sections/PaymentLogosSection'
 export { ReviewsSection } from './components/sections/ReviewsSection'
 export { TrustSection } from './components/sections/TrustSection'
 
+export { CategoryPage } from './pages/CategoryPage'
 export { HomePage } from './pages/HomePage'
 
 export { CATEGORIES } from './data/categories'
