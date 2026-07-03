@@ -159,7 +159,7 @@ export function ConfirmationPage() {
           <p className="mb-5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
             Estado del pedido
           </p>
-          {TIMELINE.map(({ label, done, active }, index) => (
+          {TIMELINE.map(({ label, done, active }) => (
             <div key={label} className="mb-3 flex items-center gap-4 last:mb-0">
               <div
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${

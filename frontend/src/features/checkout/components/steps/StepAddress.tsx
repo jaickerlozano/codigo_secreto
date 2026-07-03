@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, ArrowRight, MapPin } from 'lucide-react'
+import { ArrowRight, MapPin } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
 import { CHILEAN_REGIONS, COMUNAS_RM } from '@/lib/constants'
