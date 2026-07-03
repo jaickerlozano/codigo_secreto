@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 
+import { useCartStore } from '@/features/cart'
+
 import type { Category, Product } from '../types'
 import { CATEGORIES, PRODUCTS, REVIEWS } from '../data'
 import { CategoryGrid } from '../components/CategoryGrid'
@@ -15,24 +17,17 @@ import { TrustSection } from '../components/sections/TrustSection'
 export function HomePage() {
   const [selectedProduct, setSelectedProduct] =
     useState<Product | null>(null)
-  const [cart, setCart] = useState<Product[]>([])
   const [activeCategory, setActiveCategory] = useState<string | null>(
     null,
   )
+  const addItem = useCartStore((state) => state.addItem)
 
   const filteredProducts = activeCategory
     ? PRODUCTS.filter((product) => product.category === activeCategory)
     : PRODUCTS
 
   const handleAddToCart = (product: Product) => {
-    setCart((previous) => [...previous, product])
-    // eslint-disable-next-line no-console
-    console.log(
-      'Agregado al carrito:',
-      product.name,
-      'cantidad:',
-      cart.length + 1,
-    )
+    addItem(product)
   }
 
   const handleCategoryClick = (category: Category) => {

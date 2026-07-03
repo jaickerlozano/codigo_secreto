@@ -9,7 +9,7 @@ describe('Layout', () => {
     render(
       <MemoryRouter initialEntries={['/']}>
         <Routes>
-          <Route element={<Layout cartCount={2} wishlistCount={1} />}>
+          <Route element={<Layout wishlistCount={1} />}>
             <Route index element={<div data-testid="outlet-child">Outlet content</div>} />
           </Route>
         </Routes>

@@ -4,20 +4,21 @@ import { Heart, Menu, Search, ShoppingCart, User, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 import { CSLogo } from '@/components/brand/CSLogo'
+import { CartDrawer, useCartStore } from '@/features/cart'
 
 interface HeaderProps {
-  cartCount?: number
   wishlistCount?: number
   categories?: string[]
 }
 
 export function Header({
-  cartCount = 0,
   wishlistCount = 0,
   categories = [],
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const navigate = useNavigate()
+  const cartCount = useCartStore((state) => state.getTotalItems())
+  const toggleCart = useCartStore((state) => state.toggleCart)
 
   const handleHome = () => {
     navigate('/')
@@ -80,6 +81,7 @@ export function Header({
           </button>
           <button
             type="button"
+            onClick={toggleCart}
             className="relative p-2.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
             aria-label={`Carrito — ${cartCount} ${cartCount === 1 ? 'producto' : 'productos'}`}
           >
@@ -184,6 +186,7 @@ export function Header({
           </motion.div>
         )}
       </AnimatePresence>
+      <CartDrawer />
     </header>
   )
 }

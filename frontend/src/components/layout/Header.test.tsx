@@ -8,13 +8,13 @@ describe('Header', () => {
   it('renders brand logo and navigation controls', () => {
     render(
       <MemoryRouter>
-        <Header cartCount={2} wishlistCount={1} categories={['Vibradores', 'Bienestar']} />
+        <Header wishlistCount={1} categories={['Vibradores', 'Bienestar']} />
       </MemoryRouter>,
     )
 
     expect(screen.getByRole('button', { name: /Código Secreto — Inicio/i })).toBeDefined()
     expect(screen.getByRole('searchbox', { name: 'Buscar productos' })).toBeDefined()
-    expect(screen.getByRole('button', { name: /Carrito — 2 productos/i })).toBeDefined()
+    expect(screen.getByRole('button', { name: /Carrito — 0 productos/i })).toBeDefined()
     expect(screen.getByRole('button', { name: /Favoritos — 1/i })).toBeDefined()
     expect(screen.getByRole('button', { name: 'Abrir menú' })).toBeDefined()
   })

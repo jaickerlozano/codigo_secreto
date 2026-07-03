@@ -6,13 +6,12 @@ import { Header } from './Header'
 import { WhatsAppFAB } from './WhatsAppFAB'
 
 interface LayoutProps {
-  cartCount?: number
   wishlistCount?: number
 }
 
 const CATEGORIES = ['Vibradores', 'Para Parejas', 'Bienestar', 'Masajeadores', 'Kits', 'Lencería']
 
-export function Layout({ cartCount = 0, wishlistCount = 0 }: LayoutProps) {
+export function Layout({ wishlistCount = 0 }: LayoutProps) {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AgeGate />
@@ -26,7 +25,6 @@ export function Layout({ cartCount = 0, wishlistCount = 0 }: LayoutProps) {
       </a>
 
       <Header
-        cartCount={cartCount}
         wishlistCount={wishlistCount}
         categories={CATEGORIES}
       />

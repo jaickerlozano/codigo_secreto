@@ -42,7 +42,10 @@ export function ProductModal({
   const handleAdd = () => {
     onAddToCart(product)
     setAdded(true)
-    setTimeout(() => setAdded(false), 2000)
+    setTimeout(() => {
+      setAdded(false)
+      onClose()
+    }, 1200)
   }
 
   return (
