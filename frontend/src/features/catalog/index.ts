@@ -11,6 +11,7 @@ export { TrustSection } from './components/sections/TrustSection'
 
 export { CategoryPage } from './pages/CategoryPage'
 export { HomePage } from './pages/HomePage'
+export { ProductDetailPage } from './pages/ProductDetailPage'
 
 export { CATEGORIES } from './data/categories'
 export { PRODUCTS } from './data/products'

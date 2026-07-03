@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate, type RouteObject } from 'react-router'
 
 import { LoginPage } from '@/features/auth'
-import { CategoryPage, HomePage } from '@/features/catalog'
+import { CategoryPage, HomePage, ProductDetailPage } from '@/features/catalog'
 import { CheckoutPage } from '@/features/checkout'
 import { ConfirmationPage } from '@/features/orders'
 
@@ -27,6 +27,10 @@ export const routes: RouteObject[] = [
       {
         path: 'category/:categoryId',
         element: <CategoryPage />,
+      },
+      {
+        path: 'product/:productId',
+        element: <ProductDetailPage />,
       },
       {
         path: 'confirmation',
