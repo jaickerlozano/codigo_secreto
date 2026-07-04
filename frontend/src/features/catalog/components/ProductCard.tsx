@@ -42,10 +42,21 @@ export function ProductCard({
         )
       : 0
 
-  const handleAdd = () => {
+  const activeBadge = product.badge ??
+    (product.isNew ? 'new' : product.isOnSale ? 'discount' : undefined)
+
+  const handleAdd = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
     onAddToCart(product)
     setAdded(true)
     setTimeout(() => setAdded(false), 1600)
+  }
+
+  const handleQuickView = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    onQuickView(product)
   }
 
   return (
@@ -79,7 +90,7 @@ export function ProductCard({
         <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <button
             type="button"
-            onClick={() => onQuickView(product)}
+            onClick={handleQuickView}
             className="rounded-xl bg-white/10 p-3 text-white backdrop-blur-sm transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             aria-label={`Vista rápida de ${product.name}`}
           >
@@ -88,14 +99,19 @@ export function ProductCard({
         </div>
 
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
-          {product.isNew && (
+          {activeBadge === 'new' && (
             <span className="rounded-full bg-neon-cyan px-2 py-0.5 text-[9px] font-bold uppercase text-background">
               Nuevo
             </span>
           )}
-          {product.isOnSale && (
+          {activeBadge === 'discount' && (
             <span className="rounded-full bg-neon-magenta px-2 py-0.5 text-[9px] font-bold uppercase text-background">
               -{discount}%
+            </span>
+          )}
+          {activeBadge === 'popular' && (
+            <span className="rounded-full bg-gradient-to-r from-neon-magenta to-neon-violet px-2 py-0.5 text-[9px] font-bold uppercase text-background shadow-[0_0_10px_rgba(255,43,214,0.35)]">
+              Popular
             </span>
           )}
         </div>

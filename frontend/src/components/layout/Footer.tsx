@@ -15,6 +15,7 @@ const PAYMENT_METHODS = ['Webpay', 'Flow', 'MercadoPago', 'Transferencia']
 const LEGAL_LINKS = ['Privacidad', 'Términos', 'Cookies']
 
 export function Footer() {
+  const currentYear = new Date().getFullYear();
   return (
     <footer
       className="bg-background border-t border-border pt-14 pb-8 px-4"
@@ -135,7 +136,7 @@ export function Footer() {
 
         <div className="border-t border-border pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-xs text-muted-foreground">
-            © 2024 Código Secreto. Todos los derechos reservados. +18
+            © {currentYear} Código Secreto. Todos los derechos reservados. +18
           </p>
           <div className="flex items-center gap-5">
             {LEGAL_LINKS.map((link) => (

@@ -1,5 +1,7 @@
 import { Outlet } from 'react-router'
 
+import { CartDrawer } from '@/features/cart'
+
 import { AgeGate } from './AgeGate'
 import { Footer } from './Footer'
 import { Header } from './Header'
@@ -27,6 +29,8 @@ export function Layout({ wishlistCount = 0 }: LayoutProps) {
         wishlistCount={wishlistCount}
         categories={CATEGORIES}
       />
+
+      <CartDrawer />
 
       <main id="main-content" className="flex-1">
         <Outlet />

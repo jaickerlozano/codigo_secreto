@@ -15,6 +15,7 @@ export interface Product {
   gradient: string
   isNew?: boolean
   isOnSale?: boolean
+  badge?: 'discount' | 'new' | 'popular'
   /** Extended fields preserved from the original Figma Make catalog UI. */
   rating?: number
   reviewCount?: number

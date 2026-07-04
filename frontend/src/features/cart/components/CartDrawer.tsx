@@ -94,7 +94,7 @@ export function CartDrawer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={prefersReduced ? { duration: 0 } : undefined}
-            className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+            className="absolute inset-0 z-[1] bg-black/80 backdrop-blur-sm"
             onClick={closeCart}
             aria-hidden="true"
           />
@@ -108,7 +108,8 @@ export function CartDrawer() {
                 ? { duration: 0 }
                 : { type: 'spring', damping: 28, stiffness: 280 }
             }
-            className="relative flex h-full w-full max-w-[400px] flex-col border-l border-white/[0.06] bg-card"
+            onClick={(e) => e.stopPropagation()}
+            className="relative z-[2] flex h-full w-full max-w-[400px] flex-col border-l border-white/[0.06] bg-card"
             aria-label="Carrito de compras"
           >
             <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-5">

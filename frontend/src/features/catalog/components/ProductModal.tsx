@@ -39,7 +39,9 @@ export function ProductModal({
 
   if (!product) return null
 
-  const handleAdd = () => {
+  const handleAdd = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
     onAddToCart(product)
     setAdded(true)
     setTimeout(() => {

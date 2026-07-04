@@ -17,6 +17,6 @@ describe('Footer', () => {
     expect(screen.getByText('Flow')).toBeDefined()
     expect(screen.getByText('MercadoPago')).toBeDefined()
     expect(screen.getByText('Transferencia')).toBeDefined()
-    expect(screen.getByText(/© 2024 Código Secreto/i)).toBeDefined()
+    expect(screen.getByText(new RegExp(`© ${new Date().getFullYear()} Código Secreto`, 'i'))).toBeDefined()
   })
 })

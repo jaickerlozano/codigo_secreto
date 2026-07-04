@@ -15,6 +15,7 @@ export const PRODUCTS: Product[] = [
     experienceLevel: 'principiante',
     rating: 4.8,
     reviewCount: 124,
+    badge: 'popular',
     gradient: 'from-violet-950 via-purple-900 to-violet-800',
     icon: '✦',
     features: [
@@ -140,6 +141,7 @@ export const PRODUCTS: Product[] = [
     experienceLevel: 'principiante',
     rating: 4.5,
     reviewCount: 45,
+    badge: 'popular',
     gradient: 'from-green-950 via-emerald-900 to-green-800',
     icon: '⬡',
     features: [

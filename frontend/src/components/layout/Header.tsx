@@ -4,7 +4,7 @@ import { Heart, Menu, Search, ShoppingCart, User, X } from 'lucide-react'
 import { useNavigate } from 'react-router'
 
 import { CSLogo } from '@/components/brand/CSLogo'
-import { CartDrawer, useCartStore } from '@/features/cart'
+import { useCartStore } from '@/features/cart'
 
 const FOCUSABLE_SELECTORS = [
   'button:not([disabled])',
@@ -240,7 +240,6 @@ export function Header({
           </motion.div>
         )}
       </AnimatePresence>
-      <CartDrawer />
     </header>
   )
 }
