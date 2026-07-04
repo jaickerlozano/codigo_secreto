@@ -1,4 +1,4 @@
-import logoImg from '@/assets/logo-codigo-secreto.jpeg'
+import logoImg from '@/assets/logo-codigo-secreto.webp'
 
 interface LogoBadgeProps {
   size?: number
