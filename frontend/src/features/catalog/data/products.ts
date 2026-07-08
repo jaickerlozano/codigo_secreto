@@ -29,7 +29,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'p2',
     name: 'Masajeador Dúo Nova',
-    category: 'Para Parejas',
+    category: 'Anillos',
     price: 44990,
     originalPrice: 54990,
     shortDesc: 'Vibración dual · Control remoto · 12 modos',
@@ -55,7 +55,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'p3',
     name: 'Lubricante Sensorial',
-    category: 'Bienestar',
+    category: 'Lubricantes',
     price: 12990,
     shortDesc: 'Base agua · pH neutro · 150ml',
     description:
@@ -104,7 +104,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'p5',
     name: 'Kit Iniciación Bienestar',
-    category: 'Kits',
+    category: 'Juegos',
     price: 59990,
     originalPrice: 79990,
     shortDesc: '3 productos · Guía incluida · Gift box',
@@ -130,7 +130,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'p6',
     name: 'Masajeador Wand Zen',
-    category: 'Masajeadores',
+    category: 'Vibradores',
     price: 49990,
     shortDesc: '6 velocidades · USB-C · Corporal e íntimo',
     description:
@@ -155,7 +155,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'p7',
     name: 'Anillo Vibrador Nova',
-    category: 'Para Parejas',
+    category: 'Anillos',
     price: 19990,
     shortDesc: 'Silicona elástica · 3 modos · Talla única',
     description:
@@ -179,7 +179,7 @@ export const PRODUCTS: Product[] = [
   {
     id: 'p8',
     name: 'Aceite Masaje Luxe',
-    category: 'Bienestar',
+    category: 'Aceites y Feromonas',
     price: 16990,
     shortDesc: 'Argán & Jojoba · Efecto calor · 100ml',
     description:
