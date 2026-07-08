@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codigo-secreto-backend"
+version = "1.0.0"
+description = "Django REST API for Código Secreto"
+requires-python = ">=3.12"
+
+[tool.coverage.run]
+source = ["apps"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/admin.py",
+    "*/apps.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
