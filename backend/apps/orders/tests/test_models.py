@@ -1,0 +1,74 @@
+import pytest
+from django.db.models import ProtectedError
+
+from apps.orders.models import Order, OrderItem
+
+
+pytestmark = pytest.mark.django_db
+
+
+def test_order_total_calculation(order_factory, order_item_factory):
+    """subtotal + shipping_cost = total."""
+    order = order_factory(subtotal=0, shipping_cost=3000, total=3000)
+    order_item_factory(order=order, quantity=2, price=1000)
+    order_item_factory(order=order, quantity=1, price=5000)
+
+    order.subtotal = sum(item.subtotal for item in order.items.all())
+    order.total = order.subtotal + order.shipping_cost
+    order.save()
+    order.refresh_from_db()
+
+    assert order.subtotal == 7000  # (2*1000) + (1*5000)
+    assert order.total == 10000  # 7000 + 3000
+
+
+def test_order_item_subtotal(order_item_factory, product_factory):
+    """OrderItem.subtotal equals quantity multiplied by frozen price."""
+    product = product_factory(price=3500)
+    item = order_item_factory(product=product, quantity=3, price=3500)
+
+    assert item.subtotal == 10500
+
+
+def test_order_str(order_factory):
+    """Order.__str__ includes the order id, status and total."""
+    order = order_factory(total=15000)
+
+    expected = f"Pedido #{order.id} - Pendiente de Pago ($15,000)"
+    assert str(order) == expected
+
+
+def test_order_item_str(order_factory, order_item_factory, product_factory):
+    """OrderItem.__str__ includes quantity, product name and order id."""
+    product = product_factory(name="Vibrador X")
+    order = order_factory()
+    item = order_item_factory(order=order, product=product, product_name="Vibrador X", quantity=2)
+
+    expected = f"2 x Vibrador X (Pedido #{order.id})"
+    assert str(item) == expected
+
+
+def test_order_default_status(order_factory):
+    """New orders default to PENDING status."""
+    order = order_factory()
+
+    assert order.status == "PENDING"
+
+
+def test_user_delete_preserves_order(order_factory, user):
+    """Deleting a user sets order.user to NULL (SET_NULL)."""
+    order = order_factory(user=user)
+
+    user.delete()
+    order.refresh_from_db()
+
+    assert order.user is None
+    assert Order.objects.filter(id=order.id).exists()
+
+
+def test_comuna_delete_protected(order_factory):
+    """Deleting a comuna with related orders raises ProtectedError."""
+    order = order_factory()
+
+    with pytest.raises(ProtectedError):
+        order.comuna.delete()
