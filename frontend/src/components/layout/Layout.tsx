@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router'
 
 import { CartDrawer } from '@/features/cart'
+import { CATEGORIES } from '@/features/catalog/data/categories'
 
 import { AgeGate } from './AgeGate'
 import { Footer } from './Footer'
@@ -10,8 +11,6 @@ import { WhatsAppFAB } from './WhatsAppFAB'
 interface LayoutProps {
   wishlistCount?: number
 }
-
-const CATEGORIES = ['Vibradores', 'Para Parejas', 'Bienestar', 'Masajeadores', 'Kits', 'Lencería']
 
 export function Layout({ wishlistCount = 0 }: LayoutProps) {
   return (
