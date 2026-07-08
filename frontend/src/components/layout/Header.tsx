@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Heart, Menu, Search, ShoppingCart, User, X } from 'lucide-react'
-import { useNavigate } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 
 import { CSLogo } from '@/components/brand/CSLogo'
+import type { Category } from '@/features/catalog/types'
 import { useCartStore } from '@/features/cart'
 
 const FOCUSABLE_SELECTORS = [
@@ -17,7 +18,7 @@ const FOCUSABLE_SELECTORS = [
 
 interface HeaderProps {
   wishlistCount?: number
-  categories?: string[]
+  categories?: Category[]
 }
 
 export function Header({
@@ -173,13 +174,13 @@ export function Header({
             style={{ scrollbarWidth: 'none' }}
           >
             {categories.map((category) => (
-              <button
-                key={category}
-                type="button"
+              <Link
+                key={category.id}
+                to={`/category/${category.id}`}
                 className="text-[12px] font-medium text-muted-foreground hover:text-foreground whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded px-1"
               >
-                {category}
-              </button>
+                {category.name}
+              </Link>
             ))}
             <button
               type="button"
@@ -219,14 +220,14 @@ export function Header({
               </div>
               <nav className="flex flex-col" aria-label="Menú móvil">
                 {categories.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
+                  <Link
+                    key={category.id}
+                    to={`/category/${category.id}`}
                     onClick={() => setMenuOpen(false)}
                     className="text-sm text-muted-foreground hover:text-foreground py-2.5 text-left border-b border-border last:border-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
                   >
-                    {category}
-                  </button>
+                    {category.name}
+                  </Link>
                 ))}
                 <button
                   type="button"
