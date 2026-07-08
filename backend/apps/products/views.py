@@ -35,7 +35,22 @@ class ProductViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(category__in=all_categories)
             except Category.DoesNotExist:
                 pass
-                
+
+        min_price = self.request.query_params.get('min_price')
+        max_price = self.request.query_params.get('max_price')
+
+        if min_price is not None:
+            try:
+                queryset = queryset.filter(price__gte=int(min_price))
+            except ValueError:
+                pass
+
+        if max_price is not None:
+            try:
+                queryset = queryset.filter(price__lte=int(max_price))
+            except ValueError:
+                pass
+
         return queryset
 
     def create(self, request, *args, **kwargs):
