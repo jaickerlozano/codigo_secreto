@@ -9,6 +9,8 @@ class InitiatePaymentSerializer(serializers.Serializer):
             order = Order.objects.get(id=value)
             if order.status != 'PENDING':
                 raise serializers.ValidationError(f"Este pedido no se puede pagar porque su estado es: {order.get_status_display()}.")
+            if order.transactions.filter(status='APPROVED').exists():
+                raise serializers.ValidationError("Este pedido ya fue pagado.")
         except Order.DoesNotExist:
             raise serializers.ValidationError("El pedido seleccionado no existe.")
         return value
