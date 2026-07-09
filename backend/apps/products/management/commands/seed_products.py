@@ -6,67 +6,69 @@ from apps.products.models import Category, Product, Supplier
 SEED_SUPPLIER_NAME = "Código Secreto"
 
 SEED_CATALOG = [
-    # Doble estimulación
-    {"sku": "101", "name": "Vibrador Conejo Remoto", "category": "Doble estimulación", "price": 59990, "stock": 25, "level": 3, "icon": "rabbit", "gradient": "from-pink-500 to-rose-600", "features": ["10 modos", "Recargable USB", "Sumergible"], "badge": "Más vendido"},
-    {"sku": "102", "name": "Huevo Vibrador Doble", "category": "Doble estimulación", "price": 34990, "stock": 30, "level": 2, "icon": "egg", "gradient": "from-fuchsia-500 to-purple-600", "features": ["Control remoto", "Silencioso"], "badge": None},
-    {"sku": "103", "name": "Masajeador Wand Recargable", "category": "Doble estimulación", "price": 69990, "stock": 18, "level": 4, "icon": "wand", "gradient": "from-violet-500 to-indigo-600", "features": ["Potente", "Cabezal flexible"], "badge": "Premium"},
-    {"sku": "104", "name": "Vibrador de Lengua", "category": "Doble estimulación", "price": 44990, "stock": 22, "level": 3, "icon": "tongue", "gradient": "from-rose-400 to-pink-600", "features": ["Movimiento ondulante", "Sumergible"], "badge": None},
-    {"sku": "105", "name": "Estimulador de Clítoris", "category": "Doble estimulación", "price": 52990, "stock": 28, "level": 3, "icon": "sparkles", "gradient": "from-magenta-500 to-fuchsia-700", "features": ["Succión + vibración", "Recargable"], "badge": "Nuevo"},
-    {"sku": "106", "name": "Vibrador Realista Recargable", "category": "Doble estimulación", "price": 62990, "stock": 15, "level": 4, "icon": "flame", "gradient": "from-orange-500 to-red-600", "features": ["Textura realista", "Vibración multivel"], "badge": None},
-    {"sku": "107", "name": "Mini Vibrador Bala", "category": "Doble estimulación", "price": 19990, "stock": 50, "level": 1, "icon": "zap", "gradient": "from-cyan-500 to-blue-600", "features": ["Discreto", "Ideal para principiantes"], "badge": None},
-    {"sku": "108", "name": "Succionador 2 en 1", "category": "Doble estimulación", "price": 74990, "stock": 12, "level": 4, "icon": "heart", "gradient": "from-pink-600 to-rose-800", "features": ["Doble estimulación", "App opcional"], "badge": "Top"},
-    {"sku": "109", "name": "Anillo Vibrador Pareja", "category": "Doble estimulación", "price": 24990, "stock": 40, "level": 2, "icon": "infinity", "gradient": "from-lime-500 to-green-600", "features": ["Para parejas", "Batería larga duración"], "badge": None},
+    # Vibradores
+    {"sku": "101", "name": "Vibrador Doble Pretty Love", "category": "Vibradores", "price": 26990, "stock": 3, "level": 2, "icon": "rabbit", "gradient": "from-pink-500 to-rose-600", "features": ["Recargable", "Sumergible"], "badge": None},
+    {"sku": "102", "name": "Vibrador Conejo Pretty Love", "category": "Vibradores", "price": 21990, "stock": 3, "level": 2, "icon": "heart", "gradient": "from-fuchsia-500 to-purple-600", "features": ["Recargable", "Sumergible"], "badge": None},
+    {"sku": "103", "name": "Dildo 1.0 Percutor a Control Scorpio", "category": "Vibradores", "price": 30990, "stock": 3, "level": 3, "icon": "zap", "gradient": "from-violet-500 to-indigo-600", "features": ["Control remoto", "Silencioso"], "badge": None},
+    {"sku": "104", "name": "Dildo Vibrador a Control Ultra Soft Love Toy", "category": "Vibradores", "price": 40990, "stock": 3, "level": 3, "icon": "flame", "gradient": "from-rose-400 to-pink-600", "features": ["Textura suave", "Control remoto"], "badge": None},
+    {"sku": "105", "name": "Microfono Vibrador", "category": "Vibradores", "price": 10990, "stock": 3, "level": 1, "icon": "sparkles", "gradient": "from-magenta-500 to-fuchsia-700", "features": ["Discreto", "Ideal para principiantes"], "badge": None},
+    {"sku": "106", "name": "Vibrador Curvy Fun", "category": "Vibradores", "price": 38990, "stock": 3, "level": 2, "icon": "egg", "gradient": "from-orange-500 to-red-600", "features": ["Recargable", "Sumergible"], "badge": None},
+    # Anillos
+    {"sku": "201", "name": "Anillo Vibrador Conejito", "category": "Anillos", "price": 12990, "stock": 3, "level": 2, "icon": "infinity", "gradient": "from-lime-500 to-green-600", "features": ["Silicona suave", "Recargable"], "badge": None},
+    {"sku": "202", "name": "Kit Anillo GKP", "category": "Anillos", "price": 8990, "stock": 3, "level": 1, "icon": "circle", "gradient": "from-emerald-500 to-teal-700", "features": ["Para parejas", "Batería larga duración"], "badge": None},
+    # Masturbadores
+    {"sku": "301", "name": "Masturbador Arturito 2.0", "category": "Masturbadores", "price": 38990, "stock": 3, "level": 3, "icon": "box", "gradient": "from-slate-500 to-slate-700", "features": ["Textura interna", "Fácil limpieza"], "badge": None},
+    {"sku": "302", "name": "Masturbador Masculino Pretty Love 360", "category": "Masturbadores", "price": 16990, "stock": 3, "level": 2, "icon": "egg", "gradient": "from-blue-500 to-cyan-600", "features": ["Rotación 360", "Recargable"], "badge": None},
+    {"sku": "303", "name": "Huevitos Masturbadores", "category": "Masturbadores", "price": 5990, "stock": 3, "level": 1, "icon": "circle", "gradient": "from-purple-500 to-violet-700", "features": ["Discreto", "Portátil"], "badge": None},
     # Anal
-    {"sku": "110", "name": "Plug Anal Silicona Pequeño", "category": "Anal", "price": 17990, "stock": 35, "level": 1, "icon": "circle", "gradient": "from-purple-500 to-violet-700", "features": ["Silicona médica", "Base segura"], "badge": "Ideal primerizos"},
-    {"sku": "111", "name": "Plug Anal Mediano", "category": "Anal", "price": 22990, "stock": 28, "level": 2, "icon": "circle", "gradient": "from-indigo-500 to-purple-700", "features": ["Textura suave", "Fácil limpieza"], "badge": None},
-    {"sku": "112", "name": "Plug Anal Grande", "category": "Anal", "price": 28990, "stock": 20, "level": 4, "icon": "circle", "gradient": "from-slate-600 to-slate-800", "features": ["Experiencia avanzada", "Base ancha"], "badge": None},
-    {"sku": "113", "name": "Kit Plugs Anales 3 Piezas", "category": "Anal", "price": 45990, "stock": 16, "level": 3, "icon": "package", "gradient": "from-fuchsia-600 to-purple-800", "features": ["3 tamaños", "Estuche incluido"], "badge": "Pack"},
-    {"sku": "114", "name": "Bolas Anales Silicona", "category": "Anal", "price": 26990, "stock": 24, "level": 2, "icon": "circle-dot", "gradient": "from-pink-500 to-rose-700", "features": ["Entrenamiento progresivo", "Extracción fácil"], "badge": None},
-    {"sku": "115", "name": "Dildo Anal Curvo", "category": "Anal", "price": 54990, "stock": 14, "level": 4, "icon": "target", "gradient": "from-violet-600 to-indigo-800", "features": ["Curva ergonómica", "Ventosa"], "badge": None},
-    {"sku": "116", "name": "Lubricante Anal Extra Lubricante", "category": "Gel Anal", "price": 15990, "stock": 60, "level": 2, "icon": "droplet", "gradient": "from-blue-500 to-cyan-600", "features": ["Larga duración", "Base agua"], "badge": None},
-    {"sku": "117", "name": "Anillo Anal Vibrador", "category": "Anal", "price": 32990, "stock": 19, "level": 3, "icon": "circle", "gradient": "from-rose-500 to-pink-700", "features": ["Vibración suave", "Silicona"], "badge": None},
-    # Doble penetración
-    {"sku": "118", "name": "Arnés Doble Penetración", "category": "Doble penetración", "price": 58990, "stock": 11, "level": 4, "icon": "layers", "gradient": "from-fuchsia-600 to-purple-800", "features": ["Ajustable", "Compatible con consoladores"], "badge": None},
-    {"sku": "119", "name": "Consolador Doble Flexible", "category": "Doble penetración", "price": 47990, "stock": 13, "level": 3, "icon": "move", "gradient": "from-pink-600 to-rose-800", "features": ["Doble estimulación", "Flexibilidad total"], "badge": None},
-    {"sku": "120", "name": "Vibrador Doble Recargable", "category": "Doble penetración", "price": 67990, "stock": 10, "level": 4, "icon": "battery-charging", "gradient": "from-violet-500 to-fuchsia-700", "features": ["2 motores", "Recargable"], "badge": "Premium"},
-    {"sku": "121", "name": "Dildo Strapless", "category": "Doble penetración", "price": 55990, "stock": 12, "level": 4, "icon": "anchor", "gradient": "from-purple-600 to-indigo-800", "features": ["Sin arnés", "Estimulación mutua"], "badge": None},
-    # Oral
-    {"sku": "122", "name": "Anillo para el Pene Vibratorio", "category": "Oral", "price": 21990, "stock": 33, "level": 2, "icon": "circle", "gradient": "from-lime-500 to-emerald-600", "features": ["Retarda y vibra", "Para ambos"], "badge": None},
-    {"sku": "123", "name": "Masturbador Masculino", "category": "Oral", "price": 46990, "stock": 21, "level": 3, "icon": "box", "gradient": "from-slate-500 to-slate-700", "features": ["Textura interna", "Fácil limpieza"], "badge": "Nuevo"},
-    {"sku": "124", "name": "Lubricante Sabor Fresa", "category": "Gel Sabores", "price": 11990, "stock": 70, "level": 1, "icon": "cherry", "gradient": "from-red-400 to-pink-600", "features": ["Comestible", "Base agua"], "badge": None},
-    {"sku": "125", "name": "Gel Oral Calor Intenso", "category": "Gel Estimulante", "price": 13990, "stock": 55, "level": 2, "icon": "flame", "gradient": "from-orange-400 to-red-600", "features": ["Efecto calor", "Para oral"], "badge": None},
-    # Preservativos
-    {"sku": "126", "name": "Preservativos Ultra Delgados x12", "category": "Preservativos", "price": 8990, "stock": 100, "level": 1, "icon": "shield", "gradient": "from-blue-400 to-indigo-500", "features": ["Máxima sensibilidad", "Resistentes"], "badge": None},
-    {"sku": "127", "name": "Preservativos Texturados x10", "category": "Preservativos", "price": 9990, "stock": 90, "level": 1, "icon": "shield", "gradient": "from-cyan-500 to-blue-700", "features": ["Puntos y estrías", "Lubricados"], "badge": None},
-    {"sku": "128", "name": "Preservativos Retardantes x12", "category": "Preservativos", "price": 10990, "stock": 85, "level": 2, "icon": "shield", "gradient": "from-teal-500 to-emerald-700", "features": ["Efecto retardante", "Lubricados"], "badge": None},
-    {"sku": "129", "name": "Preservativos Sabores Mixtos x24", "category": "Preservativos", "price": 12990, "stock": 80, "level": 1, "icon": "shield", "gradient": "from-pink-400 to-purple-600", "features": ["Variedad de sabores", "Pack económico"], "badge": "Pack"},
-    # Lubricantes y geles
-    {"sku": "130", "name": "Lubricante Base Agua 100ml", "category": "Lubricantes", "price": 10990, "stock": 95, "level": 1, "icon": "droplet", "gradient": "from-sky-400 to-blue-600", "features": ["Base agua", "Compatible con juguetes"], "badge": None},
-    {"sku": "131", "name": "Lubricante Silicona 100ml", "category": "Lubricantes", "price": 14990, "stock": 75, "level": 2, "icon": "droplet", "gradient": "from-violet-400 to-fuchsia-600", "features": ["Larga duración", "No pegajoso"], "badge": None},
-    {"sku": "132", "name": "Gel Anal Relajante 150ml", "category": "Gel Anal", "price": 16990, "stock": 65, "level": 2, "icon": "leaf", "gradient": "from-emerald-500 to-teal-700", "features": ["Efecto relajante", "Base agua"], "badge": None},
-    {"sku": "133", "name": "Gel Neutro Hipoalergénico", "category": "Gel Neutro", "price": 11990, "stock": 88, "level": 1, "icon": "shield-check", "gradient": "from-gray-400 to-gray-600", "features": ["Hipoalergénico", "Sin perfume"], "badge": None},
-    {"sku": "134", "name": "Gel Estimulante Femenino", "category": "Gel Estimulante", "price": 13990, "stock": 72, "level": 2, "icon": "sparkles", "gradient": "from-pink-500 to-rose-700", "features": ["Efecto frío/calor", "Aumenta sensibilidad"], "badge": None},
-    {"sku": "135", "name": "Gel Retardante Masculino", "category": "Gel Retardante", "price": 14990, "stock": 68, "level": 2, "icon": "clock", "gradient": "from-indigo-500 to-blue-700", "features": ["Retarda la eyaculación", "Seguro con preservativos"], "badge": None},
-    {"sku": "136", "name": "Gel Sabores Chocolate", "category": "Gel Sabores", "price": 11990, "stock": 74, "level": 1, "icon": "cookie", "gradient": "from-amber-600 to-orange-800", "features": ["Comestible", "Sabor chocolate"], "badge": None},
-    {"sku": "137", "name": "Lubricante Natural Orgánico", "category": "Lubricantes", "price": 15990, "stock": 60, "level": 1, "icon": "leaf", "gradient": "from-green-500 to-emerald-700", "features": ["Ingredientes naturales", "Vegano"], "badge": "Natural"},
-    {"sku": "138", "name": "Gel Calor Intenso", "category": "Gel Estimulante", "price": 13990, "stock": 58, "level": 3, "icon": "flame", "gradient": "from-red-500 to-orange-700", "features": ["Efecto calor intenso", "Para parejas"], "badge": None},
-    {"sku": "139", "name": "Lubricante Aloe Vera", "category": "Lubricantes", "price": 12990, "stock": 82, "level": 1, "icon": "droplet", "gradient": "from-teal-400 to-cyan-600", "features": ["Aloe vera", "Hidratante"], "badge": None},
-    {"sku": "140", "name": "Gel Anal Extra Lubricante", "category": "Gel Anal", "price": 17990, "stock": 56, "level": 2, "icon": "droplet", "gradient": "from-blue-600 to-indigo-800", "features": ["Extra lubricación", "No se seca"], "badge": None},
-    {"sku": "141", "name": "Aceite Masajes Eróticos", "category": "Lubricantes", "price": 18990, "stock": 48, "level": 2, "icon": "flower", "gradient": "from-rose-400 to-pink-600", "features": ["Para masajes", "Aroma afrodisíaco"], "badge": None},
-    {"sku": "142", "name": "Preservativo + Lubricante Pack", "category": "Preservativos", "price": 19990, "stock": 45, "level": 1, "icon": "gift", "gradient": "from-violet-500 to-fuchsia-700", "features": ["Pack parejas", "Ahorro"], "badge": "Pack"},
-    {"sku": "143", "name": "Lubricante Sabor Menta", "category": "Gel Sabores", "price": 11990, "stock": 77, "level": 1, "icon": "sprout", "gradient": "from-emerald-400 to-green-600", "features": ["Sabor menta", "Refrescante"], "badge": None},
-    {"sku": "144", "name": "Gel Intimo Hidratante", "category": "Gel Neutro", "price": 10990, "stock": 66, "level": 1, "icon": "droplet", "gradient": "from-cyan-400 to-sky-600", "features": ["Hidratación diaria", "PH equilibrado"], "badge": None},
+    {"sku": "401", "name": "Plug Anal", "category": "Anal", "price": 8990, "stock": 3, "level": 1, "icon": "circle", "gradient": "from-purple-500 to-violet-700", "features": ["Silicona médica", "Base segura"], "badge": None},
+    {"sku": "402", "name": "Plug Cola Conejo", "category": "Anal", "price": 9990, "stock": 3, "level": 2, "icon": "circle-dot", "gradient": "from-indigo-500 to-purple-700", "features": ["Base segura", "Fácil limpieza"], "badge": None},
+    {"sku": "403", "name": "Plug Cola Zorro", "category": "Anal", "price": 9990, "stock": 3, "level": 2, "icon": "target", "gradient": "from-slate-600 to-slate-800", "features": ["Base segura", "Fácil limpieza"], "badge": None},
+    # Juegos
+    {"sku": "501", "name": "Juego El Teto", "category": "Juegos", "price": 8990, "stock": 3, "level": 1, "icon": "layers", "gradient": "from-fuchsia-600 to-purple-800", "features": ["Para parejas", "Diversión garantizada"], "badge": None},
+    {"sku": "502", "name": "Juego Grado 3", "category": "Juegos", "price": 8990, "stock": 3, "level": 2, "icon": "package", "gradient": "from-pink-600 to-rose-800", "features": ["Para parejas", "Diversión garantizada"], "badge": None},
+    {"sku": "503", "name": "Juego Diversos", "category": "Juegos", "price": 8990, "stock": 3, "level": 1, "icon": "gift", "gradient": "from-violet-500 to-fuchsia-700", "features": ["Para parejas", "Diversión garantizada"], "badge": None},
+    {"sku": "504", "name": "Juego Grado 4", "category": "Juegos", "price": 8990, "stock": 3, "level": 2, "icon": "move", "gradient": "from-purple-600 to-indigo-800", "features": ["Para parejas", "Diversión garantizada"], "badge": None},
+    {"sku": "505", "name": "Jenga Hot", "category": "Juegos", "price": 16990, "stock": 3, "level": 2, "icon": "flame", "gradient": "from-amber-600 to-orange-800", "features": ["Para parejas", "Diversión garantizada"], "badge": None},
+    # Bondage
+    {"sku": "601", "name": "Latigo Forma Pene", "category": "Bondage", "price": 4990, "stock": 3, "level": 1, "icon": "target", "gradient": "from-rose-500 to-pink-700", "features": ["Ajustable", "Resistente"], "badge": None},
+    {"sku": "602", "name": "Arnes Sexual para Cama", "category": "Bondage", "price": 18990, "stock": 3, "level": 2, "icon": "anchor", "gradient": "from-red-500 to-orange-700", "features": ["Ajustable", "Resistente"], "badge": None},
+    {"sku": "603", "name": "Arnes Completo", "category": "Bondage", "price": 23990, "stock": 3, "level": 3, "icon": "infinity", "gradient": "from-gray-400 to-gray-600", "features": ["Ajustable", "Resistente"], "badge": None},
+    # Lubricantes
+    {"sku": "701", "name": "Lubricante Manzana", "category": "Lubricantes", "price": 8990, "stock": 3, "level": 1, "icon": "droplet", "gradient": "from-sky-400 to-blue-600", "features": ["Base agua", "Comestible"], "badge": None},
+    {"sku": "702", "name": "Lubricante Comestible Caramelo", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 1, "icon": "cookie", "gradient": "from-violet-400 to-fuchsia-600", "features": ["Base agua", "Comestible"], "badge": None},
+    {"sku": "703", "name": "Lubricante Comestible Chocolate", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 1, "icon": "cookie", "gradient": "from-emerald-500 to-teal-700", "features": ["Base agua", "Comestible"], "badge": None},
+    {"sku": "704", "name": "Lubricante Comestible Frutilla", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 1, "icon": "cherry", "gradient": "from-teal-400 to-cyan-600", "features": ["Base agua", "Comestible"], "badge": None},
+    {"sku": "705", "name": "Potenciador Sexual Intense Fem", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 2, "icon": "sparkles", "gradient": "from-pink-500 to-rose-700", "features": ["Efecto frío/calor", "Aumenta sensibilidad"], "badge": None},
+    {"sku": "706", "name": "Lubricante Intimo con Efecto Calor", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 2, "icon": "flame", "gradient": "from-orange-400 to-red-600", "features": ["Efecto calor", "Base agua"], "badge": None},
+    {"sku": "707", "name": "Lubricante Intimo con Efecto Frio", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 2, "icon": "droplet", "gradient": "from-blue-500 to-cyan-600", "features": ["Efecto frío", "Base agua"], "badge": None},
+    {"sku": "708", "name": "Adormecedor y Dilatador", "category": "Lubricantes", "price": 15990, "stock": 3, "level": 2, "icon": "leaf", "gradient": "from-indigo-500 to-blue-700", "features": ["Efecto relajante", "Base agua"], "badge": None},
+    {"sku": "709", "name": "Exitante Femenino Vibra+", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 2, "icon": "zap", "gradient": "from-rose-400 to-pink-600", "features": ["Efecto estimulante", "Base agua"], "badge": None},
+    {"sku": "710", "name": "Estrechante Vaginal Aprieta+", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 2, "icon": "heart", "gradient": "from-cyan-400 to-sky-600", "features": ["Efecto estrechante", "Base agua"], "badge": None},
+    {"sku": "711", "name": "Exitante Femenino Climax+", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 2, "icon": "sparkles", "gradient": "from-green-500 to-emerald-700", "features": ["Efecto estimulante", "Base agua"], "badge": None},
+    {"sku": "712", "name": "Adormecedor Anal", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 2, "icon": "droplet", "gradient": "from-blue-600 to-indigo-800", "features": ["Efecto relajante", "Base agua"], "badge": None},
+    {"sku": "713", "name": "Gel Agrandador Ballena Azul", "category": "Lubricantes", "price": 8990, "stock": 3, "level": 2, "icon": "droplet", "gradient": "from-amber-600 to-orange-800", "features": ["Efecto agrandador", "Base agua"], "badge": None},
+    {"sku": "714", "name": "Potenciador Masculino Agranda+", "category": "Lubricantes", "price": 10990, "stock": 3, "level": 2, "icon": "flame", "gradient": "from-teal-500 to-emerald-700", "features": ["Efecto potenciador", "Base agua"], "badge": None},
+    # Aceites y Feromonas
+    {"sku": "801", "name": "Aceite Masaje Chocolate", "category": "Aceites y Feromonas", "price": 10990, "stock": 3, "level": 1, "icon": "flower", "gradient": "from-rose-400 to-pink-600", "features": ["Para masajes", "Aroma afrodisíaco"], "badge": None},
+    {"sku": "802", "name": "Aceite Masaje Maracuya", "category": "Aceites y Feromonas", "price": 10990, "stock": 3, "level": 1, "icon": "droplet", "gradient": "from-orange-400 to-red-600", "features": ["Para masajes", "Aroma afrodisíaco"], "badge": None},
+    {"sku": "803", "name": "Aceite Masaje Arandano", "category": "Aceites y Feromonas", "price": 10990, "stock": 3, "level": 1, "icon": "leaf", "gradient": "from-purple-500 to-fuchsia-700", "features": ["Para masajes", "Aroma afrodisíaco"], "badge": None},
+    {"sku": "804", "name": "Aceite Masaje Caramelo", "category": "Aceites y Feromonas", "price": 10990, "stock": 3, "level": 1, "icon": "cookie", "gradient": "from-blue-400 to-indigo-500", "features": ["Para masajes", "Aroma afrodisíaco"], "badge": None},
+    {"sku": "805", "name": "Aceite Masaje Coco", "category": "Aceites y Feromonas", "price": 10990, "stock": 3, "level": 1, "icon": "sprout", "gradient": "from-cyan-500 to-blue-700", "features": ["Para masajes", "Aroma afrodisíaco"], "badge": None},
+    {"sku": "806", "name": "Aceite Masaje Chocolate Premium", "category": "Aceites y Feromonas", "price": 10990, "stock": 3, "level": 2, "icon": "flower", "gradient": "from-pink-400 to-purple-600", "features": ["Para masajes", "Aroma afrodisíaco"], "badge": None},
+    {"sku": "807", "name": "Feromona Seduceme Hombre", "category": "Aceites y Feromonas", "price": 15990, "stock": 3, "level": 2, "icon": "shield", "gradient": "from-indigo-500 to-purple-700", "features": ["Atrayente", "Feromonas"], "badge": None},
+    {"sku": "808", "name": "Feromona Seduceme Mujer", "category": "Aceites y Feromonas", "price": 15990, "stock": 3, "level": 2, "icon": "shield", "gradient": "from-violet-600 to-indigo-800", "features": ["Atrayente", "Feromonas"], "badge": None},
 ]
 
 
 class Command(BaseCommand):
-    help = "Crea o actualiza 44 productos semilla con SKUs 101-144."
+    help = "Crea o actualiza 44 productos semilla con el catálogo real del cliente."
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--reset",
             action="store_true",
-            help="Elimina los productos semilla existentes (SKU 101-144) antes de recrearlos.",
+            help="Elimina los productos semilla existentes antes de recrearlos.",
         )
 
     def handle(self, *args, **options):

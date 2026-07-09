@@ -16,12 +16,22 @@ def test_seed_products_creates_44_products():
     assert Product.objects.count() == 44
 
 
-def test_seed_products_assigns_skus_101_to_144():
-    """Cada producto sembrado tiene un SKU único entre 101 y 144."""
+def test_seed_products_assigns_real_client_skus():
+    """Cada producto sembrado tiene uno de los SKUs reales del catálogo cliente."""
     call_command("seed_products", stdout=io.StringIO())
 
     skus = set(Product.objects.exclude(sku=None).values_list("sku", flat=True))
-    expected = {str(sku) for sku in range(101, 145)}
+    expected = {
+        "101", "102", "103", "104", "105", "106",
+        "201", "202",
+        "301", "302", "303",
+        "401", "402", "403",
+        "501", "502", "503", "504", "505",
+        "601", "602", "603",
+        "701", "702", "703", "704", "705", "706", "707", "708",
+        "709", "710", "711", "712", "713", "714",
+        "801", "802", "803", "804", "805", "806", "807", "808",
+    }
     assert skus == expected
     assert len(skus) == 44
 
