@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { ErrorBoundary } from 'react-error-boundary'
 import { RouterProvider, type DataRouter } from 'react-router'
 
+import { Toaster } from '@/components/ui/sonner'
 import { ErrorFallback } from '@/components/ui/ErrorFallback'
 import { createAppRouter } from '@/app/router'
 import { queryClient } from '@/lib/query-client'
@@ -20,6 +21,7 @@ export function Providers({ children, router }: ProvidersProps) {
       <QueryClientProvider client={client}>
         {children}
         <RouterProvider router={router ?? createAppRouter()} />
+        <Toaster position="top-right" richColors />
       </QueryClientProvider>
     </ErrorBoundary>
   )
