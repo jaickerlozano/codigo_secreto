@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client'
+import type { components } from '@/api/schema.d.ts'
 import type { LoginInput, LoginResponse } from '../types'
 
 function extractErrorMessage(error: unknown): string {
@@ -10,7 +11,7 @@ function extractErrorMessage(error: unknown): string {
 
 export async function login(credentials: LoginInput): Promise<LoginResponse> {
   const { data, error } = await apiClient.POST('/api/auth/login/', {
-    body: credentials,
+    body: credentials as components['schemas']['TokenObtainPair'],
   })
 
   if (error || !data) {
