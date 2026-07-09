@@ -25,11 +25,23 @@ class SupplierAdmin(admin.ModelAdmin):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     # CORRECCIÓN: Cambiamos 'price' por 'price_clp' para usar nuestro método personalizado
-    list_display = ('id', 'name', 'category', 'supplier', 'stock_status', 'minimum_stock', 'price_clp', 'created_at', 'updated_at')
-    list_filter = ('category', 'supplier')
-    search_fields = ('name', 'description')
+    list_display = ('id', 'sku', 'name', 'category', 'supplier', 'badge', 'experience_level', 'stock_status', 'minimum_stock', 'price_clp', 'created_at', 'updated_at')
+    list_filter = ('category', 'supplier', 'badge', 'experience_level')
+    search_fields = ('name', 'description', 'sku')
     ordering = ('name',)
     readonly_fields = ('current_stock', 'created_at', 'updated_at')
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'category', 'supplier', 'price', 'current_stock', 'minimum_stock', 'image', 'sku')
+        }),
+        ('UI Config', {
+            'fields': ('icon', 'gradient', 'experience_level', 'features', 'badge'),
+            'classes': ('collapse',),
+        }),
+        ('Metadatos', {
+            'fields': ('created_at', 'updated_at'),
+        }),
+    )
 
     # CORRECCIÓN: Renombrado a price_clp para no chocar con el campo del modelo
     def price_clp(self, obj):
