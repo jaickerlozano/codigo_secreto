@@ -12,6 +12,19 @@ class Product(models.Model):
     minimum_stock = models.PositiveIntegerField(default=0)
     price = models.IntegerField()
     image = models.ImageField(upload_to='products/', blank=True, null=True, verbose_name='imagen')
+
+    # Campos SKU y UI para catálogo e integración frontend
+    sku = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name='SKU')
+    icon = models.CharField(max_length=100, default='box', verbose_name='icono')
+    gradient = models.CharField(max_length=200, default='from-gray-500 to-gray-700', verbose_name='gradiente')
+    experience_level = models.PositiveSmallIntegerField(
+        default=3,
+        choices=[(i, i) for i in range(1, 6)],
+        verbose_name='nivel de experiencia'
+    )
+    features = models.JSONField(default=list, verbose_name='características')
+    badge = models.CharField(max_length=50, null=True, blank=True, verbose_name='badge')
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='fecha de actualización')
 
