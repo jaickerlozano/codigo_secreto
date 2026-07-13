@@ -1,7 +1,7 @@
 export type ExperienceLevel = 'principiante' | 'intermedio' | 'avanzado'
 
 export interface Product {
-  id: string
+  id: number
   name: string
   price: number
   originalPrice?: number
@@ -20,10 +20,14 @@ export interface Product {
   rating?: number
   reviewCount?: number
   shortDesc?: string
+  /** Fields coming from the backend Product model. */
+  sku: string | null
+  stock: number
+  image: string | null
 }
 
 export interface Category {
-  id: string
+  id: number
   name: string
   icon: string
   gradient: string

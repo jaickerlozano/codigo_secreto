@@ -1,8 +1,20 @@
+import type { ReactNode } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
+import { queryClient } from '@/lib/query-client'
+
 import { Layout } from './Layout'
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient()}>
+      {children}
+    </QueryClientProvider>
+  )
+}
 
 describe('Layout', () => {
   it('renders the header, skip link, outlet children and footer', () => {
@@ -14,6 +26,7 @@ describe('Layout', () => {
           </Route>
         </Routes>
       </MemoryRouter>,
+      { wrapper: Wrapper },
     )
 
     expect(screen.getByRole('button', { name: /Código Secreto — Inicio/i })).toBeDefined()
@@ -27,6 +40,7 @@ describe('Layout', () => {
       <MemoryRouter>
         <Layout />
       </MemoryRouter>,
+      { wrapper: Wrapper },
     )
 
     expect(screen.getByRole('dialog')).toBeDefined()

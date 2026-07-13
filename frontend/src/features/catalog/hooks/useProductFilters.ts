@@ -1,7 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
-import { PRODUCTS } from '../data/products'
-import type { ExperienceLevel } from '../types'
+import type { ExperienceLevel, Product } from '../types'
 
 export type SortOption = 'price-asc' | 'price-desc' | 'name' | 'newest'
 
@@ -11,6 +10,7 @@ interface PriceRange {
 }
 
 interface UseProductFiltersOptions {
+  products: Product[]
   initialCategory?: string
 }
 
@@ -20,8 +20,12 @@ const EXPERIENCE_LEVELS: ExperienceLevel[] = [
   'avanzado',
 ]
 
-function getInitialPriceRange(): PriceRange {
-  const prices = PRODUCTS.map((product) => product.price)
+function getInitialPriceRange(products: Product[]): PriceRange {
+  if (products.length === 0) {
+    return { min: 0, max: 0 }
+  }
+
+  const prices = products.map((product) => product.price)
   return {
     min: Math.min(...prices),
     max: Math.max(...prices),
@@ -29,18 +33,38 @@ function getInitialPriceRange(): PriceRange {
 }
 
 export function useProductFilters({
+  products,
   initialCategory,
-}: UseProductFiltersOptions = {}) {
+}: UseProductFiltersOptions) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     initialCategory ? [initialCategory] : [],
   )
   const [experience, setExperience] = useState<ExperienceLevel[]>([])
   const [priceRange, setPriceRange] = useState<PriceRange>(
-    getInitialPriceRange(),
+    getInitialPriceRange(products),
   )
   const [sort, setSort] = useState<SortOption>('newest')
 
-  const availableRange = useMemo(() => getInitialPriceRange(), [])
+  const availableRange = useMemo(
+    () => getInitialPriceRange(products),
+    [products],
+  )
+
+  useEffect(() => {
+    setSelectedCategories(initialCategory ? [initialCategory] : [])
+    setExperience([])
+    setPriceRange(getInitialPriceRange(products))
+  }, [initialCategory])
+
+  useEffect(() => {
+    if (
+      products.length > 0 &&
+      priceRange.min === 0 &&
+      priceRange.max === 0
+    ) {
+      setPriceRange(availableRange)
+    }
+  }, [products, availableRange, priceRange.min, priceRange.max])
 
   const toggleCategory = (category: string) => {
     setSelectedCategories((previous) =>
@@ -73,7 +97,7 @@ export function useProductFilters({
   }
 
   const filteredProducts = useMemo(() => {
-    let result = PRODUCTS.filter((product) => {
+    let result = products.filter((product) => {
       if (
         selectedCategories.length > 0 &&
         !selectedCategories.includes(product.category)
@@ -110,16 +134,12 @@ export function useProductFilters({
         break
       case 'newest':
       default:
-        result = result.sort((a, b) => {
-          if (a.isNew && !b.isNew) return -1
-          if (!a.isNew && b.isNew) return 1
-          return b.id.localeCompare(a.id)
-        })
+        result = result.sort((a, b) => b.id - a.id)
         break
     }
 
     return result
-  }, [selectedCategories, experience, priceRange, sort])
+  }, [selectedCategories, experience, priceRange, sort, products])
 
   return {
     filteredProducts,

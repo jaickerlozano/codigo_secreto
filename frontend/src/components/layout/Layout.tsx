@@ -1,7 +1,7 @@
 import { Outlet } from 'react-router'
 
 import { CartDrawer } from '@/features/cart'
-import { CATEGORIES } from '@/features/catalog/data/categories'
+import { useCategories } from '@/features/catalog'
 
 import { AgeGate } from './AgeGate'
 import { Footer } from './Footer'
@@ -13,6 +13,8 @@ interface LayoutProps {
 }
 
 export function Layout({ wishlistCount = 0 }: LayoutProps) {
+  const { data: categories } = useCategories()
+
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <AgeGate />
@@ -26,7 +28,7 @@ export function Layout({ wishlistCount = 0 }: LayoutProps) {
 
       <Header
         wishlistCount={wishlistCount}
-        categories={CATEGORIES}
+        categories={categories ?? []}
       />
 
       <CartDrawer />
