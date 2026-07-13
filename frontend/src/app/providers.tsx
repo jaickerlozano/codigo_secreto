@@ -5,6 +5,7 @@ import { RouterProvider, type DataRouter } from 'react-router'
 
 import { Toaster } from '@/components/ui/sonner'
 import { ErrorFallback } from '@/components/ui/ErrorFallback'
+import { AuthProvider } from '@/features/auth/context/AuthContext'
 import { createAppRouter } from '@/app/router'
 import { queryClient } from '@/lib/query-client'
 
@@ -19,9 +20,11 @@ export function Providers({ children, router }: ProvidersProps) {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
       <QueryClientProvider client={client}>
-        {children}
-        <RouterProvider router={router ?? createAppRouter()} />
-        <Toaster position="top-right" richColors />
+        <AuthProvider>
+          {children}
+          <RouterProvider router={router ?? createAppRouter()} />
+          <Toaster position="top-right" richColors />
+        </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   )

@@ -20,6 +20,15 @@ def _set_jwt_cookie(response, cookie_name, token, **overrides):
     response.set_cookie(cookie_name, token, **defaults)
 
 
+def _clear_jwt_cookie(response, cookie_name):
+    """Helper para eliminar una cookie JWT respetando la configuración del proyecto."""
+    response.delete_cookie(
+        cookie_name,
+        path=settings.SIMPLE_JWT.get("JWT_COOKIE_PATH", "/"),
+        samesite=settings.SIMPLE_JWT.get("JWT_COOKIE_SAMESITE", "Lax"),
+    )
+
+
 @extend_schema(
         summary="Iniciar sesión (Login)",
     description="Recibe el correo electrónico y la contraseña. Devuelve un token de acceso y un token de refresco.",
@@ -102,3 +111,30 @@ class UserMeView(APIView):
         # request.user contiene automáticamente al usuario dueño del token JWT
         serializer = UserMeSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class LogoutView(APIView):
+    """
+    Endpoint público para cerrar la sesión del cliente.
+    Elimina las cookies JWT de acceso y refresco independientemente de si el usuario
+    está autenticado o no, garantizando que el navegador borre cualquier sesión activa.
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Cerrar sesión (Logout)",
+        description="Elimina las cookies HttpOnly del token de acceso y refresco.",
+        tags=["Autenticación"],
+        responses={200: {"type": "object", "properties": {"message": {"type": "string"}}}}
+    )
+    def post(self, request):
+        access_cookie = settings.SIMPLE_JWT.get("JWT_AUTH_COOKIE", "access_token")
+        refresh_cookie = settings.SIMPLE_JWT.get("JWT_AUTH_REFRESH_COOKIE", "refresh_token")
+
+        response = Response(
+            {"message": "Sesión cerrada correctamente."},
+            status=status.HTTP_200_OK,
+        )
+        _clear_jwt_cookie(response, access_cookie)
+        _clear_jwt_cookie(response, refresh_cookie)
+        return response

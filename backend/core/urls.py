@@ -5,7 +5,7 @@ from django.urls import path, include
 from rest_framework import routers
 from apps.products.views import ProductViewSet, SupplierViewSet, CategoryViewSet, StockMovementViewSet
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
-from apps.authentication.views import CustomTokenObtainPairView, CustomTokenRefreshView, RegisterView, UserMeView
+from apps.authentication.views import CustomTokenObtainPairView, CustomTokenRefreshView, RegisterView, UserMeView, LogoutView
 from apps.shipping.views import RegionViewSet, ComunaViewSet
 from apps.carts.views import MyCartView 
 from apps.orders.views import OrderViewSet
@@ -30,7 +30,8 @@ urlpatterns = [
     path('api/auth/token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/register/', RegisterView.as_view(), name='auth_register'),
     path('api/auth/me/', UserMeView.as_view(), name='auth_me'),
-    
+    path('api/auth/logout/', LogoutView.as_view(), name='auth_logout'),
+
     # Ruta manual para la APIView del carrito de compras
     path('api/cart/me/', MyCartView.as_view(), name='my_cart'),
 

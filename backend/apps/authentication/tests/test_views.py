@@ -12,6 +12,7 @@ pytestmark = pytest.mark.django_db
 
 REGISTER_URL = "/api/auth/register/"
 LOGIN_URL = "/api/auth/login/"
+LOGOUT_URL = "/api/auth/logout/"
 REFRESH_URL = "/api/auth/token/refresh/"
 ME_URL = "/api/auth/me/"
 
@@ -224,3 +225,33 @@ def test_auth_with_empty_header(api_client):
     response = api_client.get(ME_URL)
 
     assert response.status_code == 401
+
+
+def test_logout_clears_cookies(api_client):
+    """POST /api/auth/logout/ elimina las cookies access_token y refresh_token."""
+    user = UserFactory.create(email="logout@example.com")
+    user.set_password("SecurePass123!")
+    user.save()
+
+    api_client.post(
+        LOGIN_URL,
+        {"email": user.email, "password": "SecurePass123!"},
+        format="json",
+    )
+    assert "access_token" in api_client.cookies
+    assert "refresh_token" in api_client.cookies
+
+    response = api_client.post(LOGOUT_URL, {}, format="json")
+
+    assert response.status_code == 200
+    assert response.data["message"] == "Sesión cerrada correctamente."
+    assert response.cookies["access_token"].value == ""
+    assert response.cookies["refresh_token"].value == ""
+
+
+def test_logout_without_session_still_succeeds(api_client):
+    """POST /api/auth/logout/ sin sesión activa devuelve 200 y limpia cookies."""
+    response = api_client.post(LOGOUT_URL, {}, format="json")
+
+    assert response.status_code == 200
+    assert "message" in response.data
