@@ -78,4 +78,23 @@ describe('errorMiddleware', () => {
     expect(toast.error).not.toHaveBeenCalled()
     expect(assign).not.toHaveBeenCalled()
   })
+
+  it('does not redirect on 401 for auth endpoints', async () => {
+    const authPaths = [
+      '/api/auth/login/',
+      '/api/auth/register/',
+      '/api/auth/me/',
+      '/api/auth/logout/',
+    ]
+
+    for (const pathname of authPaths) {
+      await errorMiddleware.onResponse?.({
+        request: new Request(`http://localhost:8000${pathname}`),
+        response: new Response(null, { status: 401 }),
+      } as unknown as Parameters<NonNullable<typeof errorMiddleware.onResponse>>[0])
+    }
+
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(assign).not.toHaveBeenCalled()
+  })
 })

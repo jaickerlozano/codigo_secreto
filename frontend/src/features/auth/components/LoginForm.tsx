@@ -1,8 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
+import { useNavigate, useSearchParams } from 'react-router'
 
 import { loginSchema, type LoginSchema } from '../schemas/login.schema'
-import { useLogin } from '../hooks/useLogin'
+import { useAuth } from '../context/AuthContext'
 
 export function LoginForm() {
   const {
@@ -17,10 +18,18 @@ export function LoginForm() {
     },
   })
 
-  const { mutate, isPending, error } = useLogin()
+  const { login, isLoggingIn, loginError } = useAuth()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  const onSubmit = (data: LoginSchema) => {
-    mutate(data)
+  const onSubmit = async (data: LoginSchema) => {
+    try {
+      await login(data)
+      const next = searchParams.get('next') ?? '/'
+      navigate(next, { replace: true })
+    } catch {
+      // El error queda expuesto en loginError; no navegamos.
+    }
   }
 
   return (
@@ -63,18 +72,18 @@ export function LoginForm() {
         )}
       </div>
 
-      {error && (
+      {loginError && (
         <div className="rounded-lg border border-error-500 bg-error-500/10 px-4 py-3" role="alert">
-          <p className="text-sm text-error-500">{error.message}</p>
+          <p className="text-sm text-error-500">{loginError.message}</p>
         </div>
       )}
 
       <button
         type="submit"
-        disabled={isPending}
+        disabled={isLoggingIn}
         className="w-full rounded-lg bg-neon-magenta-500 px-4 py-2.5 font-semibold text-base-900 shadow-glow-magenta transition hover:bg-neon-magenta-400 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? 'Ingresando...' : 'Iniciar sesión'}
+        {isLoggingIn ? 'Ingresando...' : 'Iniciar sesión'}
       </button>
     </form>
   )

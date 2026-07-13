@@ -3,12 +3,17 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
+import { AuthProvider } from '@/features/auth/context/AuthContext'
 import { queryClient } from '@/lib/query-client'
 
 import { routes } from './router'
 
 function renderWithProviders(ui: React.ReactNode) {
-  return render(<QueryClientProvider client={queryClient()}>{ui}</QueryClientProvider>)
+  return render(
+    <QueryClientProvider client={queryClient()}>
+      <AuthProvider>{ui}</AuthProvider>
+    </QueryClientProvider>,
+  )
 }
 
 describe('router', () => {

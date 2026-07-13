@@ -13,9 +13,22 @@ const client = createClient<paths>({
   fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
 })
 
+const AUTH_PATHS_SKIP_401_REDIRECT = new Set([
+  '/api/auth/login/',
+  '/api/auth/register/',
+  '/api/auth/me/',
+  '/api/auth/logout/',
+])
+
 export const errorMiddleware: Middleware = {
-  async onResponse({ response }) {
+  async onResponse({ request, response }) {
     if (response.status === 401) {
+      const url =
+        typeof request?.url === 'string' ? new URL(request.url) : null
+      if (url && AUTH_PATHS_SKIP_401_REDIRECT.has(url.pathname)) {
+        return
+      }
+
       const next = encodeURIComponent(
         `${window.location.pathname}${window.location.search}`,
       )
