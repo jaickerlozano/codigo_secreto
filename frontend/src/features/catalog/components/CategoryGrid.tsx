@@ -40,7 +40,7 @@ export function CategoryGrid({
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
           {categories.map((category) => {
-            const isActive = activeCategoryId === category.id
+            const isActive = String(category.id) === activeCategoryId
 
             return (
               <Link

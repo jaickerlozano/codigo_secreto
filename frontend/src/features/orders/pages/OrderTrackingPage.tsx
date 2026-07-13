@@ -11,7 +11,7 @@ import {
   Phone,
 } from 'lucide-react'
 
-import { PRODUCTS } from '@/features/catalog/data/products'
+import type { Product } from '@/features/catalog/types'
 import { formatCLP } from '@/lib/format'
 
 import {
@@ -21,6 +21,41 @@ import {
 
 const ORDER_STORAGE_KEY = 'cs-last-order'
 const SUPPORT_PHONE = '56912345678'
+
+const MOCK_PRODUCTS: Product[] = [
+  {
+    id: 1,
+    name: 'Vibrador Luna Pro',
+    price: 29990,
+    category: 'Vibradores',
+    experienceLevel: 'principiante',
+    features: ['10 modos'],
+    description: 'Vibrador de prueba',
+    materials: ['Silicona'],
+    usageInstructions: 'Instrucciones de prueba',
+    icon: '✦',
+    gradient: 'from-violet-950 via-purple-900 to-violet-800',
+    sku: '101',
+    stock: 10,
+    image: null,
+  },
+  {
+    id: 3,
+    name: 'Lubricante Sensorial',
+    price: 12990,
+    category: 'Lubricantes',
+    experienceLevel: 'principiante',
+    features: ['Base agua'],
+    description: 'Lubricante de prueba',
+    materials: ['Base agua'],
+    usageInstructions: 'Instrucciones de prueba',
+    icon: '◈',
+    gradient: 'from-cyan-950 via-teal-900 to-cyan-800',
+    sku: '301',
+    stock: 20,
+    image: null,
+  },
+]
 
 const MOCK_ORDER = {
   number: 'CS-123456',
@@ -39,8 +74,8 @@ const MOCK_ORDER = {
     last4: '**** 4242',
   },
   items: [
-    { product: PRODUCTS[0], quantity: 1 },
-    { product: PRODUCTS[2], quantity: 2 },
+    { product: MOCK_PRODUCTS[0], quantity: 1 },
+    { product: MOCK_PRODUCTS[1], quantity: 2 },
   ],
   shippingCost: 3490,
 }

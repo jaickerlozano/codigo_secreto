@@ -10,6 +10,7 @@ import { env } from './env'
 const client = createClient<paths>({
   baseUrl: env.API_URL,
   credentials: 'include',
+  fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
 })
 
 export const errorMiddleware: Middleware = {

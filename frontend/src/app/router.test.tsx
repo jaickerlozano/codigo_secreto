@@ -12,12 +12,14 @@ function renderWithProviders(ui: React.ReactNode) {
 }
 
 describe('router', () => {
-  it('renders the home catalog at /', () => {
+  it('renders the home catalog at /', async () => {
+    window.localStorage.setItem('cs-age-verified', 'true')
+
     const router = createMemoryRouter(routes, { initialEntries: ['/'] })
     renderWithProviders(<RouterProvider router={router} />)
 
     expect(
-      screen.getByRole('heading', { name: 'Categorías destacadas' }),
+      await screen.findByRole('heading', { name: 'Categorías destacadas' }),
     ).toBeDefined()
     expect(screen.getByText('Los más vendidos')).toBeDefined()
   })

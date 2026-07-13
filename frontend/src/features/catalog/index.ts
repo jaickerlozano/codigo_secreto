@@ -13,8 +13,10 @@ export { CategoryPage } from './pages/CategoryPage'
 export { HomePage } from './pages/HomePage'
 export { ProductDetailPage } from './pages/ProductDetailPage'
 
-export { CATEGORIES } from './data/categories'
-export { PRODUCTS } from './data/products'
+export { useCategories } from './hooks/useCategories'
+export { useProduct } from './hooks/useProduct'
+export { useProducts } from './hooks/useProducts'
+
 export { REVIEWS } from './data/reviews'
 
 export type {
