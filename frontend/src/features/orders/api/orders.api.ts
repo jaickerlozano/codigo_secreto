@@ -64,12 +64,12 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 }
 
 export async function getOrder(orderNumber: string): Promise<Order> {
-  // The spec and the UI identify orders by the public order_number, but the
-  // generated OpenAPI path still declares the parameter as {id}. The backend
-  // endpoint is expected to resolve the public order_number.
-  const { data, error } = await apiClient.GET('/api/orders/{id}/', {
-    params: { path: { id: orderNumber as unknown as number } },
-  })
+  const { data, error } = await apiClient.GET(
+    '/api/orders/by-order-number/{order_number}/',
+    {
+      params: { path: { order_number: orderNumber } },
+    },
+  )
 
   if (error || !data) {
     throw new Error(extractErrorMessage(error))

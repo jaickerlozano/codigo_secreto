@@ -61,5 +61,7 @@ export const orderHandlers = [
     return HttpResponse.json(order, { status: 201 })
   }),
 
-  http.get('*api/orders/:id/', () => HttpResponse.json(testOrder)),
+  http.get('*api/orders/by-order-number/:orderNumber/', () =>
+    HttpResponse.json(testOrder),
+  ),
 ]

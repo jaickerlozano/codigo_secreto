@@ -29,11 +29,7 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'checkout',
-        element: (
-          <ProtectedRoute>
-            <CheckoutPage />
-          </ProtectedRoute>
-        ),
+        element: <CheckoutPage />,
       },
       {
         path: 'category/:categoryId',

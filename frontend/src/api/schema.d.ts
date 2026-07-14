@@ -196,6 +196,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/orders/by-order-number/{order_number}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Endpoint público para consultar una orden por order_number.
+         *     Permite que guests y usuarios autenticados consulten el estado de su orden.
+         */
+        get: operations["orders_by_order_number_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/payments/initiate/": {
         parameters: {
             query?: never;
@@ -476,15 +496,11 @@ export interface components {
         MovementTypeEnum: "IN" | "OUT";
         Order: {
             readonly id: number;
-            /** Número de pedido público */
             readonly order_number: string;
             /** Teléfono de contacto */
             phone: string;
-            /** Comuna de entrega (ID o nombre + región) */
             comuna?: number;
-            /** Nombre de la comuna de entrega (alternativa al ID) */
             comuna_name?: string;
-            /** Nombre de la región de entrega (requerido con comuna_name) */
             region_name?: string;
             /** Dirección de despacho */
             shipping_address: string;
@@ -499,8 +515,7 @@ export interface components {
             guest_name?: string | null;
             /** @description Lista de productos para invitados */
             guest_items?: unknown;
-            /** Método de pago seleccionado */
-            payment_method?: "webpay" | "flow" | "mercadopago" | "transfer";
+            payment_method?: components["schemas"]["PaymentMethodEnum"];
             /** Subtotal productos */
             readonly subtotal: number;
             /** Costo de envío */
@@ -707,6 +722,14 @@ export interface components {
             /** Dirección */
             address?: string;
         };
+        /**
+         * @description * `webpay` - Webpay
+         *     * `flow` - Flow
+         *     * `mercadopago` - MercadoPago
+         *     * `transfer` - Transferencia Bancaria
+         * @enum {string}
+         */
+        PaymentMethodEnum: "webpay" | "flow" | "mercadopago" | "transfer";
         Product: {
             readonly id: number;
             /** Nombre */
@@ -1227,6 +1250,27 @@ export interface operations {
             path: {
                 /** @description Un valor de entero único que identifique este Pedido. */
                 id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+        };
+    };
+    orders_by_order_number_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_number: string;
             };
             cookie?: never;
         };
