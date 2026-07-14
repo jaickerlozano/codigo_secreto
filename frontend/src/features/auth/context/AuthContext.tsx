@@ -2,10 +2,14 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   type ReactNode,
 } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+
+import { useCartStore } from '@/features/cart'
+import { mergeOnLogin } from '@/features/cart/lib/mergeOnLogin'
 
 import { login as loginApi, logoutUser } from '../api/auth.api'
 import type { LoginInput, UserMe } from '../types'
@@ -26,11 +30,18 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const { data: user, isLoading } = useMe()
+  const setCartMode = useCartStore((state) => state.setMode)
+
+  useEffect(() => {
+    setCartMode(user ? 'authenticated' : 'guest')
+  }, [user, setCartMode])
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginInput) => {
       await loginApi(credentials)
       await queryClient.refetchQueries({ queryKey: ['me'], exact: true })
+      const itemsToMerge = [...useCartStore.getState().items]
+      await mergeOnLogin(itemsToMerge, queryClient)
     },
   })
 
@@ -40,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await logoutUser()
       }
       queryClient.removeQueries({ queryKey: ['me'] })
+      queryClient.removeQueries({ queryKey: ['cart'] })
     },
   })
 

@@ -5,7 +5,7 @@ import { ArrowLeft, Check, Heart, PackageX } from 'lucide-react'
 
 import { SEO } from '@/components/SEO'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { useCartStore } from '@/features/cart'
+import { useCart } from '@/features/cart'
 import { formatCLP } from '@/lib/format'
 
 import { useCategories } from '../hooks/useCategories'
@@ -62,9 +62,7 @@ export function ProductDetailPage() {
     category: categoryId,
   })
 
-  const addItemWithQuantity = useCartStore(
-    (state) => state.addItemWithQuantity,
-  )
+  const { addItemWithQuantity } = useCart()
 
   const [quantity, setQuantity] = useState(1)
   const [tab, setTab] = useState<TabKey>('descripcion')

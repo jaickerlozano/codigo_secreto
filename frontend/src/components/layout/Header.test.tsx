@@ -1,8 +1,11 @@
+import type { ReactNode } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
 import type { Category } from '@/features/catalog/types'
+import { queryClient } from '@/lib/query-client'
 
 import { Header } from './Header'
 
@@ -12,13 +15,19 @@ const TEST_CATEGORIES: Category[] = [
   { id: 3, name: 'Juegos', icon: '❋', gradient: 'from-lime-900 to-emerald-700' },
 ]
 
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient()}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
 describe('Header', () => {
   it('renders logo, search, cart and category navigation', () => {
-    render(
-      <MemoryRouter>
-        <Header wishlistCount={1} categories={TEST_CATEGORIES} />
-      </MemoryRouter>,
-    )
+    render(<Header wishlistCount={1} categories={TEST_CATEGORIES} />, {
+      wrapper: Wrapper,
+    })
 
     expect(
       screen.getByRole('button', { name: /Código Secreto — Inicio/i }),
@@ -35,11 +44,7 @@ describe('Header', () => {
     const userEventModule = await import('@testing-library/user-event')
     const u = userEventModule.default.setup()
 
-    render(
-      <MemoryRouter>
-        <Header categories={TEST_CATEGORIES} />
-      </MemoryRouter>,
-    )
+    render(<Header categories={TEST_CATEGORIES} />, { wrapper: Wrapper })
 
     const menuButton = screen.getByRole('button', { name: /Abrir menú/i })
     await u.click(menuButton)

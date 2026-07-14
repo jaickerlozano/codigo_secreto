@@ -11,6 +11,7 @@ import type {
 
 const INITIAL_DATA: CheckoutData = {
   contact: {
+    name: '',
     email: '',
     phone: '',
     isGuest: true,

@@ -1,16 +1,15 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import type { PersistStorage, StorageValue } from 'zustand/middleware'
 
 import type { Product } from '@/features/catalog/types'
 
-export interface CartItem {
-  product: Product
-  quantity: number
-}
+import type { CartItem, CartMode } from '../types'
 
 interface CartState {
   items: CartItem[]
   isOpen: boolean
+  mode: CartMode
 
   // Actions
   addItem: (product: Product) => void
@@ -18,26 +17,54 @@ interface CartState {
   removeItem: (productId: number) => void
   updateQuantity: (productId: number, quantity: number) => void
   clearCart: () => void
+  setMode: (mode: CartMode) => void
   openCart: () => void
   closeCart: () => void
   toggleCart: () => void
 
   // Selectors
   getTotalItems: () => number
-  getSubtotal: () => number
-  getShippingCost: () => number
-  getTotal: () => number
-  getFreeShippingProgress: () => number // 0-100 percentage
 }
 
-const FREE_SHIPPING_THRESHOLD = 30000 // $30,000 CLP
-const FLAT_SHIPPING_RATE = 3990 // $3,990 CLP
+type CartPersistedState = Pick<CartState, 'items' | 'mode'>
+
+const STORAGE_KEY = 'cs-cart'
+
+const conditionalStorage: PersistStorage<CartPersistedState> = {
+  getItem: (name) => {
+    try {
+      const value = localStorage.getItem(name)
+      return value ? (JSON.parse(value) as StorageValue<CartState>) : null
+    } catch {
+      return null
+    }
+  },
+  setItem: (name, value) => {
+    try {
+      if (value.state.mode === 'guest') {
+        localStorage.setItem(name, JSON.stringify(value))
+      } else {
+        localStorage.removeItem(name)
+      }
+    } catch {
+      localStorage.setItem(name, JSON.stringify(value))
+    }
+  },
+  removeItem: (name) => {
+    try {
+      localStorage.removeItem(name)
+    } catch {
+      // ignore
+    }
+  },
+}
 
 export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
       isOpen: false,
+      mode: 'guest',
 
       addItem: (product) => {
         const items = get().items
@@ -46,17 +73,18 @@ export const useCartStore = create<CartState>()(
         )
 
         if (existing) {
+          const quantity = existing.quantity + 1
           set({
             items: items.map((item) =>
               item.product.id === product.id
-                ? { ...item, quantity: item.quantity + 1 }
+                ? { ...item, quantity, subtotal: product.price * quantity }
                 : item,
             ),
             isOpen: true,
           })
         } else {
           set({
-            items: [...items, { product, quantity: 1 }],
+            items: [...items, { product, quantity: 1, subtotal: product.price }],
             isOpen: true,
           })
         }
@@ -69,17 +97,22 @@ export const useCartStore = create<CartState>()(
         )
 
         if (existing) {
+          const newQuantity = existing.quantity + quantity
           set({
             items: items.map((item) =>
               item.product.id === product.id
-                ? { ...item, quantity: item.quantity + quantity }
+                ? {
+                    ...item,
+                    quantity: newQuantity,
+                    subtotal: product.price * newQuantity,
+                  }
                 : item,
             ),
             isOpen: true,
           })
         } else {
           set({
-            items: [...items, { product, quantity }],
+            items: [...items, { product, quantity, subtotal: product.price * quantity }],
             isOpen: true,
           })
         }
@@ -101,40 +134,30 @@ export const useCartStore = create<CartState>()(
         set({
           items: get().items.map((item) =>
             item.product.id === productId
-              ? { ...item, quantity }
+              ? { ...item, quantity, subtotal: item.product.price * quantity }
               : item,
           ),
         })
       },
 
       clearCart: () => set({ items: [] }),
+      setMode: (mode) => set({ mode }),
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),
       toggleCart: () => set({ isOpen: !get().isOpen }),
 
       getTotalItems: () =>
         get().items.reduce((sum, item) => sum + item.quantity, 0),
-      getSubtotal: () =>
-        get().items.reduce(
-          (sum, item) => sum + item.product.price * item.quantity,
-          0,
-        ),
-      getShippingCost: () => {
-        const subtotal = get().getSubtotal()
-        return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : FLAT_SHIPPING_RATE
-      },
-      getTotal: () => get().getSubtotal() + get().getShippingCost(),
-      getFreeShippingProgress: () => {
-        const subtotal = get().getSubtotal()
-        return Math.min(
-          (subtotal / FREE_SHIPPING_THRESHOLD) * 100,
-          100,
-        )
-      },
     }),
     {
-      name: 'cs-cart', // localStorage key
-      partialize: (state) => ({ items: state.items }), // only persist items, not isOpen
+      name: STORAGE_KEY,
+      storage: conditionalStorage,
+      partialize: (state): CartPersistedState => ({
+        items: state.items,
+        mode: state.mode,
+      }),
     },
   ),
 )
+
+export type { CartItem, CartMode }

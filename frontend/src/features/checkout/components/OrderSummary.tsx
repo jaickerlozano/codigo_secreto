@@ -3,18 +3,11 @@ import { useState } from 'react'
 
 import { formatCLP } from '@/lib/format'
 
-import { useCartStore } from '@/features/cart'
+import { useCart } from '@/features/cart'
 
-interface OrderSummaryProps {
-  shippingCost: number
-}
-
-export function OrderSummary({ shippingCost }: OrderSummaryProps) {
-  const { items, getSubtotal } = useCartStore()
+export function OrderSummary() {
+  const { items, subtotal, shippingCost, total } = useCart()
   const [isOpen, setIsOpen] = useState(false)
-
-  const subtotal = getSubtotal()
-  const total = subtotal + shippingCost
 
   return (
     <aside aria-label="Resumen del pedido">
@@ -74,7 +67,7 @@ export function OrderSummary({ shippingCost }: OrderSummaryProps) {
                   </p>
                 </div>
                 <span className="text-xs font-bold text-foreground">
-                  {formatCLP(item.product.price * item.quantity)}
+                  {formatCLP(item.subtotal)}
                 </span>
               </div>
             ))

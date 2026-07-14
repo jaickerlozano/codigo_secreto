@@ -42,16 +42,26 @@ def test_get_cart_empty(authenticated_client, user):
     data = response.json()
     assert data["items"] == []
     assert data["monto_total_final"] == 0
+    assert data["subtotal"] == 0
+    assert data["shipping_cost"] == 0
+    assert data["total"] == 0
+    assert data["free_shipping_progress"] == 0
+    assert data["free_shipping_threshold"] == 30000
 
 
 def test_get_cart_authenticated(authenticated_client, cart_with_items):
-    """GET /api/cart/me/ returns the cart with its items and total."""
+    """GET /api/cart/me/ returns the cart with its items and calculated totals."""
     response = authenticated_client.get("/api/cart/me/")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert len(data["items"]) == 2
     assert data["monto_total_final"] == 22000
+    assert data["subtotal"] == 22000
+    assert data["shipping_cost"] == 3000
+    assert data["total"] == 25000
+    assert data["free_shipping_progress"] == pytest.approx((22000 / 30000) * 100)
+    assert data["free_shipping_threshold"] == 30000
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +81,10 @@ def test_add_new_product(authenticated_client, user, product_factory):
     assert len(data["items"]) == 1
     assert data["items"][0]["quantity"] == 2
     assert data["monto_total_final"] == 20000
+    assert data["subtotal"] == 20000
+    assert data["shipping_cost"] == 3000
+    assert data["total"] == 23000
+    assert data["free_shipping_threshold"] == 30000
 
 
 def test_add_existing_product(authenticated_client, cart_factory, cart_item_factory, product_factory, user):

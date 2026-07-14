@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 
 import { SEO } from '@/components/SEO'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { useCartStore } from '@/features/cart'
+import { useCart } from '@/features/cart'
 
 import type { Product } from '../types'
 import { REVIEWS } from '../data'
@@ -20,7 +20,7 @@ import { TrustSection } from '../components/sections/TrustSection'
 
 export function HomePage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const addItem = useCartStore((state) => state.addItem)
+  const { addItem } = useCart()
 
   const {
     data: productsData,

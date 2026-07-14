@@ -68,6 +68,37 @@ export function StepContact({ defaultValues, onSubmit }: StepContactProps) {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div>
           <label
+            htmlFor="contact-name"
+            className="mb-2 block text-sm font-semibold text-foreground"
+          >
+            Nombre completo{' '}
+            <span className="text-neon-magenta" aria-label="requerido">
+              *
+            </span>
+          </label>
+          <input
+            id="contact-name"
+            type="text"
+            autoComplete="name"
+            placeholder="Tu nombre"
+            className={`w-full rounded-xl border bg-secondary px-4 py-3 text-sm text-foreground placeholder-muted-foreground outline-none transition-all focus:ring-1 ${
+              errors.name
+                ? 'border-destructive focus:border-destructive focus:ring-destructive/40'
+                : 'border-base-600 focus:border-neon-magenta focus:ring-neon-magenta/40'
+            }`}
+            aria-required="true"
+            aria-invalid={!!errors.name}
+            {...register('name')}
+          />
+          {errors.name && (
+            <p className="mt-2 flex items-center gap-1 text-xs text-destructive" role="alert">
+              <AlertCircle size={11} aria-hidden="true" /> {errors.name.message}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label
             htmlFor="contact-email"
             className="mb-2 block text-sm font-semibold text-foreground"
           >

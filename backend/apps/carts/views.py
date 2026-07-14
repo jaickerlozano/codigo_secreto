@@ -15,15 +15,20 @@ class MyCartView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    def _get_cart(self, user):
+        """Trae el carro del usuario precargando los ítems y productos."""
+        return Cart.objects.prefetch_related('items__product').get(user=user)
+
     @extend_schema(
         summary="Ver mi carrito de compras",
-        description="Devuelve el carrito del usuario conectado con su lista de productos, subtotales y el monto total final.",
+        description="Devuelve el carrito del usuario conectado con su lista de productos, subtotales, envío y total.",
         tags=["Carrito"],
         responses={200: CartSerializer}
     )
     def get(self, request):
-        # request.user.cart obtiene el carro único del usuario gracias a la señal
-        serializer = CartSerializer(request.user.cart)
+        # Obtenemos el carro con prefetch_related para evitar consultas N+1
+        cart = self._get_cart(request.user)
+        serializer = CartSerializer(cart)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -37,7 +42,7 @@ class MyCartView(APIView):
         # 1. Validamos los datos de entrada con el serializador auxiliar
         serializer = AddToCartSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         product_id = serializer.validated_data['product_id']
         quantity = serializer.validated_data['quantity']
         cart = request.user.cart
@@ -56,9 +61,8 @@ class MyCartView(APIView):
                 quantity=F('quantity') + quantity
             )
 
-        # 🔥 CORRECCIÓN CRUCIAL: Obligamos al objeto 'cart' a borrar su caché en memoria
-        # y traer los datos frescos y sumados desde la base de datos SQL.
-        cart.refresh_from_db()
+        # 3. Traemos el carro fresco con prefetch_related para serializar los totales
+        cart = self._get_cart(request.user)
         # Devolvemos el carrito actualizado
         return Response(CartSerializer(cart).data, status=status.HTTP_201_CREATED)
 
@@ -73,7 +77,7 @@ class MyCartView(APIView):
         # 1. Validamos los datos de entrada (product_id y quantity a restar)
         serializer = AddToCartSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         product_id = serializer.validated_data['product_id']
         quantity_to_subtract = serializer.validated_data['quantity']
         cart = request.user.cart
@@ -81,7 +85,7 @@ class MyCartView(APIView):
         try:
             # 2. Buscamos si el producto realmente existe en el carro del usuario
             cart_item = CartItem.objects.get(cart=cart, product_id=product_id)
-            
+
             if cart_item.quantity <= quantity_to_subtract:
                 # Si lo que quiere restar es mayor o igual a lo que tiene, borramos el registro completo
                 cart_item.delete()
@@ -90,9 +94,9 @@ class MyCartView(APIView):
                 CartItem.objects.filter(id=cart_item.id).update(
                     quantity=F('quantity') - quantity_to_subtract
                 )
-            
-            # 3. Refrescamos el carro desde la base de datos para recalcular los subtotales reales
-            cart.refresh_from_db()
+
+            # 3. Traemos el carro fresco con prefetch_related para serializar los totales
+            cart = self._get_cart(request.user)
             return Response(CartSerializer(cart).data, status=status.HTTP_200_OK)
 
         except CartItem.DoesNotExist:

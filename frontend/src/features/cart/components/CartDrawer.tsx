@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
 
-import { useCartStore } from '../store'
+import { useCart, useCartStore } from '..'
 
 const FOCUSABLE_SELECTORS = [
   'button:not([disabled])',
@@ -17,25 +17,22 @@ const FOCUSABLE_SELECTORS = [
 ].join(', ')
 
 export function CartDrawer() {
+  const { isOpen, closeCart } = useCartStore()
+
   const {
-    items,
-    isOpen,
-    closeCart,
+    items: cartItems,
     updateQuantity,
     removeItem,
-    getSubtotal,
-    getShippingCost,
-    getTotal,
-    getTotalItems,
-    getFreeShippingProgress,
-  } = useCartStore()
+    subtotal,
+    shippingCost,
+    total,
+    totalItems,
+    freeShippingProgress,
+    freeShippingThreshold,
+  } = useCart()
 
-  const subtotal = getSubtotal()
-  const shipping = getShippingCost()
-  const total = getTotal()
-  const totalItems = getTotalItems()
-  const progress = getFreeShippingProgress()
-  const remaining = Math.max(30000 - subtotal, 0)
+  const progress = freeShippingProgress
+  const remaining = Math.max(freeShippingThreshold - subtotal, 0)
   const prefersReduced = useReducedMotion()
   const panelRef = useRef<HTMLDivElement>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
@@ -140,7 +137,7 @@ export function CartDrawer() {
               className="flex-1 space-y-4 overflow-y-auto px-6 py-4"
               style={{ scrollbarWidth: 'none' }}
             >
-              {items.length === 0 ? (
+              {cartItems.length === 0 ? (
                 <div className="py-20 text-center">
                   <ShoppingCart
                     size={36}
@@ -159,7 +156,7 @@ export function CartDrawer() {
                   </button>
                 </div>
               ) : (
-                items.map((item) => (
+                cartItems.map((item) => (
                   <div
                     key={item.product.id}
                     className="flex gap-3.5 border-b border-white/[0.05] pb-4 last:border-0"
@@ -215,7 +212,7 @@ export function CartDrawer() {
                           </button>
                         </div>
                         <span className="text-[13px] font-bold text-foreground">
-                          {formatCLP(item.product.price * item.quantity)}
+                          {formatCLP(item.subtotal)}
                         </span>
                       </div>
                       <button
@@ -232,9 +229,9 @@ export function CartDrawer() {
               )}
             </div>
 
-            {items.length > 0 && (
+            {cartItems.length > 0 && (
               <div className="border-t border-white/[0.06] px-6 py-5">
-                {subtotal < 30000 && (
+                {freeShippingThreshold > 0 && subtotal < freeShippingThreshold && (
                   <div className="mb-4 rounded-xl bg-secondary p-3">
                     <p className="text-[11px] text-muted-foreground">
                       Agrega{' '}
@@ -252,14 +249,14 @@ export function CartDrawer() {
                         role="progressbar"
                         aria-valuenow={subtotal}
                         aria-valuemin={0}
-                        aria-valuemax={30000}
+                        aria-valuemax={freeShippingThreshold}
                         aria-label="Progreso envío gratis"
                       />
                     </motion.div>
                   </div>
                 )}
 
-                {subtotal >= 30000 && (
+                {freeShippingThreshold > 0 && subtotal >= freeShippingThreshold && (
                   <div className="mb-4 flex items-center gap-2 rounded-xl bg-neon-lime/10 p-3 text-neon-lime">
                     <span className="text-[11px] font-bold">
                       ¡Envío gratis! Has alcanzado el mínimo de compra.
@@ -280,12 +277,12 @@ export function CartDrawer() {
                     </span>
                     <span
                       className={
-                        shipping === 0
+                        shippingCost === 0
                           ? 'font-semibold text-neon-lime'
                           : 'text-foreground'
                       }
                     >
-                      {shipping === 0 ? 'Gratis' : formatCLP(shipping)}
+                      {shippingCost === 0 ? 'Gratis' : formatCLP(shippingCost)}
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-white/[0.06] pt-2.5 text-[15px] font-extrabold">

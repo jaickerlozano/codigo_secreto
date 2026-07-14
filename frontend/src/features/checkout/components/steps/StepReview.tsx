@@ -1,4 +1,4 @@
-import { Check, Lock, Package } from 'lucide-react'
+import { Check, Loader2, Lock, Package } from 'lucide-react'
 
 import { formatCLP } from '@/lib/format'
 
@@ -14,6 +14,7 @@ interface StepReviewProps {
   onTermsChange: (accepted: boolean) => void
   onBack: () => void
   onConfirm: () => void
+  isSubmitting?: boolean
 }
 
 export function StepReview({
@@ -25,6 +26,7 @@ export function StepReview({
   onTermsChange,
   onBack,
   onConfirm,
+  isSubmitting = false,
 }: StepReviewProps) {
   const shippingLabel =
     SHIPPING_OPTIONS.find((s) => s.id === data.shipping.carrier)?.name ?? '—'
@@ -163,11 +165,20 @@ export function StepReview({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={!data.termsAccepted}
+          disabled={!data.termsAccepted || isSubmitting}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-40"
           style={{ background: 'var(--gradient-brand)' }}
         >
-          <Lock size={15} aria-hidden="true" /> Confirmar pedido
+          {isSubmitting ? (
+            <>
+              <Loader2 size={15} aria-hidden="true" className="animate-spin" />
+              Procesando...
+            </>
+          ) : (
+            <>
+              <Lock size={15} aria-hidden="true" /> Confirmar pedido
+            </>
+          )}
         </button>
       </div>
 

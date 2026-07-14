@@ -39,6 +39,36 @@ def test_create_order_allow_any(api_client, product_factory, comuna_factory):
     )
 
     assert response.status_code == status.HTTP_201_CREATED
+    data = response.json()
+    assert "order_number" in data
+    assert data["order_number"].startswith("CS-")
+
+
+def test_create_order_by_comuna_name(api_client, product_factory, comuna_factory):
+    """Guest checkout can resolve the comuna by name + region instead of ID."""
+    product = product_factory(price=1000)
+    comuna = comuna_factory(shipping_cost=3000)
+
+    response = api_client.post(
+        "/api/orders/",
+        {
+            "guest_email": "guest@example.com",
+            "guest_name": "Invitado",
+            "phone": "+56912345678",
+            "comuna_name": comuna.name,
+            "region_name": comuna.region.name,
+            "shipping_address": "Calle 123",
+            "payment_method": "mercadopago",
+            "guest_items": [{"product_id": product.id, "quantity": 1}],
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    data = response.json()
+    assert data["comuna"] == comuna.id
+    assert data["payment_method"] == "mercadopago"
+    assert data["order_number"].startswith("CS-")
 
 
 def _results(response):
@@ -112,6 +142,7 @@ def test_order_calculates_totals(authenticated_client, cart_factory, cart_item_f
     assert data["subtotal"] == 20000
     assert data["shipping_cost"] == 5000
     assert data["total"] == 25000
+    assert data["payment_method"] == "webpay"
 
 
 def test_order_clears_cart_after_creation(authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory):

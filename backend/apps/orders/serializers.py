@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.db import transaction
 from apps.products.models import Product
+from apps.shipping.models import Comuna
 from .models import Order, OrderItem
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -11,22 +12,53 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
-    
+    order_number = serializers.CharField(read_only=True)
+
     # NUEVO: El frontend debe enviar la lista de productos solo si compra como invitado
     guest_items = serializers.JSONField(write_only=True, required=False, help_text="Lista de productos para invitados")
+
+    # Permitimos resolver la comuna por ID (tests) o por nombre + región (frontend checkout)
+    comuna = serializers.PrimaryKeyRelatedField(queryset=Comuna.objects.all(), required=False)
+    comuna_name = serializers.CharField(write_only=True, required=False)
+    region_name = serializers.CharField(write_only=True, required=False)
+
+    # Método de pago elegido en el checkout
+    payment_method = serializers.ChoiceField(choices=Order.PAYMENT_METHOD_CHOICES, required=False)
 
     class Meta:
         model = Order
         fields = [
-            'id', 'phone', 'comuna', 'shipping_address', 'apartment_office', 
-            'guest_email', 'guest_name', 'guest_items',
+            'id', 'order_number', 'phone', 'comuna', 'comuna_name', 'region_name',
+            'shipping_address', 'apartment_office',
+            'guest_email', 'guest_name', 'guest_items', 'payment_method',
             'subtotal', 'shipping_cost', 'total', 'status', 'created_at', 'items'
         ]
-        read_only_fields = ['subtotal', 'shipping_cost', 'total', 'status', 'created_at']
+        read_only_fields = ['order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at']
 
     def validate(self, attrs):
         user = self.context['request'].user
-        
+
+        # Resolvemos la comuna: preferimos el ID, si no viene usamos nombre + región
+        if 'comuna' not in attrs:
+            comuna_name = attrs.pop('comuna_name', None)
+            region_name = attrs.pop('region_name', None)
+            if not comuna_name or not region_name:
+                raise serializers.ValidationError({
+                    'comuna': 'Debes indicar la comuna de entrega.'
+                })
+            try:
+                attrs['comuna'] = Comuna.objects.get(
+                    name__iexact=comuna_name,
+                    region__name__iexact=region_name
+                )
+            except Comuna.DoesNotExist:
+                raise serializers.ValidationError({
+                    'comuna': 'La comuna y región indicadas no son válidas.'
+                })
+        else:
+            attrs.pop('comuna_name', None)
+            attrs.pop('region_name', None)
+
         # SI ES INVITADO (No está autenticado)
         if not user or user.is_anonymous:
             if not attrs.get('guest_email') or not attrs.get('guest_name'):
@@ -43,13 +75,16 @@ class OrderSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         comuna_seleccionada = validated_data['comuna']
         costo_envio_chile = comuna_seleccionada.shipping_cost
-        
+        payment_method = validated_data.get('payment_method', 'webpay')
+
         # Inicializamos variables para el bucle de clonación
         productos_a_comprar = []
         subtotal_productos = 0
 
         # LÓGICA RUTA A: USUARIO REGISTRADO (Usa el carro de la Base de Datos)
         if user and user.is_authenticated:
+            # Los datos de invitado no aplican para usuarios autenticados
+            validated_data.pop('guest_items', None)
             cart = user.cart
             cart_items = cart.items.all()
 
@@ -57,7 +92,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"detail": "No puedes crear un pedido con el carrito vacío."})
 
             subtotal_productos = sum(item.subtotal for item in cart_items)
-            
+
             for item in cart_items:
                 productos_a_comprar.append({
                     'product': item.product,
@@ -65,7 +100,7 @@ class OrderSerializer(serializers.ModelSerializer):
                     'price': item.product.price,
                     'quantity': item.quantity
                 })
-        
+
         # LÓGICA RUTA B: INVITADO ANÓNIMO (Lee la lista del LocalStorage que envía el Frontend)
         else:
             guest_items = validated_data.pop('guest_items')
@@ -73,10 +108,10 @@ class OrderSerializer(serializers.ModelSerializer):
                 try:
                     product = Product.objects.get(id=item['product_id'])
                     quantity = int(item['quantity'])
-                    
+
                     if quantity < 1:
                         continue
-                        
+
                     subtotal_productos += (product.price * quantity)
                     productos_a_comprar.append({
                         'product': product,
@@ -100,6 +135,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 comuna=comuna_seleccionada,
                 shipping_address=validated_data['shipping_address'],
                 apartment_office=validated_data.get('apartment_office', ''),
+                payment_method=payment_method,
                 subtotal=subtotal_productos,
                 shipping_cost=costo_envio_chile,
                 total=total_final
