@@ -17,8 +17,10 @@ export const contactSchema = z.object({
 export type ContactSchema = z.infer<typeof contactSchema>
 
 export const addressSchema = z.object({
-  region: z.string().min(1, 'Selecciona una región'),
-  comuna: z.string().min(1, 'Selecciona una comuna'),
+  regionId: z.number().min(1, 'Selecciona una región'),
+  regionName: z.string().optional(),
+  comunaId: z.number().min(1, 'Selecciona una comuna'),
+  comunaName: z.string().optional(),
   address: z.string().min(5, 'La dirección debe tener al menos 5 caracteres'),
   apartment: z.string().optional(),
   postalCode: z.string().optional(),

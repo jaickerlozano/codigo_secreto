@@ -38,7 +38,7 @@ export function StepReview({
     {
       label: 'Dirección',
       value: data.address.address
-        ? `${data.address.address}${data.address.apartment ? `, ${data.address.apartment}` : ''}, ${data.address.comuna}, ${data.address.region}`
+        ? `${data.address.address}${data.address.apartment ? `, ${data.address.apartment}` : ''}, ${data.address.comunaName || '—'}, ${data.address.regionName || '—'}`
         : '—',
       step: 2 as CheckoutStep,
     },

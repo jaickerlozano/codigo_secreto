@@ -8,8 +8,10 @@ export interface ContactData {
 }
 
 export interface AddressData {
-  region: string
-  comuna: string
+  regionId: number
+  regionName?: string
+  comunaId: number
+  comunaName?: string
   address: string
   apartment?: string
   postalCode?: string
