@@ -1,7 +1,15 @@
+import uuid
+
 from django.db import models
 from apps.authentication.models import User
 from apps.shipping.models import Comuna
 from apps.products.models import Product
+
+
+def generate_order_number():
+    """Genera un número de pedido único y legible para el cliente."""
+    return f"CS-{uuid.uuid4().hex[:8].upper()}"
+
 
 class Order(models.Model):
     # Estados oficiales para el flujo de un pedido
@@ -11,6 +19,23 @@ class Order(models.Model):
         ('SHIPPED', 'Enviado a Destino'),
         ('DELIVERED', 'Entregado al Cliente'),
         ('CANCELLED', 'Cancelado / Anulado'),
+    )
+
+    PAYMENT_METHOD_CHOICES = (
+        ('webpay', 'Webpay'),
+        ('flow', 'Flow'),
+        ('mercadopago', 'MercadoPago'),
+        ('transfer', 'Transferencia Bancaria'),
+    )
+
+    # 0. Número de pedido público (generado por el backend, nunca por el frontend)
+    order_number = models.CharField(
+        max_length=20,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name='número de pedido',
+        help_text='Identificador público del pedido (ej: CS-XXXXXXX).',
     )
 
     # 1. Datos del Comprador (Permitimos null=True para soportar "Invitados")
@@ -24,6 +49,14 @@ class Order(models.Model):
     shipping_address = models.CharField(max_length=255, verbose_name='dirección de despacho')
     apartment_office = models.CharField(max_length=50, null=True, blank=True, verbose_name='depto / oficina')
 
+    # 3. Método de pago seleccionado por el cliente
+    payment_method = models.CharField(
+        max_length=50,
+        choices=PAYMENT_METHOD_CHOICES,
+        default='webpay',
+        verbose_name='método de pago',
+    )
+
     # 3. Datos Financieros (Valores fijos en pesos chilenos)
     subtotal = models.PositiveIntegerField(verbose_name='subtotal productos')
     shipping_cost = models.PositiveIntegerField(verbose_name='costo de envío')
@@ -33,6 +66,11 @@ class Order(models.Model):
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING', verbose_name='estado del pedido')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='fecha de actualización')
+
+    def save(self, *args, **kwargs):
+        if not self.order_number:
+            self.order_number = generate_order_number()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Pedido #{self.id} - {self.get_status_display()} (${self.total:,})"

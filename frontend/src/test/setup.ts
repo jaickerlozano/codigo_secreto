@@ -1,6 +1,9 @@
 import { setupServer } from 'msw/node'
 import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 
+import { useCartStore } from '@/features/cart'
+
+import { resetServerCart } from './handlers/cart'
 import { handlers } from './handlers'
 
 Object.defineProperty(window, 'matchMedia', {
@@ -25,6 +28,10 @@ beforeAll(() =>
   }),
 )
 
-afterEach(() => server.resetHandlers())
+afterEach(() => {
+  server.resetHandlers()
+  resetServerCart()
+  useCartStore.setState({ items: [], isOpen: false, mode: 'guest' })
+})
 
 afterAll(() => server.close())

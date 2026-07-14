@@ -113,7 +113,7 @@ export interface paths {
         };
         /**
          * Ver mi carrito de compras
-         * @description Devuelve el carrito del usuario conectado con su lista de productos, subtotales y el monto total final.
+         * @description Devuelve el carrito del usuario conectado con su lista de productos, subtotales, envío y total.
          */
         get: operations["cart_me_retrieve"];
         put?: never;
@@ -415,7 +415,12 @@ export interface components {
              */
             readonly updated_at: string;
             readonly items: components["schemas"]["CartItem"][];
-            readonly monto_total_final: string;
+            readonly monto_total_final: number;
+            readonly subtotal: number;
+            readonly shipping_cost: number;
+            readonly total: number;
+            readonly free_shipping_progress: number;
+            readonly free_shipping_threshold: number;
         };
         CartItem: {
             /** Carro */
@@ -471,10 +476,16 @@ export interface components {
         MovementTypeEnum: "IN" | "OUT";
         Order: {
             readonly id: number;
+            /** Número de pedido público */
+            readonly order_number: string;
             /** Teléfono de contacto */
             phone: string;
-            /** Comuna de entrega */
-            comuna: number;
+            /** Comuna de entrega (ID o nombre + región) */
+            comuna?: number;
+            /** Nombre de la comuna de entrega (alternativa al ID) */
+            comuna_name?: string;
+            /** Nombre de la región de entrega (requerido con comuna_name) */
+            region_name?: string;
             /** Dirección de despacho */
             shipping_address: string;
             /** Depto / oficina */
@@ -488,6 +499,8 @@ export interface components {
             guest_name?: string | null;
             /** @description Lista de productos para invitados */
             guest_items?: unknown;
+            /** Método de pago seleccionado */
+            payment_method?: "webpay" | "flow" | "mercadopago" | "transfer";
             /** Subtotal productos */
             readonly subtotal: number;
             /** Costo de envío */

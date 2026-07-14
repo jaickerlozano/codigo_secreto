@@ -5,7 +5,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, PackageX } from 'lucide-react'
 
 import { SEO } from '@/components/SEO'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { useCartStore } from '@/features/cart'
+import { useCart } from '@/features/cart'
 import {
   Select,
   SelectContent,
@@ -40,7 +40,7 @@ export function CategoryPage() {
 
   const [page, setPage] = useState(1)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
-  const addItem = useCartStore((state) => state.addItem)
+  const { addItem } = useCart()
 
   const {
     data: categories,

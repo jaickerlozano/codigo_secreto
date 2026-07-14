@@ -1,1 +1,1 @@
-export { useCartStore, type CartItem } from './cartStore'
+export { useCartStore, type CartItem, type CartMode } from './cartStore'

@@ -1,8 +1,11 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import { SEO } from '@/components/SEO'
-import { useCartStore } from '@/features/cart'
+import { useCart } from '@/features/cart'
+import { useCreateOrder } from '@/features/orders/hooks/useCreateOrder'
 
 import { CheckoutProgress } from '../components/CheckoutProgress'
 import { OrderSummary } from '../components/OrderSummary'
@@ -11,14 +14,15 @@ import { StepContact } from '../components/steps/StepContact'
 import { StepPayment } from '../components/steps/StepPayment'
 import { StepReview } from '../components/steps/StepReview'
 import { StepShipping } from '../components/steps/StepShipping'
-import { SHIPPING_OPTIONS } from '../data'
 import { useCheckout } from '../hooks/useCheckout'
 
 const ORDER_STORAGE_KEY = 'cs-last-order'
 
 export function CheckoutPage() {
   const navigate = useNavigate()
-  const { items, clearCart, getSubtotal } = useCartStore()
+  const queryClient = useQueryClient()
+  const { items, clearCart, subtotal, shippingCost, total, mode, isLoading } = useCart()
+  const createOrder = useCreateOrder()
   const {
     currentStep,
     data,
@@ -33,25 +37,49 @@ export function CheckoutPage() {
   } = useCheckout()
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (!isLoading && items.length === 0) {
       navigate('/', { replace: true })
     }
-  }, [items.length, navigate])
+  }, [items.length, isLoading, navigate])
 
   if (items.length === 0) {
     return null
   }
 
-  const subtotal = getSubtotal()
-  const shippingCost =
-    SHIPPING_OPTIONS.find((s) => s.id === data.shipping.carrier)?.price ?? 0
-  const total = subtotal + shippingCost
-
   const handleConfirm = () => {
-    const orderNumber = `CS-${Math.floor(100000 + Math.random() * 900000)}`
-    sessionStorage.setItem(ORDER_STORAGE_KEY, orderNumber)
-    clearCart()
-    navigate('/confirmation', { replace: true })
+    const payload = {
+      phone: data.contact.phone,
+      shipping_address: data.address.address,
+      apartment_office: data.address.apartment ?? '',
+      payment_method: data.payment.method,
+      comuna_name: data.address.comuna,
+      region_name: data.address.region,
+      ...(mode === 'guest' && {
+        guest_email: data.contact.email,
+        guest_name: data.contact.name,
+        guest_items: items.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+        })),
+      }),
+    }
+
+    createOrder.mutate(payload, {
+      onSuccess: (order) => {
+        sessionStorage.setItem(ORDER_STORAGE_KEY, order.order_number)
+
+        if (mode === 'authenticated') {
+          queryClient.invalidateQueries({ queryKey: ['cart'] })
+        } else {
+          clearCart()
+        }
+
+        navigate('/confirmation', { replace: true })
+      },
+      onError: (error) => {
+        toast.error(error.message)
+      },
+    })
   }
 
   return (
@@ -113,12 +141,13 @@ export function CheckoutPage() {
                     onTermsChange={setTermsAccepted}
                     onBack={prevStep}
                     onConfirm={handleConfirm}
+                    isSubmitting={createOrder.isPending}
                   />
                 )}
               </div>
             </div>
 
-            <OrderSummary shippingCost={shippingCost} />
+            <OrderSummary />
           </div>
         </div>
       </main>

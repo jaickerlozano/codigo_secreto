@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router'
 
 import { CSLogo } from '@/components/brand/CSLogo'
 import type { Category } from '@/features/catalog/types'
-import { useCartStore } from '@/features/cart'
+import { useCart, useCartStore } from '@/features/cart'
 
 const FOCUSABLE_SELECTORS = [
   'button:not([disabled])',
@@ -27,7 +27,7 @@ export function Header({
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const navigate = useNavigate()
-  const cartCount = useCartStore((state) => state.getTotalItems())
+  const { totalItems: cartCount } = useCart()
   const toggleCart = useCartStore((state) => state.toggleCart)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)

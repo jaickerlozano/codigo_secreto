@@ -92,6 +92,8 @@ def test_create_order_guest(api_client, product_factory, comuna_factory):
     assert response.status_code == status.HTTP_201_CREATED
     data = response.json()
     assert data["guest_email"] == "guest@example.com"
+    assert "order_number" in data
+    assert data["order_number"].startswith("CS-")
     order = Order.objects.get(id=data["id"])
     assert order.user is None
     assert order.items.count() == 1
