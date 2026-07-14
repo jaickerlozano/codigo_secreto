@@ -1,0 +1,1740 @@
+openapi: 3.0.3
+info:
+  title: Código Secreto Management API
+  version: 1.0.0
+  description: API for managing products, suppliers, and categories in the Código
+    Secreto inventory system.
+paths:
+  /api/auth/login/:
+    post:
+      operationId: auth_login_create
+      description: Recibe el correo electrónico y la contraseña. Devuelve un token
+        de acceso y un token de refresco.
+      summary: Iniciar sesión (Login)
+      tags:
+      - Autenticación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/auth/logout/:
+    post:
+      operationId: auth_logout_create
+      description: Elimina las cookies HttpOnly del token de acceso y refresco.
+      summary: Cerrar sesión (Logout)
+      tags:
+      - Autenticación
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+          description: ''
+  /api/auth/me/:
+    get:
+      operationId: auth_me_retrieve
+      description: Lee el token JWT enviado en las cabeceras y devuelve los datos
+        personales del usuario conectado.
+      summary: Obtener perfil del usuario autenticado
+      tags:
+      - Autenticación
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMe'
+          description: ''
+  /api/auth/register/:
+    post:
+      operationId: auth_register_create
+      description: Permite a los usuarios de la tienda crear una cuenta de cliente.
+        Crea el usuario y su perfil de despacho de forma automática.
+      summary: Registrar un nuevo cliente
+      tags:
+      - Autenticación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Register'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Register'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Register'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /api/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: Recibe un token de refresco válido y entrega un nuevo token de
+        acceso para mantener la sesión activa.
+      summary: Refrescar token de acceso
+      tags:
+      - Autenticación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/cart/me/:
+    get:
+      operationId: cart_me_retrieve
+      description: Devuelve el carrito del usuario conectado con su lista de productos,
+        subtotales, envío y total.
+      summary: Ver mi carrito de compras
+      tags:
+      - Carrito
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+          description: ''
+    post:
+      operationId: cart_me_create
+      description: Recibe un product_id y la cantidad. Si el producto ya está en el
+        carro, suma la cantidad; si no, lo añade.
+      summary: Añadir o actualizar producto en el carrito
+      tags:
+      - Carrito
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddToCart'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AddToCart'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AddToCart'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+          description: ''
+    delete:
+      operationId: cart_me_destroy
+      description: Recibe un product_id y la cantidad a quitar. Si la cantidad del
+        carro llega a cero o menos, el ítem se elimina por completo.
+      summary: Remover o disminuir producto del carrito
+      tags:
+      - Carrito
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cart'
+          description: ''
+  /api/categories/:
+    get:
+      operationId: categories_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: Un término de búsqueda.
+        schema:
+          type: string
+      tags:
+      - categories
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCategoryList'
+          description: ''
+    post:
+      operationId: categories_create
+      tags:
+      - categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Category'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Category'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+  /api/categories/{id}/:
+    get:
+      operationId: categories_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Categoría.
+        required: true
+      tags:
+      - categories
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    put:
+      operationId: categories_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Categoría.
+        required: true
+      tags:
+      - categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Category'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Category'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Category'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    patch:
+      operationId: categories_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Categoría.
+        required: true
+      tags:
+      - categories
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCategory'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+          description: ''
+    delete:
+      operationId: categories_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Categoría.
+        required: true
+      tags:
+      - categories
+      responses:
+        '204':
+          description: No response body
+  /api/orders/:
+    get:
+      operationId: orders_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      tags:
+      - orders
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOrderList'
+          description: ''
+    post:
+      operationId: orders_create
+      tags:
+      - orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Order'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Order'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+  /api/orders/{id}/:
+    get:
+      operationId: orders_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Pedido.
+        required: true
+      tags:
+      - orders
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+  /api/orders/by-order-number/{order_number}/:
+    get:
+      operationId: orders_by_order_number_retrieve
+      description: |-
+        Endpoint público para consultar una orden por order_number.
+        Permite que guests y usuarios autenticados consulten el estado de su orden.
+      parameters:
+      - in: path
+        name: order_number
+        schema:
+          type: string
+          title: Número de pedido
+          description: 'Identificador público del pedido (ej: CS-XXXXXXX).'
+        required: true
+      tags:
+      - orders
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+  /api/payments/initiate/:
+    post:
+      operationId: payments_initiate_create
+      description: Recibe el order_id, registra el intento de pago en el backend y
+        devuelve la URL de redirección de la pasarela.
+      summary: Iniciar proceso de pago
+      tags:
+      - Pagos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiatePayment'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InitiatePayment'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InitiatePayment'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/products/:
+    get:
+      operationId: products_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: Un término de búsqueda.
+        schema:
+          type: string
+      - in: query
+        name: supplier
+        schema:
+          type: integer
+      tags:
+      - products
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProductList'
+          description: ''
+    post:
+      operationId: products_create
+      description: Crear un producto y registrar un movimiento de stock inicial si
+        se proporciona current_stock
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Product'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /api/products/{id}/:
+    get:
+      operationId: products_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Producto.
+        required: true
+      tags:
+      - products
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    put:
+      operationId: products_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Producto.
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Product'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    patch:
+      operationId: products_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Producto.
+        required: true
+      tags:
+      - products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    delete:
+      operationId: products_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Producto.
+        required: true
+      tags:
+      - products
+      responses:
+        '204':
+          description: No response body
+  /api/shipping/comunas/:
+    get:
+      operationId: shipping_comunas_list
+      description: Devuelve el listado plano de todas las comunas de Chile. Permite
+        ver sus costos de despacho individuales.
+      summary: Listar todas las comunas de Chile sueltas
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      tags:
+      - Despachos
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedComunaList'
+          description: ''
+  /api/shipping/comunas/{id}/:
+    get:
+      operationId: shipping_comunas_retrieve
+      description: Devuelve el listado plano de todas las comunas de Chile. Permite
+        ver sus costos de despacho individuales.
+      summary: Listar todas las comunas de Chile sueltas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Comuna.
+        required: true
+      tags:
+      - Despachos
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comuna'
+          description: ''
+  /api/shipping/regions/:
+    get:
+      operationId: shipping_regions_list
+      description: Devuelve el listado completo de las 16 regiones oficiales ordenadas
+        de Norte a Sur, incluyendo sus comunas activas de forma anidada.
+      summary: Listar regiones de Chile con sus comunas
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      tags:
+      - Despachos
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRegionList'
+          description: ''
+  /api/shipping/regions/{id}/:
+    get:
+      operationId: shipping_regions_retrieve
+      description: Devuelve el listado completo de las 16 regiones oficiales ordenadas
+        de Norte a Sur, incluyendo sus comunas activas de forma anidada.
+      summary: Listar regiones de Chile con sus comunas
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Región.
+        required: true
+      tags:
+      - Despachos
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Region'
+          description: ''
+  /api/stock-movements/:
+    get:
+      operationId: stock_movements_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      tags:
+      - stock-movements
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedStockMovementList'
+          description: ''
+    post:
+      operationId: stock_movements_create
+      description: Crear un movimiento de stock
+      tags:
+      - stock-movements
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockMovement'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StockMovement'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StockMovement'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovement'
+          description: ''
+  /api/stock-movements/{id}/:
+    get:
+      operationId: stock_movements_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Movimiento de Stock.
+        required: true
+      tags:
+      - stock-movements
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovement'
+          description: ''
+  /api/suppliers/:
+    get:
+      operationId: suppliers_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: Un término de búsqueda.
+        schema:
+          type: string
+      tags:
+      - suppliers
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSupplierList'
+          description: ''
+    post:
+      operationId: suppliers_create
+      tags:
+      - suppliers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Supplier'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Supplier'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Supplier'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+          description: ''
+  /api/suppliers/{id}/:
+    get:
+      operationId: suppliers_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Proveedor.
+        required: true
+      tags:
+      - suppliers
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+          description: ''
+    put:
+      operationId: suppliers_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Proveedor.
+        required: true
+      tags:
+      - suppliers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Supplier'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Supplier'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Supplier'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+          description: ''
+    patch:
+      operationId: suppliers_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Proveedor.
+        required: true
+      tags:
+      - suppliers
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedSupplier'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedSupplier'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedSupplier'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Supplier'
+          description: ''
+    delete:
+      operationId: suppliers_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: Un valor de entero único que identifique este Proveedor.
+        required: true
+      tags:
+      - suppliers
+      responses:
+        '204':
+          description: No response body
+components:
+  schemas:
+    AddToCart:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+          minimum: 1
+      required:
+      - product_id
+      - quantity
+    Cart:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de actualización
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/CartItem'
+          readOnly: true
+        monto_total_final:
+          type: integer
+          readOnly: true
+        subtotal:
+          type: integer
+          readOnly: true
+        shipping_cost:
+          type: integer
+          readOnly: true
+        total:
+          type: integer
+          readOnly: true
+        free_shipping_progress:
+          type: number
+          readOnly: true
+        free_shipping_threshold:
+          type: integer
+          readOnly: true
+      required:
+      - created_at
+      - free_shipping_progress
+      - free_shipping_threshold
+      - id
+      - items
+      - monto_total_final
+      - shipping_cost
+      - subtotal
+      - total
+      - updated_at
+    CartItem:
+      type: object
+      properties:
+        cart:
+          type: integer
+          title: Carro
+        product:
+          allOf:
+          - $ref: '#/components/schemas/Product'
+          readOnly: true
+        quantity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          title: Cantidad
+        subtotal:
+          type: integer
+          readOnly: true
+      required:
+      - cart
+      - product
+      - subtotal
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+          title: Descripción
+        parent:
+          type: integer
+          nullable: true
+          title: Categoría padre
+        subcategories:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - name
+      - subcategories
+    Comuna:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 100
+        shipping_cost:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          title: Costo de envío
+          description: Costo de envío en CLP para esta comuna
+        is_active:
+          type: boolean
+          description: Indica si realizamos envíos a esta comuna
+      required:
+      - id
+      - name
+    ExperienceLevelEnum:
+      enum:
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      type: integer
+      description: |-
+        * `1` - 1
+        * `2` - 2
+        * `3` - 3
+        * `4` - 4
+        * `5` - 5
+    InitiatePayment:
+      type: object
+      properties:
+        order_id:
+          type: integer
+      required:
+      - order_id
+    MovementTypeEnum:
+      enum:
+      - IN
+      - OUT
+      type: string
+      description: |-
+        * `IN` - Entrada
+        * `OUT` - Salida
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        order_number:
+          type: string
+          readOnly: true
+        phone:
+          type: string
+          title: Teléfono de contacto
+          maxLength: 20
+        comuna:
+          type: integer
+        comuna_name:
+          type: string
+          writeOnly: true
+        region_name:
+          type: string
+          writeOnly: true
+        shipping_address:
+          type: string
+          title: Dirección de despacho
+          maxLength: 255
+        apartment_office:
+          type: string
+          nullable: true
+          title: Depto / oficina
+          maxLength: 50
+        guest_email:
+          type: string
+          format: email
+          nullable: true
+          title: Correo invitado
+          maxLength: 254
+        guest_name:
+          type: string
+          nullable: true
+          title: Nombre invitado
+          maxLength: 255
+        guest_items:
+          writeOnly: true
+          description: Lista de productos para invitados
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethodEnum'
+        subtotal:
+          type: integer
+          readOnly: true
+          title: Subtotal productos
+        shipping_cost:
+          type: integer
+          readOnly: true
+          title: Costo de envío
+        total:
+          type: integer
+          readOnly: true
+          title: Total final
+        status:
+          allOf:
+          - $ref: '#/components/schemas/StatusEnum'
+          readOnly: true
+          title: Estado del pedido
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - items
+      - order_number
+      - phone
+      - shipping_address
+      - shipping_cost
+      - status
+      - subtotal
+      - total
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product_id:
+          type: integer
+          nullable: true
+          title: Producto
+          readOnly: true
+        product_name:
+          type: string
+          title: Nombre del producto congelado
+          maxLength: 255
+        price:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          title: Precio unitario congelado
+        quantity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          title: Cantidad
+        subtotal:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - price
+      - product_id
+      - product_name
+      - quantity
+      - subtotal
+    PaginatedCategoryList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Category'
+    PaginatedComunaList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Comuna'
+    PaginatedOrderList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+    PaginatedProductList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Product'
+    PaginatedRegionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Region'
+    PaginatedStockMovementList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockMovement'
+    PaginatedSupplierList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Supplier'
+    PatchedCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+          title: Descripción
+        parent:
+          type: integer
+          nullable: true
+          title: Categoría padre
+        subcategories:
+          type: string
+          readOnly: true
+    PatchedProduct:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+          title: Descripción
+        current_stock:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        minimum_stock:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        price:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+        image:
+          type: string
+          format: uri
+          nullable: true
+          title: Imagen
+        sku:
+          type: string
+          nullable: true
+          maxLength: 50
+        icon:
+          type: string
+          title: Icono
+          maxLength: 100
+        gradient:
+          type: string
+          title: Gradiente
+          maxLength: 200
+        experience_level:
+          allOf:
+          - $ref: '#/components/schemas/ExperienceLevelEnum'
+          title: Nivel de experiencia
+          minimum: 0
+          maximum: 9223372036854775807
+        features:
+          title: Características
+        badge:
+          type: string
+          nullable: true
+          maxLength: 50
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de actualización
+        category:
+          type: integer
+          title: Categoría
+        supplier:
+          type: integer
+          title: Proveedor
+    PatchedSupplier:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 255
+        contact:
+          type: string
+          title: Contacto
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          title: Correo electrónico
+          maxLength: 254
+        phone:
+          type: string
+          title: Teléfono
+          maxLength: 20
+        address:
+          type: string
+          title: Dirección
+    PaymentMethodEnum:
+      enum:
+      - webpay
+      - flow
+      - mercadopago
+      - transfer
+      type: string
+      description: |-
+        * `webpay` - Webpay
+        * `flow` - Flow
+        * `mercadopago` - MercadoPago
+        * `transfer` - Transferencia Bancaria
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+          title: Descripción
+        current_stock:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        minimum_stock:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+        price:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+        image:
+          type: string
+          format: uri
+          nullable: true
+          title: Imagen
+        sku:
+          type: string
+          nullable: true
+          maxLength: 50
+        icon:
+          type: string
+          title: Icono
+          maxLength: 100
+        gradient:
+          type: string
+          title: Gradiente
+          maxLength: 200
+        experience_level:
+          allOf:
+          - $ref: '#/components/schemas/ExperienceLevelEnum'
+          title: Nivel de experiencia
+          minimum: 0
+          maximum: 9223372036854775807
+        features:
+          title: Características
+        badge:
+          type: string
+          nullable: true
+          maxLength: 50
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de actualización
+        category:
+          type: integer
+          title: Categoría
+        supplier:
+          type: integer
+          title: Proveedor
+      required:
+      - category
+      - created_at
+      - id
+      - name
+      - price
+      - supplier
+      - updated_at
+    Region:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 100
+        ordinal_number:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
+          title: Orden geográfico
+          description: Orden geográfico de la región de Norte a Sur
+        comunas:
+          type: string
+          readOnly: true
+      required:
+      - comunas
+      - id
+      - name
+      - ordinal_number
+    Register:
+      type: object
+      properties:
+        first_name:
+          type: string
+          title: Nombre
+          maxLength: 150
+        last_name:
+          type: string
+          title: Apellidos
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        rut:
+          type: string
+          nullable: true
+          maxLength: 12
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+        password_confirm:
+          type: string
+          writeOnly: true
+      required:
+      - email
+      - password
+      - password_confirm
+    StatusEnum:
+      enum:
+      - PENDING
+      - PAID
+      - SHIPPED
+      - DELIVERED
+      - CANCELLED
+      type: string
+      description: |-
+        * `PENDING` - Pendiente de Pago
+        * `PAID` - Pagado / Listo para Despacho
+        * `SHIPPED` - Enviado a Destino
+        * `DELIVERED` - Entregado al Cliente
+        * `CANCELLED` - Cancelado / Anulado
+    StockMovement:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product:
+          type: integer
+          title: Producto
+        movement_type:
+          allOf:
+          - $ref: '#/components/schemas/MovementTypeEnum'
+          title: Tipo de movimiento
+        quantity:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          title: Cantidad
+        timestamp:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha y hora
+        alert:
+          type: string
+          readOnly: true
+      required:
+      - alert
+      - id
+      - movement_type
+      - product
+      - quantity
+      - timestamp
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 255
+        contact:
+          type: string
+          title: Contacto
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          title: Correo electrónico
+          maxLength: 254
+        phone:
+          type: string
+          title: Teléfono
+          maxLength: 20
+        address:
+          type: string
+          title: Dirección
+      required:
+      - address
+      - contact
+      - email
+      - id
+      - name
+      - phone
+    TokenObtainPair:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - email
+      - password
+      - refresh
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          writeOnly: true
+      required:
+      - access
+      - refresh
+    UserMe:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        first_name:
+          type: string
+          title: Nombre
+          maxLength: 150
+        last_name:
+          type: string
+          title: Apellidos
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        rut:
+          type: string
+          nullable: true
+          maxLength: 12
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        is_admin:
+          type: boolean
+          readOnly: true
+      required:
+      - email
+      - id
+      - is_admin
