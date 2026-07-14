@@ -6,7 +6,9 @@ import { toast } from 'sonner'
 import { SEO } from '@/components/SEO'
 import { useCart } from '@/features/cart'
 import { useCreateOrder } from '@/features/orders/hooks/useCreateOrder'
+import { addGuestOrder } from '@/features/orders/lib/guestOrders'
 
+import { useInitiatePayment } from '../hooks/useInitiatePayment'
 import { CheckoutProgress } from '../components/CheckoutProgress'
 import { OrderSummary } from '../components/OrderSummary'
 import { StepAddress } from '../components/steps/StepAddress'
@@ -23,6 +25,7 @@ export function CheckoutPage() {
   const queryClient = useQueryClient()
   const { items, clearCart, subtotal, shippingCost, total, mode, isLoading } = useCart()
   const createOrder = useCreateOrder()
+  const initiatePayment = useInitiatePayment()
   const {
     currentStep,
     data,
@@ -69,13 +72,27 @@ export function CheckoutPage() {
       onSuccess: (order) => {
         sessionStorage.setItem(ORDER_STORAGE_KEY, order.order_number)
 
-        if (mode === 'authenticated') {
-          queryClient.invalidateQueries({ queryKey: ['cart'] })
-        } else {
-          clearCart()
+        if (mode === 'guest') {
+          addGuestOrder(order.order_number)
         }
 
-        navigate('/confirmation', { replace: true })
+        initiatePayment.mutate(
+          { order_id: order.id },
+          {
+            onSuccess: () => {
+              if (mode === 'authenticated') {
+                queryClient.invalidateQueries({ queryKey: ['cart'] })
+              } else {
+                clearCart()
+              }
+
+              navigate('/confirmation', { replace: true })
+            },
+            onError: (error) => {
+              toast.error(error.message)
+            },
+          },
+        )
       },
       onError: (error) => {
         toast.error(error.message)
@@ -142,7 +159,9 @@ export function CheckoutPage() {
                     onTermsChange={setTermsAccepted}
                     onBack={prevStep}
                     onConfirm={handleConfirm}
-                    isSubmitting={createOrder.isPending}
+                    isSubmitting={
+                      createOrder.isPending || initiatePayment.isPending
+                    }
                   />
                 )}
               </div>

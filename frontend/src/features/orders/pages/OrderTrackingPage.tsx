@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { motion } from 'motion/react'
 import {
@@ -11,164 +11,118 @@ import {
   Phone,
 } from 'lucide-react'
 
-import type { Product } from '@/features/catalog/types'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useAuth } from '@/features/auth'
 import { formatCLP } from '@/lib/format'
+import type { components } from '@/api/schema.d.ts'
 
-import {
-  OrderTimeline,
-  type TimelineStep,
-} from '../components/OrderTimeline'
+import { OrderTimeline, type TimelineStep } from '../components/OrderTimeline'
+import { useOrder } from '../hooks/useOrder'
+import { addGuestOrder, isGuestOrderAllowed } from '../lib/guestOrders'
 
 const ORDER_STORAGE_KEY = 'cs-last-order'
 const SUPPORT_PHONE = '56912345678'
 
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: 'Vibrador Luna Pro',
-    price: 29990,
-    category: 'Vibradores',
-    experienceLevel: 'principiante',
-    features: ['10 modos'],
-    description: 'Vibrador de prueba',
-    materials: ['Silicona'],
-    usageInstructions: 'Instrucciones de prueba',
-    icon: '✦',
-    gradient: 'from-violet-950 via-purple-900 to-violet-800',
-    sku: '101',
-    stock: 10,
-    image: null,
-  },
-  {
-    id: 3,
-    name: 'Lubricante Sensorial',
-    price: 12990,
-    category: 'Lubricantes',
-    experienceLevel: 'principiante',
-    features: ['Base agua'],
-    description: 'Lubricante de prueba',
-    materials: ['Base agua'],
-    usageInstructions: 'Instrucciones de prueba',
-    icon: '◈',
-    gradient: 'from-cyan-950 via-teal-900 to-cyan-800',
-    sku: '301',
-    stock: 20,
-    image: null,
-  },
-]
+type OrderStatus = components['schemas']['StatusEnum']
+type PaymentMethod = components['schemas']['Order']['payment_method']
 
-const MOCK_ORDER = {
-  number: 'CS-123456',
-  createdAt: '03 jul 2026, 10:30',
-  currentStepIndex: 1,
-  carrier: 'Chilexpress',
-  trackingNumber: 'CHX-9988776655',
-  shipping: {
-    name: 'Valentina G.',
-    address: 'Av. Providencia 1234, Dpto 502',
-    city: 'Providencia, Santiago',
-    phone: '+56 9 1234 5678',
-  },
-  payment: {
-    method: 'Webpay / Tarjeta bancaria',
-    last4: '**** 4242',
-  },
-  items: [
-    { product: MOCK_PRODUCTS[0], quantity: 1 },
-    { product: MOCK_PRODUCTS[1], quantity: 2 },
-  ],
-  shippingCost: 3490,
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  PENDING: 'Pendiente de pago',
+  PAID: 'Pagado / Listo para despacho',
+  SHIPPED: 'Enviado a destino',
+  DELIVERED: 'Entregado',
+  CANCELLED: 'Cancelado',
 }
 
-function buildTimeline(
-  currentStepIndex: number,
-  carrier: string,
-  trackingNumber: string,
-  createdAt: string,
-): TimelineStep[] {
-  return [
+const PAYMENT_METHOD_LABELS: Record<NonNullable<PaymentMethod>, string> = {
+  webpay: 'Webpay / Tarjeta bancaria',
+  flow: 'Flow',
+  mercadopago: 'Mercado Pago',
+  transfer: 'Transferencia bancaria',
+}
+
+function buildTimeline(status: OrderStatus, createdAt: string): TimelineStep[] {
+  const cancelled = status === 'CANCELLED'
+
+  const steps: TimelineStep[] = [
     {
       id: 'received',
       title: 'Pedido recibido',
-      description: 'Tu pedido fue confirmado y está en nuestro sistema.',
-      timestamp: createdAt,
-      completed: currentStepIndex >= 0,
-      current: currentStepIndex === 0,
+      description: cancelled
+        ? 'El pedido fue recibido pero posteriormente cancelado.'
+        : 'Tu pedido fue confirmado y está en nuestro sistema.',
+      timestamp: new Date(createdAt).toLocaleString('es-CL'),
+      completed: true,
+      current: status === 'PENDING',
     },
     {
       id: 'preparing',
       title: 'Preparando',
       description:
         'Estamos armando tu pedido con empaque 100% discreto y neutro.',
-      timestamp: '03 jul 2026, 11:15',
-      completed: currentStepIndex >= 2,
-      current: currentStepIndex === 1,
+      completed: status === 'PAID' || status === 'SHIPPED' || status === 'DELIVERED',
+      current: status === 'PAID',
     },
     {
       id: 'shipped',
       title: 'En camino',
-      description: `Transporte: ${carrier}. N° de seguimiento: ${trackingNumber}.`,
-      completed: currentStepIndex >= 3,
-      current: currentStepIndex === 2,
+      description:
+        'Tu pedido ya fue despachado y está en ruta a tu dirección.',
+      completed: status === 'SHIPPED' || status === 'DELIVERED',
+      current: status === 'SHIPPED',
     },
     {
       id: 'delivered',
       title: 'Entregado',
       description: 'Entrega confirmada en la dirección indicada.',
-      completed: currentStepIndex >= 4,
-      current: currentStepIndex === 3,
+      completed: status === 'DELIVERED',
+      current: status === 'DELIVERED',
     },
   ]
+
+  if (cancelled) {
+    steps.push({
+      id: 'cancelled',
+      title: 'Cancelado',
+      description: 'Este pedido fue cancelado.',
+      completed: true,
+      current: true,
+    })
+  }
+
+  return steps
 }
 
 export function OrderTrackingPage() {
-  const { orderId } = useParams<{ orderId: string }>()
-  const [storedOrder, setStoredOrder] = useState<string | null>(null)
+  const { orderId: paramOrderId } = useParams<{ orderId: string }>()
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth()
+  const [fallbackNumber, setFallbackNumber] = useState<string | null>(null)
 
   useEffect(() => {
-    setStoredOrder(sessionStorage.getItem(ORDER_STORAGE_KEY))
-  }, [])
+    if (!paramOrderId) {
+      setFallbackNumber(sessionStorage.getItem(ORDER_STORAGE_KEY))
+    }
+  }, [paramOrderId])
 
-  const isValidOrder =
-    !storedOrder || storedOrder === orderId || orderId === MOCK_ORDER.number
+  const orderNumber = paramOrderId || fallbackNumber || undefined
+  const { data: order, isLoading: isOrderLoading, error } = useOrder(orderNumber)
 
-  const order = useMemo(
-    () => ({
-      ...MOCK_ORDER,
-      number: orderId ?? MOCK_ORDER.number,
-    }),
-    [orderId],
-  )
+  useEffect(() => {
+    if (orderNumber && !isAuthenticated) {
+      addGuestOrder(orderNumber)
+    }
+  }, [orderNumber, isAuthenticated])
 
-  const timeline = useMemo(
-    () =>
-      buildTimeline(
-        order.currentStepIndex,
-        order.carrier,
-        order.trackingNumber,
-        order.createdAt,
-      ),
-    [order],
-  )
-
-  const subtotal = useMemo(
-    () =>
-      order.items.reduce(
-        (sum, item) => sum + item.product.price * item.quantity,
-        0,
-      ),
-    [order.items],
-  )
-
-  const total = subtotal + order.shippingCost
+  const canView = isAuthenticated || (orderNumber ? isGuestOrderAllowed(orderNumber) : false)
 
   const handleContactSupport = () => {
-    const message = `Hola, quisiera consultar sobre mi pedido ${order.number}`
+    if (!order) return
+    const message = `Hola, quisiera consultar sobre mi pedido ${order.order_number}`
     const href = `https://wa.me/${SUPPORT_PHONE}?text=${encodeURIComponent(message)}`
     window.open(href, '_blank', 'noopener,noreferrer')
   }
 
-  if (!isValidOrder) {
+  if (!orderNumber) {
     return (
       <main
         id="main-content"
@@ -179,7 +133,7 @@ export function OrderTrackingPage() {
           Pedido no encontrado
         </h1>
         <p className="mb-6 max-w-xs text-sm text-muted-foreground">
-          No pudimos encontrar el pedido {orderId} en nuestro sistema.
+          No pudimos encontrar el pedido en nuestro sistema.
         </p>
         <Link
           to="/"
@@ -191,6 +145,69 @@ export function OrderTrackingPage() {
       </main>
     )
   }
+
+  if (!isAuthLoading && !canView) {
+    return (
+      <main
+        id="main-content"
+        className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
+      >
+        <PackageX size={48} className="mb-4 text-muted-foreground" />
+        <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">
+          No tienes permiso
+        </h1>
+        <p className="mb-6 max-w-xs text-sm text-muted-foreground">
+          No puedes ver el pedido {orderNumber}. Inicia sesión o usa el enlace
+          que te enviamos.
+        </p>
+        <Link
+          to={`/login?next=${encodeURIComponent(`/order/${orderNumber}`)}`}
+          className="rounded-xl px-6 py-3 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{ background: 'var(--gradient-brand)' }}
+        >
+          Iniciar sesión
+        </Link>
+      </main>
+    )
+  }
+
+  if (isOrderLoading) {
+    return (
+      <main
+        id="main-content"
+        className="flex min-h-[60vh] items-center justify-center px-4 py-20"
+      >
+        <LoadingSpinner />
+      </main>
+    )
+  }
+
+  if (error || !order) {
+    return (
+      <main
+        id="main-content"
+        className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
+      >
+        <PackageX size={48} className="mb-4 text-muted-foreground" />
+        <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">
+          Pedido no encontrado
+        </h1>
+        <p className="mb-6 max-w-xs text-sm text-muted-foreground">
+          {error?.message ||
+            `No pudimos encontrar el pedido ${orderNumber} en nuestro sistema.`}
+        </p>
+        <Link
+          to="/"
+          className="rounded-xl px-6 py-3 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{ background: 'var(--gradient-brand)' }}
+        >
+          Volver al inicio
+        </Link>
+      </main>
+    )
+  }
+
+  const timeline = buildTimeline(order.status, order.created_at)
 
   return (
     <main id="main-content" className="px-4 py-8">
@@ -211,7 +228,7 @@ export function OrderTrackingPage() {
             Seguimiento de pedido
           </h1>
           <p className="mt-1 font-mono text-sm text-neon-magenta">
-            {order.number}
+            {order.order_number}
           </p>
         </motion.div>
 
@@ -243,12 +260,12 @@ export function OrderTrackingPage() {
               <ul className="space-y-4">
                 {order.items.map((item) => (
                   <li
-                    key={item.product.id}
+                    key={item.id}
                     className="flex items-start justify-between gap-4 border-b border-border pb-3 last:border-0 last:pb-0"
                   >
                     <div>
                       <p className="text-sm font-semibold text-foreground">
-                        {item.product.name}
+                        {item.product_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {item.quantity}{' '}
@@ -256,7 +273,7 @@ export function OrderTrackingPage() {
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-foreground">
-                      {formatCLP(item.product.price * item.quantity)}
+                      {formatCLP(item.price * item.quantity)}
                     </span>
                   </li>
                 ))}
@@ -265,15 +282,19 @@ export function OrderTrackingPage() {
               <div className="mt-5 space-y-2 border-t border-border pt-4">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>{formatCLP(subtotal)}</span>
+                  <span>{formatCLP(order.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Envío ({order.carrier})</span>
-                  <span>{formatCLP(order.shippingCost)}</span>
+                  <span>Envío</span>
+                  <span>
+                    {order.shipping_cost === 0
+                      ? 'Gratis'
+                      : formatCLP(order.shipping_cost)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm font-bold text-foreground">
                   <span>Total</span>
-                  <span>{formatCLP(total)}</span>
+                  <span>{formatCLP(order.total)}</span>
                 </div>
               </div>
             </motion.div>
@@ -290,15 +311,18 @@ export function OrderTrackingPage() {
               </h2>
               <div className="space-y-1 text-sm">
                 <p className="font-semibold text-foreground">
-                  {order.shipping.name}
+                  {order.guest_name || 'Cliente'}
                 </p>
+                <p className="text-muted-foreground">{order.shipping_address}</p>
+                {order.apartment_office && (
+                  <p className="text-muted-foreground">{order.apartment_office}</p>
+                )}
                 <p className="text-muted-foreground">
-                  {order.shipping.address}
+                  {order.comuna_name}, {order.region_name}
                 </p>
-                <p className="text-muted-foreground">{order.shipping.city}</p>
                 <p className="flex items-center gap-1.5 text-muted-foreground">
                   <Phone size={12} />
-                  {order.shipping.phone}
+                  {order.phone}
                 </p>
               </div>
             </motion.div>
@@ -314,10 +338,12 @@ export function OrderTrackingPage() {
                 Método de pago
               </h2>
               <p className="text-sm font-semibold text-foreground">
-                {order.payment.method}
+                {order.payment_method
+                  ? PAYMENT_METHOD_LABELS[order.payment_method]
+                  : 'No especificado'}
               </p>
               <p className="text-xs text-muted-foreground">
-                {order.payment.last4}
+                {STATUS_LABELS[order.status]}
               </p>
             </motion.div>
 
