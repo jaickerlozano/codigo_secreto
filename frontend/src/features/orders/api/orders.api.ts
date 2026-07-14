@@ -35,7 +35,7 @@ export type CreateOrderInput = Omit<
   guest_items?: GuestOrderItem[]
 }
 
-function extractErrorMessage(error: unknown): string {
+export function extractErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
     if ('detail' in error && typeof error.detail === 'string') {
       return error.detail
@@ -54,6 +54,21 @@ function extractErrorMessage(error: unknown): string {
 export async function createOrder(input: CreateOrderInput): Promise<Order> {
   const { data, error } = await apiClient.POST('/api/orders/', {
     body: input as Order,
+  })
+
+  if (error || !data) {
+    throw new Error(extractErrorMessage(error))
+  }
+
+  return data
+}
+
+export async function getOrder(orderNumber: string): Promise<Order> {
+  // The spec and the UI identify orders by the public order_number, but the
+  // generated OpenAPI path still declares the parameter as {id}. The backend
+  // endpoint is expected to resolve the public order_number.
+  const { data, error } = await apiClient.GET('/api/orders/{id}/', {
+    params: { path: { id: orderNumber as unknown as number } },
   })
 
   if (error || !data) {
