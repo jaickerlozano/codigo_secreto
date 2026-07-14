@@ -17,8 +17,10 @@ const INITIAL_DATA: CheckoutData = {
     isGuest: true,
   },
   address: {
-    region: 'Región Metropolitana',
-    comuna: '',
+    regionId: 0,
+    regionName: '',
+    comunaId: 0,
+    comunaName: '',
     address: '',
     apartment: '',
     postalCode: '',

@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { ArrowRight, MapPin } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
-import { CHILEAN_REGIONS, COMUNAS_RM } from '@/lib/constants'
+import { useComunas, useRegions } from '@/features/shipping'
 
 import { addressSchema, type AddressSchema } from '../../schemas/checkout.schema'
 
@@ -28,11 +28,30 @@ export function StepAddress({
     defaultValues,
   })
 
-  const region = watch('region')
-  const isRM = region === 'Región Metropolitana'
+  const {
+    data: regions,
+    isLoading: isLoadingRegions,
+    error: regionsError,
+  } = useRegions()
+
+  const rawRegionId = watch('regionId')
+  const regionId = Number.isNaN(rawRegionId) ? 0 : rawRegionId || 0
+
+  const {
+    data: comunas,
+    isLoading: isLoadingComunas,
+    error: comunasError,
+  } = useComunas(regionId > 0 ? regionId : undefined, { enabled: regionId > 0 })
 
   const inputClass = (hasError?: boolean) =>
     `w-full rounded-xl border px-4 py-3 text-sm text-foreground outline-none transition-all focus:ring-1 ${
+      hasError
+        ? 'border-destructive focus:border-destructive focus:ring-destructive/40'
+        : 'border-base-600 bg-secondary focus:border-neon-magenta focus:ring-neon-magenta/40'
+    }`
+
+  const selectClass = (hasError?: boolean) =>
+    `w-full appearance-none rounded-xl border px-4 py-3 text-sm text-foreground outline-none transition-all focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50 ${
       hasError
         ? 'border-destructive focus:border-destructive focus:ring-destructive/40'
         : 'border-base-600 bg-secondary focus:border-neon-magenta focus:ring-neon-magenta/40'
@@ -116,18 +135,40 @@ export function StepAddress({
             </label>
             <select
               id="address-region"
-              className="w-full appearance-none rounded-xl border border-base-600 bg-secondary px-4 py-3 text-sm text-foreground outline-none transition-all focus:border-neon-magenta focus:ring-1 focus:ring-neon-magenta/40"
+              className={selectClass(!!errors.regionId)}
               aria-required="true"
-              {...register('region', {
-                onChange: () => setValue('comuna', ''),
+              aria-invalid={!!errors.regionId}
+              disabled={isLoadingRegions}
+              {...register('regionId', {
+                valueAsNumber: true,
+                onChange: (event) => {
+                  const id = parseInt(event.target.value, 10)
+                  const region = regions?.find((r) => r.id === id)
+                  setValue('regionName', region?.name ?? '')
+                  setValue('comunaId', 0)
+                  setValue('comunaName', '')
+                },
               })}
             >
-              {CHILEAN_REGIONS.map((r) => (
-                <option key={r} value={r}>
-                  {r}
+              <option value="">
+                {isLoadingRegions ? 'Cargando regiones...' : 'Seleccionar...'}
+              </option>
+              {regions?.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
                 </option>
               ))}
             </select>
+            {regionsError && (
+              <p className="mt-2 text-xs text-destructive" role="alert">
+                No se pudieron cargar las regiones. Intenta recargar la página.
+              </p>
+            )}
+            {errors.regionId && (
+              <p className="mt-2 text-xs text-destructive" role="alert">
+                {errors.regionId.message}
+              </p>
+            )}
           </div>
 
           <div>
@@ -140,39 +181,42 @@ export function StepAddress({
                 *
               </span>
             </label>
-            {isRM ? (
-              <select
-                id="address-comuna"
-                className={`w-full appearance-none rounded-xl border px-4 py-3 text-sm text-foreground outline-none transition-all focus:ring-1 ${
-                  errors.comuna
-                    ? 'border-destructive focus:border-destructive focus:ring-destructive/40'
-                    : 'border-base-600 bg-secondary focus:border-neon-magenta focus:ring-neon-magenta/40'
-                }`}
-                aria-required="true"
-                aria-invalid={!!errors.comuna}
-                {...register('comuna')}
-              >
-                <option value="">Seleccionar...</option>
-                {COMUNAS_RM.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                id="address-comuna"
-                type="text"
-                placeholder="Tu comuna"
-                className={inputClass(!!errors.comuna)}
-                aria-required="true"
-                aria-invalid={!!errors.comuna}
-                {...register('comuna')}
-              />
-            )}
-            {errors.comuna && (
+            <select
+              id="address-comuna"
+              className={selectClass(!!errors.comunaId)}
+              aria-required="true"
+              aria-invalid={!!errors.comunaId}
+              disabled={regionId <= 0 || isLoadingComunas}
+              {...register('comunaId', {
+                valueAsNumber: true,
+                onChange: (event) => {
+                  const id = parseInt(event.target.value, 10)
+                  const comuna = comunas?.find((c) => c.id === id)
+                  setValue('comunaName', comuna?.name ?? '')
+                },
+              })}
+            >
+              <option value="">
+                {regionId <= 0
+                  ? 'Selecciona una región primero'
+                  : isLoadingComunas
+                    ? 'Cargando comunas...'
+                    : 'Seleccionar...'}
+              </option>
+              {comunas?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {comunasError && (
               <p className="mt-2 text-xs text-destructive" role="alert">
-                {errors.comuna.message}
+                No se pudieron cargar las comunas. Intenta con otra región.
+              </p>
+            )}
+            {errors.comunaId && (
+              <p className="mt-2 text-xs text-destructive" role="alert">
+                {errors.comunaId.message}
               </p>
             )}
           </div>

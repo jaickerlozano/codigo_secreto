@@ -52,8 +52,9 @@ export function CheckoutPage() {
       shipping_address: data.address.address,
       apartment_office: data.address.apartment ?? '',
       payment_method: data.payment.method,
-      comuna_name: data.address.comuna,
-      region_name: data.address.region,
+      comuna: data.address.comunaId,
+      comuna_name: data.address.comunaName,
+      region_name: data.address.regionName,
       ...(mode === 'guest' && {
         guest_email: data.contact.email,
         guest_name: data.contact.name,
