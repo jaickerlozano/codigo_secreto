@@ -1,6 +1,7 @@
 import { createBrowserRouter, type RouteObject } from 'react-router'
 
 import { LoginPage } from '@/features/auth'
+import { ProtectedRoute } from '@/features/auth/components/ProtectedRoute'
 import { RegisterPage } from '@/features/auth/pages/RegisterPage'
 import { CategoryPage, HomePage, ProductDetailPage } from '@/features/catalog'
 import { CheckoutPage } from '@/features/checkout'
@@ -28,7 +29,11 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'checkout',
-        element: <CheckoutPage />,
+        element: (
+          <ProtectedRoute>
+            <CheckoutPage />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'category/:categoryId',
@@ -40,7 +45,11 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'confirmation',
-        element: <ConfirmationPage />,
+        element: (
+          <ProtectedRoute>
+            <ConfirmationPage />
+          </ProtectedRoute>
+        ),
       },
       {
         path: 'order/:orderId',

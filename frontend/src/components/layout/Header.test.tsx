@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
+import { AuthProvider } from '@/features/auth/context/AuthContext'
 import type { Category } from '@/features/catalog/types'
 import { queryClient } from '@/lib/query-client'
 
@@ -18,7 +19,9 @@ const TEST_CATEGORIES: Category[] = [
 function Wrapper({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient()}>
-      <MemoryRouter>{children}</MemoryRouter>
+      <AuthProvider>
+        <MemoryRouter>{children}</MemoryRouter>
+      </AuthProvider>
     </QueryClientProvider>
   )
 }

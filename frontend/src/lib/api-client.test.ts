@@ -42,15 +42,16 @@ describe('errorMiddleware', () => {
     })
   })
 
-  it('redirects to login with next param on 401', async () => {
+  it('shows a toast on 401 for non-auth paths without redirecting', async () => {
     await errorMiddleware.onResponse?.({
+      request: new Request('http://localhost:8000/api/cart/'),
       response: new Response(null, { status: 401 }),
     } as unknown as Parameters<NonNullable<typeof errorMiddleware.onResponse>>[0])
 
     expect(toast.error).toHaveBeenCalledWith(
       'Tu sesión ha expirado. Por favor inicia sesión nuevamente.',
     )
-    expect(assign).toHaveBeenCalledWith('/login?next=%2Fcheckout%3Fpage%3D2')
+    expect(assign).not.toHaveBeenCalled()
   })
 
   it('shows a toast on 403 without redirecting', async () => {
@@ -79,7 +80,7 @@ describe('errorMiddleware', () => {
     expect(assign).not.toHaveBeenCalled()
   })
 
-  it('does not redirect on 401 for auth endpoints', async () => {
+  it('does not show toast or redirect on 401 for auth endpoints', async () => {
     const authPaths = [
       '/api/auth/login/',
       '/api/auth/register/',
