@@ -1,7 +1,6 @@
 import { createBrowserRouter, type RouteObject } from 'react-router'
 
 import { LoginPage } from '@/features/auth'
-import { ProtectedRoute } from '@/features/auth/components/ProtectedRoute'
 import { RegisterPage } from '@/features/auth/pages/RegisterPage'
 import { CategoryPage, HomePage, ProductDetailPage } from '@/features/catalog'
 import { CheckoutPage } from '@/features/checkout'
