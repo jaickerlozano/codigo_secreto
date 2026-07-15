@@ -405,6 +405,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/Order'
           description: ''
+  /api/orders/track/:
+    get:
+      operationId: orders_track_retrieve
+      description: |-
+        Permite a cualquier usuario (incluidos invitados) consultar un pedido
+        únicamente por su número de orden público (order_number).
+      parameters:
+      - in: query
+        name: order_number
+        schema:
+          type: string
+        description: 'Número de pedido público (ej: CS-XXXXXXX).'
+        required: true
+      tags:
+      - orders
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
   /api/payments/initiate/:
     post:
       operationId: payments_initiate_create
@@ -1058,6 +1082,9 @@ components:
           type: integer
         comuna_name:
           type: string
+        comuna_display:
+          type: string
+          readOnly: true
         region_name:
           type: string
         shipping_address:
@@ -1107,12 +1134,25 @@ components:
           format: date-time
           readOnly: true
           title: Fecha de creación
+        carrier:
+          type: string
+          readOnly: true
+          title: Transportista
+          description: Empresa de transporte encargada del envío.
+        tracking_number:
+          type: string
+          readOnly: true
+          nullable: true
+          title: Número de seguimiento
+          description: Código de rastreo proporcionado por el transportista.
         items:
           type: array
           items:
             $ref: '#/components/schemas/OrderItem'
           readOnly: true
       required:
+      - carrier
+      - comuna_display
       - created_at
       - id
       - items
@@ -1123,6 +1163,7 @@ components:
       - status
       - subtotal
       - total
+      - tracking_number
     OrderItem:
       type: object
       properties:
@@ -1151,7 +1192,7 @@ components:
           format: int64
           title: Cantidad
         subtotal:
-          type: string
+          type: integer
           readOnly: true
       required:
       - id

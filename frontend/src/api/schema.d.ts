@@ -216,6 +216,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/orders/track/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Permite a cualquier usuario (incluidos invitados) consultar un pedido
+         *     únicamente por su número de orden público (order_number).
+         */
+        get: operations["orders_track_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/payments/initiate/": {
         parameters: {
             query?: never;
@@ -501,6 +521,7 @@ export interface components {
             phone: string;
             comuna?: number;
             comuna_name?: string;
+            readonly comuna_display: string;
             region_name?: string;
             /** Dirección de despacho */
             shipping_address: string;
@@ -529,6 +550,16 @@ export interface components {
              * Format: date-time
              */
             readonly created_at: string;
+            /**
+             * Transportista
+             * @description Empresa de transporte encargada del envío.
+             */
+            readonly carrier: string;
+            /**
+             * Número de seguimiento
+             * @description Código de rastreo proporcionado por el transportista.
+             */
+            readonly tracking_number: string | null;
             readonly items: components["schemas"]["OrderItem"][];
         };
         OrderItem: {
@@ -547,7 +578,7 @@ export interface components {
              * Format: int64
              */
             quantity: number;
-            readonly subtotal: string;
+            readonly subtotal: number;
         };
         PaginatedCategoryList: {
             /** @example 123 */
@@ -1272,6 +1303,28 @@ export interface operations {
             path: {
                 order_number: string;
             };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+        };
+    };
+    orders_track_retrieve: {
+        parameters: {
+            query: {
+                /** @description Número de pedido público (ej: CS-XXXXXXX). */
+                order_number: string;
+            };
+            header?: never;
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;

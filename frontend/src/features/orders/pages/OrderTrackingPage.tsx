@@ -14,14 +14,14 @@ import {
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/features/auth'
 import { formatCLP } from '@/lib/format'
+import { SUPPORT_PHONE } from '@/lib/config'
 import type { components } from '@/api/schema.d.ts'
 
-import { OrderTimeline, type TimelineStep } from '../components/OrderTimeline'
 import { useOrder } from '../hooks/useOrder'
+import { OrderTimeline, type TimelineStep } from '../components/OrderTimeline'
 import { addGuestOrder, isGuestOrderAllowed } from '../lib/guestOrders'
 
 const ORDER_STORAGE_KEY = 'cs-last-order'
-const SUPPORT_PHONE = '56912345678'
 
 type OrderStatus = components['schemas']['StatusEnum']
 type PaymentMethod = components['schemas']['Order']['payment_method']
@@ -41,7 +41,12 @@ const PAYMENT_METHOD_LABELS: Record<NonNullable<PaymentMethod>, string> = {
   transfer: 'Transferencia bancaria',
 }
 
-function buildTimeline(status: OrderStatus, createdAt: string): TimelineStep[] {
+function buildTimeline(
+  status: OrderStatus,
+  createdAt: string,
+  carrier: string,
+  trackingNumber: string | null,
+): TimelineStep[] {
   const cancelled = status === 'CANCELLED'
 
   const steps: TimelineStep[] = [
@@ -66,8 +71,9 @@ function buildTimeline(status: OrderStatus, createdAt: string): TimelineStep[] {
     {
       id: 'shipped',
       title: 'En camino',
-      description:
-        'Tu pedido ya fue despachado y está en ruta a tu dirección.',
+      description: trackingNumber
+        ? `Transporte: ${carrier}. N° de seguimiento: ${trackingNumber}.`
+        : `Transporte: ${carrier}.`,
       completed: status === 'SHIPPED' || status === 'DELIVERED',
       current: status === 'SHIPPED',
     },
@@ -207,7 +213,12 @@ export function OrderTrackingPage() {
     )
   }
 
-  const timeline = buildTimeline(order.status, order.created_at)
+  const timeline = buildTimeline(
+    order.status,
+    order.created_at,
+    order.carrier,
+    order.tracking_number,
+  )
 
   return (
     <main id="main-content" className="px-4 py-8">
@@ -273,7 +284,7 @@ export function OrderTrackingPage() {
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-foreground">
-                      {formatCLP(item.price * item.quantity)}
+                      {formatCLP(item.subtotal)}
                     </span>
                   </li>
                 ))}
@@ -285,7 +296,7 @@ export function OrderTrackingPage() {
                   <span>{formatCLP(order.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Envío</span>
+                  <span>Envío ({order.carrier})</span>
                   <span>
                     {order.shipping_cost === 0
                       ? 'Gratis'

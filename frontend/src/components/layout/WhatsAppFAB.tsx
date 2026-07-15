@@ -1,13 +1,15 @@
 import { motion } from 'motion/react'
 import { MessageCircle } from 'lucide-react'
 
+import { SUPPORT_PHONE } from '@/lib/config'
+
 interface WhatsAppFABProps {
   phone?: string
   message?: string
 }
 
 export function WhatsAppFAB({
-  phone = '56912345678',
+  phone = SUPPORT_PHONE,
   message = 'Hola, quisiera consultar',
 }: WhatsAppFABProps) {
   const href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`

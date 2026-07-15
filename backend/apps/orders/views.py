@@ -2,24 +2,27 @@ from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+
 from .models import Order
 from .serializers import OrderSerializer
+
 
 class OrderViewSet(mixins.CreateModelMixin,
                    mixins.RetrieveModelMixin,
                    mixins.ListModelMixin,
                    viewsets.GenericViewSet):
-    
+
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
 
     def get_permissions(self):
         """
-        Permite que CUALQUIERA (incluidos invitados) pueda hacer un POST para comprar.
-        Permite que CUALQUIERA pueda consultar una orden por order_number (tracking público).
+        Permite que CUALQUIERA (incluidos invitados) pueda hacer un POST para comprar
+        o consultar el estado de un pedido por su número de orden.
         Pero exige estar Autenticado para ver la lista de pedidos del historial.
         """
-        if self.action in ['create', 'by_order_number']:
+        if self.action in ('create', 'track', 'by_order_number'):
             return [AllowAny()]
         return [IsAuthenticated()]
 
@@ -30,6 +33,42 @@ class OrderViewSet(mixins.CreateModelMixin,
             return Order.objects.all()
         return Order.objects.filter(user=self.request.user)
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='order_number',
+                location=OpenApiParameter.QUERY,
+                required=True,
+                type=str,
+                description='Número de pedido público (ej: CS-XXXXXXX).',
+            ),
+        ],
+        responses={200: OrderSerializer},
+    )
+    @action(detail=False, methods=['get'], url_path='track')
+    def track(self, request):
+        """
+        Permite a cualquier usuario (incluidos invitados) consultar un pedido
+        únicamente por su número de orden público (order_number).
+        """
+        order_number = request.query_params.get('order_number')
+        if not order_number:
+            return Response(
+                {'detail': 'Debes indicar el número de pedido.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            order = Order.objects.get(order_number=order_number)
+        except Order.DoesNotExist:
+            return Response(
+                {'detail': 'Pedido no encontrado.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = self.get_serializer(order)
+        return Response(serializer.data)
+
     @action(detail=False, methods=['get'], url_path='by-order-number/(?P<order_number>[^/.]+)')
     def by_order_number(self, request, order_number=None):
         """
@@ -38,24 +77,24 @@ class OrderViewSet(mixins.CreateModelMixin,
         """
         try:
             order = Order.objects.get(order_number=order_number)
-            
+
             # Si el usuario está autenticado, verificar que la orden le pertenezca
             if request.user.is_authenticated and order.user and order.user != request.user:
                 return Response(
                     {'detail': 'No tienes permiso para ver esta orden.'},
                     status=status.HTTP_403_FORBIDDEN
                 )
-            
+
             # Si el usuario no está autenticado y la orden tiene user, requerir autenticación
             if not request.user.is_authenticated and order.user:
                 return Response(
                     {'detail': 'Esta orden requiere autenticación para ser consultada.'},
                     status=status.HTTP_401_UNAUTHORIZED
                 )
-            
+
             serializer = self.get_serializer(order)
             return Response(serializer.data)
-            
+
         except Order.DoesNotExist:
             return Response(
                 {'detail': 'Orden no encontrada.'},

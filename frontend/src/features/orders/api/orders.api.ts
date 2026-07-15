@@ -63,7 +63,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   return data
 }
 
-export async function getOrder(orderNumber: string): Promise<Order> {
+export async function getOrderByNumber(orderNumber: string): Promise<Order> {
   const { data, error } = await apiClient.GET(
     '/api/orders/by-order-number/{order_number}/',
     {
@@ -72,7 +72,7 @@ export async function getOrder(orderNumber: string): Promise<Order> {
   )
 
   if (error || !data) {
-    throw new Error(extractErrorMessage(error))
+    throw new Error(extractErrorMessage(error) || 'Pedido no encontrado.')
   }
 
   return data

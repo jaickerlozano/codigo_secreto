@@ -198,6 +198,35 @@ def test_order_retrieve_shows_nested_items(authenticated_client, order_factory, 
     assert item["subtotal"] == 16000
 
 
+def test_track_order_by_number_allow_any(api_client, order_factory):
+    """Guest users can track an order by its public order_number."""
+    order = order_factory()
+
+    response = api_client.get(f"/api/orders/track/?order_number={order.order_number}")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["order_number"] == order.order_number
+    assert "subtotal" in data
+    assert "shipping_cost" in data
+    assert "total" in data
+
+
+def test_track_order_requires_order_number(api_client):
+    """Track endpoint returns 400 when order_number is missing."""
+    response = api_client.get("/api/orders/track/")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "número de pedido" in response.json()["detail"].lower()
+
+
+def test_track_order_not_found(api_client):
+    """Track endpoint returns 404 for an unknown order_number."""
+    response = api_client.get("/api/orders/track/?order_number=CS-NOTFOUND")
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
 def test_guest_can_retrieve_own_order_by_order_number(api_client, order_factory):
     """Guest users can retrieve their own guest orders by order_number."""
     order = order_factory(user=None, guest_email="guest@example.com", guest_name="Invitado")

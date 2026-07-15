@@ -14,16 +14,13 @@ function Wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('useOrder', () => {
-  it('fetches order details by order number', async () => {
-    const { result } = renderHook(() => useOrder('CS-123456'), {
+  it('returns undefined when no order number is provided', () => {
+    const { result } = renderHook(() => useOrder(undefined), {
       wrapper: Wrapper,
     })
 
-    await waitFor(() => expect(result.current.isSuccess).toBe(true))
-
-    expect(result.current.data?.order_number).toBe('CS-123456')
-    expect(result.current.data?.items).toHaveLength(1)
-    expect(result.current.data?.status).toBe('PENDING')
+    expect(result.current.isPending).toBe(true)
+    expect(result.current.fetchStatus).toBe('idle')
   })
 
   it('remains idle when no order number is provided', () => {
@@ -33,5 +30,20 @@ describe('useOrder', () => {
 
     expect(result.current.isLoading).toBe(false)
     expect(result.current.fetchStatus).toBe('idle')
+  })
+
+  it('fetches order details by order_number', async () => {
+    const { result } = renderHook(() => useOrder('CS-123456'), {
+      wrapper: Wrapper,
+    })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(result.current.data?.order_number).toBe('CS-123456')
+    expect(result.current.data?.subtotal).toBeDefined()
+    expect(result.current.data?.total).toBeDefined()
+    expect(result.current.data?.items).toBeDefined()
+    expect(result.current.data?.items).toHaveLength(1)
+    expect(result.current.data?.status).toBe('PENDING')
   })
 })

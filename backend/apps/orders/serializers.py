@@ -5,6 +5,8 @@ from apps.shipping.models import Comuna
 from .models import Order, OrderItem
 
 class OrderItemSerializer(serializers.ModelSerializer):
+    subtotal = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = OrderItem
         fields = ['id', 'product_id', 'product_name', 'price', 'quantity', 'subtotal']
@@ -22,18 +24,28 @@ class OrderSerializer(serializers.ModelSerializer):
     comuna_name = serializers.CharField(required=False)
     region_name = serializers.CharField(required=False)
 
+    # Nombre legible de la comuna (solo lectura) para el frontend de seguimiento
+    comuna_display = serializers.SerializerMethodField()
+
     # Método de pago elegido en el checkout
     payment_method = serializers.ChoiceField(choices=Order.PAYMENT_METHOD_CHOICES, required=False)
 
     class Meta:
         model = Order
         fields = [
-            'id', 'order_number', 'phone', 'comuna', 'comuna_name', 'region_name',
+            'id', 'order_number', 'phone', 'comuna', 'comuna_name', 'comuna_display', 'region_name',
             'shipping_address', 'apartment_office',
             'guest_email', 'guest_name', 'guest_items', 'payment_method',
-            'subtotal', 'shipping_cost', 'total', 'status', 'created_at', 'items'
+            'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
+            'carrier', 'tracking_number', 'items'
         ]
-        read_only_fields = ['order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at']
+        read_only_fields = [
+            'order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
+            'comuna_display', 'carrier', 'tracking_number'
+        ]
+
+    def get_comuna_display(self, obj):
+        return str(obj.comuna) if obj.comuna else None
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
