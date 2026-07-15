@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
+import { AuthProvider } from '@/features/auth/context/AuthContext'
 import { queryClient } from '@/lib/query-client'
 
 import { Layout } from './Layout'
@@ -11,7 +12,7 @@ import { Layout } from './Layout'
 function Wrapper({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient()}>
-      {children}
+      <AuthProvider>{children}</AuthProvider>
     </QueryClientProvider>
   )
 }

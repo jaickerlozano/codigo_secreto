@@ -23,20 +23,13 @@ const AUTH_PATHS_SKIP_401_REDIRECT = new Set([
 export const errorMiddleware: Middleware = {
   async onResponse({ request, response }) {
     if (response.status === 401) {
-      const url =
-        typeof request?.url === 'string' ? new URL(request.url) : null
-      if (url && AUTH_PATHS_SKIP_401_REDIRECT.has(url.pathname)) {
-        return
+      const url = typeof request?.url === 'string' ? new URL(request.url) : null
+      if (url && !AUTH_PATHS_SKIP_401_REDIRECT.has(url.pathname)) {
+        toast.error(
+          'Tu sesión ha expirado. Por favor inicia sesión nuevamente.',
+        )
       }
-
-      const next = encodeURIComponent(
-        `${window.location.pathname}${window.location.search}`,
-      )
-      toast.error(
-        'Tu sesión ha expirado. Por favor inicia sesión nuevamente.',
-      )
-      window.location.assign(`/login?next=${next}`)
-      return
+      return // Let the calling code handle the 401
     }
 
     if (response.status === 403) {

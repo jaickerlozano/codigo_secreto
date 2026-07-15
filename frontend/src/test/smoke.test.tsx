@@ -3,12 +3,15 @@ import { render, screen } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
+import { AuthProvider } from '@/features/auth/context/AuthContext'
 import { routes } from '@/app/router.tsx'
 import { queryClient } from '@/lib/query-client'
 
 function renderWithProviders(ui: React.ReactNode) {
   return render(
-    <QueryClientProvider client={queryClient()}>{ui}</QueryClientProvider>,
+    <QueryClientProvider client={queryClient()}>
+      <AuthProvider>{ui}</AuthProvider>
+    </QueryClientProvider>,
   )
 }
 

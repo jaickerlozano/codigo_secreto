@@ -1,9 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Heart, Menu, Search, ShoppingCart, User, X } from 'lucide-react'
+import { Heart, LogOut, Menu, Search, ShoppingCart, User, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 
 import { CSLogo } from '@/components/brand/CSLogo'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useAuth } from '@/features/auth/context/AuthContext'
 import type { Category } from '@/features/catalog/types'
 import { useCart, useCartStore } from '@/features/cart'
 
@@ -27,10 +36,16 @@ export function Header({
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const navigate = useNavigate()
+  const { isAuthenticated, user, logout } = useAuth()
   const { totalItems: cartCount } = useCart()
   const toggleCart = useCartStore((state) => state.toggleCart)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
+
+  const handleLogout = async () => {
+    await logout()
+    navigate('/')
+  }
 
   useEffect(() => {
     if (menuOpen) {
@@ -108,13 +123,42 @@ export function Header({
           >
             <Search size={19} />
           </button>
-          <button
-            type="button"
-            className="hidden md:flex p-2.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
-            aria-label="Mi cuenta"
-          >
-            <User size={19} />
-          </button>
+          {isAuthenticated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="hidden md:flex p-2.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+                  aria-label="Mi cuenta"
+                >
+                  <User size={19} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      {user?.first_name || user?.email}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>
+                  <LogOut className="mr-2 size-4" />
+                  Cerrar sesión
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link
+              to="/login"
+              className="hidden md:flex p-2.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
+              aria-label="Iniciar sesión"
+            >
+              <User size={19} />
+            </Link>
+          )}
           <button
             type="button"
             className="hidden md:flex relative p-2.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
@@ -236,6 +280,33 @@ export function Header({
                 >
                   Contacto
                 </button>
+                <div className="border-t border-border mt-2 pt-2">
+                  {isAuthenticated ? (
+                    <>
+                      <p className="px-2 py-1.5 text-sm font-medium text-foreground">
+                        {user?.first_name || user?.email}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false)
+                          handleLogout()
+                        }}
+                        className="w-full text-sm text-muted-foreground hover:text-foreground py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      >
+                        Cerrar sesión
+                      </button>
+                    </>
+                  ) : (
+                    <Link
+                      to="/login"
+                      onClick={() => setMenuOpen(false)}
+                      className="block text-sm text-muted-foreground hover:text-foreground py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                    >
+                      Iniciar sesión
+                    </Link>
+                  )}
+                </div>
               </nav>
             </div>
           </motion.div>
