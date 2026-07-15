@@ -225,3 +225,68 @@ def test_track_order_not_found(api_client):
     response = api_client.get("/api/orders/track/?order_number=CS-NOTFOUND")
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_guest_can_retrieve_own_order_by_order_number(api_client, order_factory):
+    """Guest users can retrieve their own guest orders by order_number."""
+    order = order_factory(user=None, guest_email="guest@example.com", guest_name="Invitado")
+
+    response = api_client.get(f"/api/orders/by-order-number/{order.order_number}/")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["order_number"] == order.order_number
+    assert data["guest_email"] == "guest@example.com"
+
+
+def test_authenticated_user_can_retrieve_own_order_by_order_number(authenticated_client, order_factory, user):
+    """Authenticated users can retrieve their own orders by order_number."""
+    order = order_factory(user=user)
+
+    response = authenticated_client.get(f"/api/orders/by-order-number/{order.order_number}/")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["order_number"] == order.order_number
+
+
+def test_authenticated_user_cannot_retrieve_other_order_by_order_number(authenticated_client, order_factory):
+    """Authenticated users cannot retrieve orders that belong to someone else."""
+    order = order_factory()  # Different user
+
+    response = authenticated_client.get(f"/api/orders/by-order-number/{order.order_number}/")
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+def test_guest_cannot_retrieve_authenticated_order_by_order_number(api_client, order_factory, user):
+    """Guest users cannot retrieve orders that require authentication."""
+    order = order_factory(user=user)
+
+    response = api_client.get(f"/api/orders/by-order-number/{order.order_number}/")
+
+    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_order_by_order_number_not_found(api_client):
+    """Requesting a non-existent order_number returns 404."""
+    response = api_client.get("/api/orders/by-order-number/CS-999999/")
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_order_by_order_number_includes_comuna_and_region_names(api_client, order_factory, comuna_factory):
+    """Guest order retrieve by order_number includes comuna_name and region_name."""
+    comuna = comuna_factory(name="Providencia", shipping_cost=3000)
+    order = order_factory(
+        user=None,
+        guest_email="guest@example.com",
+        guest_name="Invitado",
+        comuna=comuna,
+    )
+
+    response = api_client.get(f"/api/orders/by-order-number/{order.order_number}/")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["comuna_name"] == comuna.name
+    assert data["region_name"] == comuna.region.name

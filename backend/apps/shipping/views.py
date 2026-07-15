@@ -30,3 +30,4 @@ class ComunaViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.G
     queryset = Comuna.objects.filter(is_active=True)
     serializer_class = ComunaSerializer
     permission_classes = [AllowAny]
+    filterset_fields = ['region']

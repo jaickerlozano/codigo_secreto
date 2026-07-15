@@ -23,7 +23,16 @@ describe('useOrder', () => {
     expect(result.current.fetchStatus).toBe('idle')
   })
 
-  it('fetches an order by order_number', async () => {
+  it('remains idle when no order number is provided', () => {
+    const { result } = renderHook(() => useOrder(undefined), {
+      wrapper: Wrapper,
+    })
+
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.fetchStatus).toBe('idle')
+  })
+
+  it('fetches order details by order_number', async () => {
     const { result } = renderHook(() => useOrder('CS-123456'), {
       wrapper: Wrapper,
     })
@@ -34,5 +43,7 @@ describe('useOrder', () => {
     expect(result.current.data?.subtotal).toBeDefined()
     expect(result.current.data?.total).toBeDefined()
     expect(result.current.data?.items).toBeDefined()
+    expect(result.current.data?.items).toHaveLength(1)
+    expect(result.current.data?.status).toBe('PENDING')
   })
 })

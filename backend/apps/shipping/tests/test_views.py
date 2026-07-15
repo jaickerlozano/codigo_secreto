@@ -179,3 +179,19 @@ def test_comuna_create_not_allowed(api_client):
         {"name": "Nueva Comuna", "shipping_cost": 3000},
     )
     assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+
+
+def test_list_comunas_filtered_by_region(api_client, comuna_factory, region_factory):
+    """GET /api/shipping/comunas/?region={id} returns only comunas for that region."""
+    region_a = region_factory(name="Región A")
+    region_b = region_factory(name="Región B")
+    comuna_a = comuna_factory(name="Comuna A", region=region_a)
+    comuna_b = comuna_factory(name="Comuna B", region=region_b)
+
+    response = api_client.get(f"/api/shipping/comunas/?region={region_a.id}")
+
+    assert response.status_code == status.HTTP_200_OK
+    results = _results(response)
+    ids = {item["id"] for item in results}
+    assert comuna_a.id in ids
+    assert comuna_b.id not in ids

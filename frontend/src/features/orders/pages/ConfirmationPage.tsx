@@ -11,22 +11,39 @@ import {
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { formatCLP } from '@/lib/format'
+import type { components } from '@/api/schema.d.ts'
+
+import { useOrder } from '../hooks/useOrder'
 
 const ORDER_STORAGE_KEY = 'cs-last-order'
 
-const TIMELINE = [
-  { label: 'Pedido recibido', done: true },
-  { label: 'En preparación', active: true },
-  { label: 'Despachado', done: false, active: false },
-  { label: 'Entregado', done: false, active: false },
-]
+type OrderStatus = components['schemas']['StatusEnum']
+type PaymentMethod = components['schemas']['Order']['payment_method']
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  PENDING: 'Pendiente de pago',
+  PAID: 'Pagado / Listo para despacho',
+  SHIPPED: 'Enviado a destino',
+  DELIVERED: 'Entregado',
+  CANCELLED: 'Cancelado',
+}
+
+const PAYMENT_METHOD_LABELS: Record<NonNullable<PaymentMethod>, string> = {
+  webpay: 'Webpay / Tarjeta bancaria',
+  flow: 'Flow',
+  mercadopago: 'Mercado Pago',
+  transfer: 'Transferencia bancaria',
+}
 
 export function ConfirmationPage() {
   const navigate = useNavigate()
   const [orderNumber, setOrderNumber] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const prefersReduced = useReducedMotion()
+  const { data: order, isLoading, error } = useOrder(orderNumber ?? undefined)
 
   useEffect(() => {
     const stored = sessionStorage.getItem(ORDER_STORAGE_KEY)
@@ -37,11 +54,8 @@ export function ConfirmationPage() {
     setOrderNumber(stored)
   }, [navigate])
 
-  if (!orderNumber) {
-    return null
-  }
-
   const handleCopy = () => {
+    if (!orderNumber) return
     navigator.clipboard?.writeText(orderNumber).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
@@ -50,6 +64,46 @@ export function ConfirmationPage() {
   const handleGoHome = () => {
     navigate('/', { replace: true })
   }
+
+  if (!orderNumber) {
+    return null
+  }
+
+  if (isLoading) {
+    return (
+      <main
+        id="main-content"
+        className="flex min-h-screen items-center justify-center px-4 py-16"
+      >
+        <LoadingSpinner />
+      </main>
+    )
+  }
+
+  if (error || !order) {
+    return (
+      <main
+        id="main-content"
+        className="flex min-h-screen items-center justify-center px-4 py-16"
+      >
+        <div className="w-full max-w-md text-center">
+          <p className="mb-6 text-sm text-muted-foreground">
+            {error?.message || 'No pudimos cargar los detalles del pedido.'}
+          </p>
+          <button
+            type="button"
+            onClick={handleGoHome}
+            className="w-full rounded-xl py-4 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            style={{ background: 'var(--gradient-brand)' }}
+          >
+            Volver al inicio
+          </button>
+        </div>
+      </main>
+    )
+  }
+
+  const isGuest = Boolean(order.guest_email)
 
   return (
     <main
@@ -112,14 +166,14 @@ export function ConfirmationPage() {
                 Número de pedido
               </p>
               <p className="font-mono text-xl font-extrabold text-foreground">
-                {orderNumber}
+                {order.order_number}
               </p>
             </div>
             <button
               type="button"
               onClick={handleCopy}
               className="rounded-xl bg-secondary p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              aria-label={`Copiar ${orderNumber}`}
+              aria-label={`Copiar ${order.order_number}`}
               aria-live="polite"
             >
               {copied ? (
@@ -128,6 +182,15 @@ export function ConfirmationPage() {
                 <Copy size={15} className="text-muted-foreground" />
               )}
             </button>
+          </div>
+
+          <div className="mb-5 flex items-center justify-between">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              Estado del pago
+            </p>
+            <span className="rounded-full bg-neon-cyan/10 px-2.5 py-1 text-xs font-bold text-neon-cyan">
+              {STATUS_LABELS[order.status]}
+            </span>
           </div>
 
           <div className="space-y-4">
@@ -156,39 +219,113 @@ export function ConfirmationPage() {
         <motion.div
           initial={prefersReduced ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={prefersReduced ? { duration: 0 } : { delay: 0.45 }}
-          className="mb-8 rounded-2xl border border-white/[0.06] bg-card p-6 text-left"
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.4 }}
+          className="mb-5 rounded-2xl border border-white/[0.06] bg-card p-6 text-left"
         >
-          <p className="mb-5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
-            Estado del pedido
+          <p className="mb-4 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+            Resumen de tu compra
           </p>
-          {TIMELINE.map(({ label, done, active }) => (
-            <div key={label} className="mb-3 flex items-center gap-4 last:mb-0">
-              <div
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                  done
-                    ? 'bg-neon-lime'
-                    : active
-                      ? 'text-foreground ring-4 ring-neon-magenta/20'
-                      : 'bg-secondary'
-                }`}
-                style={active ? { background: 'var(--gradient-brand)' } : undefined}
-                aria-hidden="true"
+
+          <ul className="mb-4 space-y-3">
+            {order.items.map((item) => (
+              <li
+                key={item.id}
+                className="flex items-start justify-between gap-3 text-sm"
               >
-                {done && <Check size={13} className="text-background" />}
-              </div>
-              <span
-                className={`text-sm ${
-                  done || active
-                    ? 'font-semibold text-foreground'
-                    : 'text-muted-foreground'
-                }`}
-              >
-                {label}
+                <div>
+                  <p className="font-semibold text-foreground">{item.product_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.quantity}{' '}
+                    {item.quantity === 1 ? 'unidad' : 'unidades'}
+                  </p>
+                </div>
+                <span className="font-semibold text-foreground">
+                  {formatCLP(item.price * item.quantity)}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="space-y-2 border-t border-white/[0.06] pt-4 text-sm">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Subtotal</span>
+              <span>{formatCLP(order.subtotal)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Envío</span>
+              <span>
+                {order.shipping_cost === 0
+                  ? 'Gratis'
+                  : formatCLP(order.shipping_cost)}
               </span>
             </div>
-          ))}
+            <div className="flex justify-between font-bold text-foreground">
+              <span>Total</span>
+              <span>{formatCLP(order.total)}</span>
+            </div>
+          </div>
         </motion.div>
+
+        <motion.div
+          initial={prefersReduced ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.45 }}
+          className="mb-5 rounded-2xl border border-white/[0.06] bg-card p-6 text-left"
+        >
+          <p className="mb-4 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+            Dirección de envío
+          </p>
+          <div className="space-y-1 text-sm">
+            <p className="font-semibold text-foreground">
+              {order.guest_name || 'Cliente'}
+            </p>
+            <p className="text-muted-foreground">{order.shipping_address}</p>
+            {order.apartment_office && (
+              <p className="text-muted-foreground">{order.apartment_office}</p>
+            )}
+            <p className="text-muted-foreground">
+              {order.comuna_name}, {order.region_name}
+            </p>
+            <p className="text-muted-foreground">{order.phone}</p>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={prefersReduced ? false : { opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.5 }}
+          className="mb-8 rounded-2xl border border-white/[0.06] bg-card p-6 text-left"
+        >
+          <p className="mb-4 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted-foreground">
+            Método de pago
+          </p>
+          <p className="text-sm font-semibold text-foreground">
+            {order.payment_method
+              ? PAYMENT_METHOD_LABELS[order.payment_method]
+              : 'No especificado'}
+          </p>
+        </motion.div>
+
+        {isGuest && (
+          <motion.div
+            initial={prefersReduced ? false : { opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={prefersReduced ? { duration: 0 } : { delay: 0.52 }}
+            className="mb-5 rounded-2xl border border-neon-cyan/20 bg-neon-cyan/10 p-4 text-left"
+          >
+            <p className="mb-3 text-xs leading-relaxed text-neon-cyan">
+              <strong>¿Quieres seguir tu pedido más fácil?</strong> Crea una
+              cuenta con el mismo email para tener todos tus pedidos en un solo
+              lugar.
+            </p>
+            <Link
+              to={`/register?email=${encodeURIComponent(order.guest_email ?? '')}`}
+              className="block rounded-lg bg-neon-cyan px-4 py-2 text-center text-xs font-bold uppercase tracking-wide text-background transition hover:bg-neon-cyan/90"
+            >
+              Crear cuenta
+            </Link>
+          </motion.div>
+        )}
 
         <motion.div
           initial={prefersReduced ? false : { opacity: 0, y: 20 }}
@@ -220,21 +357,19 @@ export function ConfirmationPage() {
           Volver al inicio
         </motion.button>
 
-        {orderNumber && (
-          <motion.div
-            initial={prefersReduced ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={prefersReduced ? { duration: 0 } : { delay: 0.7 }}
-            className="mt-4"
+        <motion.div
+          initial={prefersReduced ? false : { opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={prefersReduced ? { duration: 0 } : { delay: 0.7 }}
+          className="mt-4"
+        >
+          <Link
+            to={`/order/${order.order_number}`}
+            className="block w-full rounded-xl border border-neon-cyan/40 bg-transparent py-3.5 text-center text-sm font-bold uppercase tracking-wide text-neon-cyan transition-all hover:border-neon-cyan hover:bg-neon-cyan/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan"
           >
-            <Link
-              to={`/order/${orderNumber}`}
-              className="block w-full rounded-xl border border-neon-cyan/40 bg-transparent py-3.5 text-center text-sm font-bold uppercase tracking-wide text-neon-cyan transition-all hover:border-neon-cyan hover:bg-neon-cyan/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan"
-            >
-              Rastrear mi pedido
-            </Link>
-          </motion.div>
-        )}
+            Rastrear mi pedido
+          </Link>
+        </motion.div>
       </motion.div>
     </main>
   )

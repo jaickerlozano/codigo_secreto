@@ -26,18 +26,50 @@ function makeOrder(
     apartment_office: body.apartment_office ?? null,
     guest_email: body.guest_email ?? null,
     guest_name: body.guest_name ?? null,
+    comuna: body.comuna,
+    comuna_name: body.comuna_name ?? 'Providencia',
+    comuna_display: `${body.comuna_name ?? 'Providencia'}, ${body.region_name ?? 'Región Metropolitana'}`,
+    region_name: body.region_name ?? 'Región Metropolitana',
     payment_method: body.payment_method ?? 'webpay',
     subtotal: 29990,
-    shipping_cost: 3490,
-    total: 33480,
+    shipping_cost: 0,
+    total: 29990,
     status: 'PENDING',
     created_at: new Date().toISOString(),
     carrier: 'Chilexpress',
     tracking_number: 'CHX-9988776655',
-    comuna_display: 'Providencia (Región Metropolitana)',
     items,
   }
 }
+
+export const testOrder: Order = makeOrder(
+  {
+    order_number: 'CS-123456',
+    phone: '+56 9 1234 5678',
+    shipping_address: 'Av. Providencia 1234',
+    apartment_office: 'Depto 502',
+    guest_email: 'guest@example.com',
+    guest_name: 'Valentina G.',
+    comuna: 1,
+    comuna_name: 'Providencia',
+    region_name: 'Región Metropolitana',
+    payment_method: 'webpay',
+    shipping_cost: 0,
+    total: 29990,
+    status: 'PENDING',
+    created_at: '2026-07-14T10:30:00Z',
+  },
+  [
+    {
+      id: 1,
+      product_id: 1,
+      product_name: 'Vibrador de prueba',
+      price: 29990,
+      quantity: 1,
+      subtotal: 29990,
+    },
+  ],
+)
 
 export const orderHandlers = [
   http.post('*api/orders/', async ({ request }) => {
@@ -46,7 +78,7 @@ export const orderHandlers = [
       {
         id: 1,
         product_id: 1,
-        product_name: 'Vibrador Luna Pro',
+        product_name: 'Vibrador de prueba',
         price: 29990,
         quantity: 1,
         subtotal: 29990,
@@ -54,6 +86,11 @@ export const orderHandlers = [
     ])
     trackedOrders.set(order.order_number, order)
     return HttpResponse.json(order, { status: 201 })
+  }),
+
+  http.get('*api/orders/by-order-number/:orderNumber/', ({ params }) => {
+    const orderNumber = params.orderNumber as string
+    return HttpResponse.json(trackedOrders.get(orderNumber) ?? testOrder)
   }),
 
   http.get('*api/orders/track/', ({ request }) => {
@@ -72,27 +109,6 @@ export const orderHandlers = [
       return HttpResponse.json(order)
     }
 
-    // Fallback mock order for any order number used in tests or direct navigation.
-    return HttpResponse.json(
-      makeOrder(
-        {
-          phone: '+56 9 1234 5678',
-          shipping_address: 'Av. Providencia 1234',
-          apartment_office: 'Depto 502',
-          payment_method: 'webpay',
-        },
-        [
-          {
-            id: 1,
-            product_id: 1,
-            product_name: 'Vibrador Luna Pro',
-            price: 29990,
-            quantity: 1,
-            subtotal: 29990,
-          },
-        ],
-        orderNumber,
-      ),
-    )
+    return HttpResponse.json(testOrder)
   }),
 ]

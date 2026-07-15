@@ -21,8 +21,8 @@ class OrderSerializer(serializers.ModelSerializer):
 
     # Permitimos resolver la comuna por ID (tests) o por nombre + región (frontend checkout)
     comuna = serializers.PrimaryKeyRelatedField(queryset=Comuna.objects.all(), required=False)
-    comuna_name = serializers.CharField(write_only=True, required=False)
-    region_name = serializers.CharField(write_only=True, required=False)
+    comuna_name = serializers.CharField(required=False)
+    region_name = serializers.CharField(required=False)
 
     # Nombre legible de la comuna (solo lectura) para el frontend de seguimiento
     comuna_display = serializers.SerializerMethodField()
@@ -46,6 +46,17 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def get_comuna_display(self, obj):
         return str(obj.comuna) if obj.comuna else None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        comuna = getattr(instance, 'comuna', None)
+        if comuna is not None:
+            data['comuna_name'] = comuna.name
+            data['region_name'] = comuna.region.name if comuna.region else None
+        else:
+            data['comuna_name'] = None
+            data['region_name'] = None
+        return data
 
     def validate(self, attrs):
         user = self.context['request'].user

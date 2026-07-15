@@ -35,7 +35,7 @@ export type CreateOrderInput = Omit<
   guest_items?: GuestOrderItem[]
 }
 
-function extractErrorMessage(error: unknown): string {
+export function extractErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
     if ('detail' in error && typeof error.detail === 'string') {
       return error.detail
@@ -64,11 +64,12 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 }
 
 export async function getOrderByNumber(orderNumber: string): Promise<Order> {
-  const { data, error } = await apiClient.GET('/api/orders/track/', {
-    params: {
-      query: { order_number: orderNumber },
+  const { data, error } = await apiClient.GET(
+    '/api/orders/by-order-number/{order_number}/',
+    {
+      params: { path: { order_number: orderNumber } },
     },
-  })
+  )
 
   if (error || !data) {
     throw new Error(extractErrorMessage(error) || 'Pedido no encontrado.')

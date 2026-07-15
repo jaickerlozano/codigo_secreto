@@ -196,6 +196,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/orders/by-order-number/{order_number}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Endpoint público para consultar una orden por order_number.
+         *     Permite que guests y usuarios autenticados consulten el estado de su orden.
+         */
+        get: operations["orders_by_order_number_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/orders/track/": {
         parameters: {
             query?: never;
@@ -1276,6 +1296,27 @@ export interface operations {
             };
         };
     };
+    orders_by_order_number_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_number: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+        };
+    };
     orders_track_retrieve: {
         parameters: {
             query: {
@@ -1476,6 +1517,7 @@ export interface operations {
             query?: {
                 /** @description Un número de página dentro del conjunto de resultados paginado. */
                 page?: number;
+                region?: number;
             };
             header?: never;
             path?: never;

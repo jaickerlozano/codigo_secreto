@@ -7,5 +7,9 @@ export function useOrder(orderNumber: string | undefined) {
     queryKey: ['order', orderNumber],
     queryFn: () => getOrderByNumber(orderNumber!),
     enabled: Boolean(orderNumber),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    retry: 1,
+    staleTime: 1000 * 60 * 2,
   })
 }
