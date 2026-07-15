@@ -243,3 +243,21 @@ def test_order_by_order_number_not_found(api_client):
     response = api_client.get("/api/orders/by-order-number/CS-999999/")
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+def test_order_by_order_number_includes_comuna_and_region_names(api_client, order_factory, comuna_factory):
+    """Guest order retrieve by order_number includes comuna_name and region_name."""
+    comuna = comuna_factory(name="Providencia", shipping_cost=3000)
+    order = order_factory(
+        user=None,
+        guest_email="guest@example.com",
+        guest_name="Invitado",
+        comuna=comuna,
+    )
+
+    response = api_client.get(f"/api/orders/by-order-number/{order.order_number}/")
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["comuna_name"] == comuna.name
+    assert data["region_name"] == comuna.region.name

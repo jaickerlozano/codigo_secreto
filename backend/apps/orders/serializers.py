@@ -19,8 +19,8 @@ class OrderSerializer(serializers.ModelSerializer):
 
     # Permitimos resolver la comuna por ID (tests) o por nombre + región (frontend checkout)
     comuna = serializers.PrimaryKeyRelatedField(queryset=Comuna.objects.all(), required=False)
-    comuna_name = serializers.CharField(write_only=True, required=False)
-    region_name = serializers.CharField(write_only=True, required=False)
+    comuna_name = serializers.CharField(required=False)
+    region_name = serializers.CharField(required=False)
 
     # Método de pago elegido en el checkout
     payment_method = serializers.ChoiceField(choices=Order.PAYMENT_METHOD_CHOICES, required=False)
@@ -34,6 +34,17 @@ class OrderSerializer(serializers.ModelSerializer):
             'subtotal', 'shipping_cost', 'total', 'status', 'created_at', 'items'
         ]
         read_only_fields = ['order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        comuna = getattr(instance, 'comuna', None)
+        if comuna is not None:
+            data['comuna_name'] = comuna.name
+            data['region_name'] = comuna.region.name if comuna.region else None
+        else:
+            data['comuna_name'] = None
+            data['region_name'] = None
+        return data
 
     def validate(self, attrs):
         user = self.context['request'].user

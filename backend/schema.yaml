@@ -589,6 +589,10 @@ paths:
         description: Un número de página dentro del conjunto de resultados paginado.
         schema:
           type: integer
+      - in: query
+        name: region
+        schema:
+          type: integer
       tags:
       - Despachos
       security:
@@ -1054,10 +1058,8 @@ components:
           type: integer
         comuna_name:
           type: string
-          writeOnly: true
         region_name:
           type: string
-          writeOnly: true
         shipping_address:
           type: string
           title: Dirección de despacho

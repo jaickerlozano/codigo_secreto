@@ -1464,6 +1464,7 @@ export interface operations {
             query?: {
                 /** @description Un número de página dentro del conjunto de resultados paginado. */
                 page?: number;
+                region?: number;
             };
             header?: never;
             path?: never;
