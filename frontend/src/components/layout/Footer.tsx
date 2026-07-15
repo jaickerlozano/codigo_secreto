@@ -1,6 +1,7 @@
 import { Mail, MapPin, MessageCircle, Phone } from 'lucide-react'
 
 import { CSLogo } from '@/components/brand/CSLogo'
+import { SUPPORT_PHONE } from '@/lib/config'
 
 const SHOP_LINKS = ['Vibradores', 'Para Parejas', 'Bienestar', 'Masajeadores', 'Kits', 'Lencería']
 const SUPPORT_LINKS = [
@@ -108,7 +109,7 @@ export function Footer() {
               </div>
             </div>
             <a
-              href="https://wa.me/56912345678?text=Hola%2C%20quisiera%20consultar"
+              href={`https://wa.me/${SUPPORT_PHONE}?text=${encodeURIComponent('Hola, quisiera consultar')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-3 bg-[#25D366] text-white text-[13px] font-bold rounded-xl uppercase tracking-wide hover:bg-[#1fba58] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366] mb-5"

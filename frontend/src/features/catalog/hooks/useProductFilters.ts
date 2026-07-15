@@ -54,7 +54,7 @@ export function useProductFilters({
     setSelectedCategories(initialCategory ? [initialCategory] : [])
     setExperience([])
     setPriceRange(getInitialPriceRange(products))
-  }, [initialCategory])
+  }, [initialCategory, products])
 
   useEffect(() => {
     if (

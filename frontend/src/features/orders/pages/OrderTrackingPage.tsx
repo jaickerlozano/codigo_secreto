@@ -5,85 +5,44 @@ import {
   ArrowLeft,
   Box,
   CreditCard,
+  Loader2,
   MapPin,
   MessageCircle,
   PackageX,
   Phone,
 } from 'lucide-react'
+import { format } from 'date-fns'
+import { es } from 'date-fns/locale'
 
-import type { Product } from '@/features/catalog/types'
 import { formatCLP } from '@/lib/format'
+import { SUPPORT_PHONE } from '@/lib/config'
 
+import { useOrder } from '../hooks/useOrder'
 import {
   OrderTimeline,
   type TimelineStep,
 } from '../components/OrderTimeline'
 
 const ORDER_STORAGE_KEY = 'cs-last-order'
-const SUPPORT_PHONE = '56912345678'
 
-const MOCK_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: 'Vibrador Luna Pro',
-    price: 29990,
-    category: 'Vibradores',
-    experienceLevel: 'principiante',
-    features: ['10 modos'],
-    description: 'Vibrador de prueba',
-    materials: ['Silicona'],
-    usageInstructions: 'Instrucciones de prueba',
-    icon: '✦',
-    gradient: 'from-violet-950 via-purple-900 to-violet-800',
-    sku: '101',
-    stock: 10,
-    image: null,
-  },
-  {
-    id: 3,
-    name: 'Lubricante Sensorial',
-    price: 12990,
-    category: 'Lubricantes',
-    experienceLevel: 'principiante',
-    features: ['Base agua'],
-    description: 'Lubricante de prueba',
-    materials: ['Base agua'],
-    usageInstructions: 'Instrucciones de prueba',
-    icon: '◈',
-    gradient: 'from-cyan-950 via-teal-900 to-cyan-800',
-    sku: '301',
-    stock: 20,
-    image: null,
-  },
-]
+const STATUS_TO_STEP_INDEX: Record<string, number> = {
+  PENDING: 0,
+  PAID: 1,
+  SHIPPED: 2,
+  DELIVERED: 3,
+}
 
-const MOCK_ORDER = {
-  number: 'CS-123456',
-  createdAt: '03 jul 2026, 10:30',
-  currentStepIndex: 1,
-  carrier: 'Chilexpress',
-  trackingNumber: 'CHX-9988776655',
-  shipping: {
-    name: 'Valentina G.',
-    address: 'Av. Providencia 1234, Dpto 502',
-    city: 'Providencia, Santiago',
-    phone: '+56 9 1234 5678',
-  },
-  payment: {
-    method: 'Webpay / Tarjeta bancaria',
-    last4: '**** 4242',
-  },
-  items: [
-    { product: MOCK_PRODUCTS[0], quantity: 1 },
-    { product: MOCK_PRODUCTS[1], quantity: 2 },
-  ],
-  shippingCost: 3490,
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  webpay: 'Webpay / Tarjeta bancaria',
+  flow: 'Flow',
+  mercadopago: 'MercadoPago',
+  transfer: 'Transferencia Bancaria',
 }
 
 function buildTimeline(
   currentStepIndex: number,
   carrier: string,
-  trackingNumber: string,
+  trackingNumber: string | null,
   createdAt: string,
 ): TimelineStep[] {
   return [
@@ -100,14 +59,17 @@ function buildTimeline(
       title: 'Preparando',
       description:
         'Estamos armando tu pedido con empaque 100% discreto y neutro.',
-      timestamp: '03 jul 2026, 11:15',
+      timestamp: '',
       completed: currentStepIndex >= 2,
       current: currentStepIndex === 1,
     },
     {
       id: 'shipped',
       title: 'En camino',
-      description: `Transporte: ${carrier}. N° de seguimiento: ${trackingNumber}.`,
+      description: trackingNumber
+        ? `Transporte: ${carrier}. N° de seguimiento: ${trackingNumber}.`
+        : `Transporte: ${carrier}.`,
+      timestamp: '',
       completed: currentStepIndex >= 3,
       current: currentStepIndex === 2,
     },
@@ -115,6 +77,7 @@ function buildTimeline(
       id: 'delivered',
       title: 'Entregado',
       description: 'Entrega confirmada en la dirección indicada.',
+      timestamp: '',
       completed: currentStepIndex >= 4,
       current: currentStepIndex === 3,
     },
@@ -123,52 +86,52 @@ function buildTimeline(
 
 export function OrderTrackingPage() {
   const { orderId } = useParams<{ orderId: string }>()
-  const [storedOrder, setStoredOrder] = useState<string | null>(null)
+  const [storedOrderNumber, setStoredOrderNumber] = useState<string | null>(null)
 
   useEffect(() => {
-    setStoredOrder(sessionStorage.getItem(ORDER_STORAGE_KEY))
+    setStoredOrderNumber(sessionStorage.getItem(ORDER_STORAGE_KEY))
   }, [])
 
-  const isValidOrder =
-    !storedOrder || storedOrder === orderId || orderId === MOCK_ORDER.number
+  const orderNumber = orderId ?? storedOrderNumber ?? undefined
+  const { data: order, isLoading, error } = useOrder(orderNumber)
 
-  const order = useMemo(
-    () => ({
-      ...MOCK_ORDER,
-      number: orderId ?? MOCK_ORDER.number,
-    }),
-    [orderId],
-  )
+  const timeline = useMemo<TimelineStep[]>(() => {
+    if (!order) {
+      return []
+    }
 
-  const timeline = useMemo(
-    () =>
-      buildTimeline(
-        order.currentStepIndex,
-        order.carrier,
-        order.trackingNumber,
-        order.createdAt,
-      ),
-    [order],
-  )
+    const currentStepIndex = STATUS_TO_STEP_INDEX[order.status] ?? 0
+    const createdAt = format(new Date(order.created_at), "dd MMM yyyy, HH:mm", {
+      locale: es,
+    })
 
-  const subtotal = useMemo(
-    () =>
-      order.items.reduce(
-        (sum, item) => sum + item.product.price * item.quantity,
-        0,
-      ),
-    [order.items],
-  )
-
-  const total = subtotal + order.shippingCost
+    return buildTimeline(
+      currentStepIndex,
+      order.carrier,
+      order.tracking_number,
+      createdAt,
+    )
+  }, [order])
 
   const handleContactSupport = () => {
-    const message = `Hola, quisiera consultar sobre mi pedido ${order.number}`
+    const message = `Hola, quisiera consultar sobre mi pedido ${order?.order_number ?? orderNumber}`
     const href = `https://wa.me/${SUPPORT_PHONE}?text=${encodeURIComponent(message)}`
     window.open(href, '_blank', 'noopener,noreferrer')
   }
 
-  if (!isValidOrder) {
+  if (isLoading) {
+    return (
+      <main
+        id="main-content"
+        className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
+      >
+        <Loader2 size={40} className="mb-4 animate-spin text-neon-magenta" />
+        <p className="text-sm text-muted-foreground">Buscando tu pedido…</p>
+      </main>
+    )
+  }
+
+  if (!orderNumber) {
     return (
       <main
         id="main-content"
@@ -179,7 +142,31 @@ export function OrderTrackingPage() {
           Pedido no encontrado
         </h1>
         <p className="mb-6 max-w-xs text-sm text-muted-foreground">
-          No pudimos encontrar el pedido {orderId} en nuestro sistema.
+          No hay un número de pedido para consultar.
+        </p>
+        <Link
+          to="/"
+          className="rounded-xl px-6 py-3 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          style={{ background: 'var(--gradient-brand)' }}
+        >
+          Volver al inicio
+        </Link>
+      </main>
+    )
+  }
+
+  if (error || !order) {
+    return (
+      <main
+        id="main-content"
+        className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
+      >
+        <PackageX size={48} className="mb-4 text-muted-foreground" />
+        <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">
+          Pedido no encontrado
+        </h1>
+        <p className="mb-6 max-w-xs text-sm text-muted-foreground">
+          No pudimos encontrar el pedido {orderNumber} en nuestro sistema.
         </p>
         <Link
           to="/"
@@ -211,7 +198,7 @@ export function OrderTrackingPage() {
             Seguimiento de pedido
           </h1>
           <p className="mt-1 font-mono text-sm text-neon-magenta">
-            {order.number}
+            {order.order_number}
           </p>
         </motion.div>
 
@@ -243,12 +230,12 @@ export function OrderTrackingPage() {
               <ul className="space-y-4">
                 {order.items.map((item) => (
                   <li
-                    key={item.product.id}
+                    key={item.id}
                     className="flex items-start justify-between gap-4 border-b border-border pb-3 last:border-0 last:pb-0"
                   >
                     <div>
                       <p className="text-sm font-semibold text-foreground">
-                        {item.product.name}
+                        {item.product_name}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {item.quantity}{' '}
@@ -256,7 +243,7 @@ export function OrderTrackingPage() {
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-foreground">
-                      {formatCLP(item.product.price * item.quantity)}
+                      {formatCLP(item.subtotal)}
                     </span>
                   </li>
                 ))}
@@ -265,15 +252,15 @@ export function OrderTrackingPage() {
               <div className="mt-5 space-y-2 border-t border-border pt-4">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Subtotal</span>
-                  <span>{formatCLP(subtotal)}</span>
+                  <span>{formatCLP(order.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Envío ({order.carrier})</span>
-                  <span>{formatCLP(order.shippingCost)}</span>
+                  <span>{formatCLP(order.shipping_cost)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold text-foreground">
                   <span>Total</span>
-                  <span>{formatCLP(total)}</span>
+                  <span>{formatCLP(order.total)}</span>
                 </div>
               </div>
             </motion.div>
@@ -290,15 +277,16 @@ export function OrderTrackingPage() {
               </h2>
               <div className="space-y-1 text-sm">
                 <p className="font-semibold text-foreground">
-                  {order.shipping.name}
+                  {order.guest_name ?? 'Cliente'}
                 </p>
                 <p className="text-muted-foreground">
-                  {order.shipping.address}
+                  {order.shipping_address}
+                  {order.apartment_office ? `, ${order.apartment_office}` : ''}
                 </p>
-                <p className="text-muted-foreground">{order.shipping.city}</p>
+                <p className="text-muted-foreground">{order.comuna_display}</p>
                 <p className="flex items-center gap-1.5 text-muted-foreground">
                   <Phone size={12} />
-                  {order.shipping.phone}
+                  {order.phone}
                 </p>
               </div>
             </motion.div>
@@ -314,10 +302,8 @@ export function OrderTrackingPage() {
                 Método de pago
               </h2>
               <p className="text-sm font-semibold text-foreground">
-                {order.payment.method}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {order.payment.last4}
+                {PAYMENT_METHOD_LABELS[order.payment_method ?? 'webpay'] ??
+                  'Webpay / Tarjeta bancaria'}
               </p>
             </motion.div>
 

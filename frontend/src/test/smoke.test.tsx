@@ -19,15 +19,9 @@ describe('Smoke test', () => {
     const router = createMemoryRouter(routes, { initialEntries: ['/'] })
     renderWithProviders(<RouterProvider router={router} />)
 
-    try {
-      expect(
-        await screen.findByRole('heading', { name: 'Categorías destacadas' }, { timeout: 2000 }),
-      ).toBeDefined()
-    } catch {
-      // eslint-disable-next-line no-console
-      console.log('SMOKE DEBUG:', document.body.innerHTML)
-      throw new Error('Smoke test failed')
-    }
+    expect(
+      await screen.findByRole('heading', { name: 'Categorías destacadas' }, { timeout: 2000 }),
+    ).toBeDefined()
     expect(screen.getByText('Los más vendidos')).toBeDefined()
   })
 })

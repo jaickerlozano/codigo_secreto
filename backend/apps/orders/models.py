@@ -62,6 +62,21 @@ class Order(models.Model):
     shipping_cost = models.PositiveIntegerField(verbose_name='costo de envío')
     total = models.PositiveIntegerField(verbose_name='total final')
 
+    # 4. Datos de Logística (para seguimiento del pedido)
+    carrier = models.CharField(
+        max_length=100,
+        default='Chilexpress',
+        verbose_name='transportista',
+        help_text='Empresa de transporte encargada del envío.',
+    )
+    tracking_number = models.CharField(
+        max_length=100,
+        null=True,
+        blank=True,
+        verbose_name='número de seguimiento',
+        help_text='Código de rastreo proporcionado por el transportista.',
+    )
+
     # 4. Control de Estado y Fechas
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING', verbose_name='estado del pedido')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')

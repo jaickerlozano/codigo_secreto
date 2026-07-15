@@ -62,3 +62,17 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 
   return data
 }
+
+export async function getOrderByNumber(orderNumber: string): Promise<Order> {
+  const { data, error } = await apiClient.GET('/api/orders/track/', {
+    params: {
+      query: { order_number: orderNumber },
+    },
+  })
+
+  if (error || !data) {
+    throw new Error(extractErrorMessage(error) || 'Pedido no encontrado.')
+  }
+
+  return data
+}
