@@ -32,12 +32,14 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'cloudinary_storage',
     'django.contrib.staticfiles',
 
     'rest_framework',
     'drf_spectacular',
     'django_filters',
     'corsheaders',
+    'cloudinary',
 
     'apps.products',
     'apps.authentication',
@@ -155,8 +157,9 @@ REST_FRAMEWORK = {
     ),
 }
 
+# Esto hace invisible el token para javascript
 SIMPLE_JWT = {
-    "JWT_AUTH_COOKIE": "access_token",
+    "JWT_AUTH_COOKIE": "access_token",  # Nombre de la cookie del token de acceso
     "JWT_AUTH_REFRESH_COOKIE": "refresh_token",
     "JWT_AUTH_HTTPONLY": True,
     "JWT_COOKIE_SECURE": False,  # Dev: True en producción con HTTPS
@@ -189,3 +192,13 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 # Solo si el JWT viaja en Cookies de forma automática
 CORS_ALLOW_CREDENTIALS = True
 
+# Configura el almacenamiento de archivos multimedia para que apunte a Cloudinary
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+
+# Credenciales de Cloudinary
+CLOUDINARY_STORAGE = {
+    'CLOUD_NAME': env('CLOUDINARY_CLOUD_NAME'), 
+    'API_KEY': env('CLOUDINARY_API_KEY'),
+    'API_SECRET': env('CLOUDINARY_API_SECRET'),
+    'UPLOAD_PRESET': env('CLOUDINARY_UPLOAD_PRESET'), 
+}
