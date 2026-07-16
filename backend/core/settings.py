@@ -32,8 +32,8 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'cloudinary_storage',
     'django.contrib.staticfiles',
+    'cloudinary_storage',
 
     'rest_framework',
     'drf_spectacular',
@@ -193,7 +193,14 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 CORS_ALLOW_CREDENTIALS = True
 
 # Configura el almacenamiento de archivos multimedia para que apunte a Cloudinary
-DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
 
 # Credenciales de Cloudinary
 CLOUDINARY_STORAGE = {

@@ -23,12 +23,21 @@ class ProductSerializer(serializers.ModelSerializer):
         if not obj.image:
             return None
         
+        # Obtenemos la URL cruda que da la librería
         url = obj.image.url
         
         # Si la URL pertenece a Cloudinary, le inyectamos los parámetros de optimización al vuelo
-        if '://cloudinary.com' in url:
-            # Reemplaza la ruta nativa '/upload/' por la optimizada para rendimiento web
-            return url.replace('/upload/', '/upload/f_auto,q_auto,w_1000/')
+        if 'res.cloudinary.com' in url:
+            # 1. Si la URL ya contiene '/upload/', la reemplazamos con los modificadores
+            if '/upload/' in url:
+                url = url.replace('/upload/', '/upload/f_auto,q_auto,w_1000/')
+            
+            # 2. Si por alguna razón la URL de Cloudinary viene sin formato explícito al final (.png/.jpg)
+            # Cloudinary acepta que le obliguemos a renderizar como webp agregando la extensión al final del string
+            if not url.endswith('.webp') and not url.endswith('.png') and not url.endswith('.jpg'):
+                url = f"{url}.webp"
+                
+            return url
             
         return url
 
