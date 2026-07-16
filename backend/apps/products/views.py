@@ -8,7 +8,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 # Create your views here.
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
+    queryset = Product.objects.select_related('category', 'supplier').all()
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     # Quito 'category' de filterset_fields porque ahora haremos un filtro personalizado más potente
