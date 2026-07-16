@@ -47,11 +47,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      if (user) {
-        await logoutUser()
+      try {
+        if (user) {
+          await logoutUser()
+        }
+      } finally {
+        // Always clean local state even if the API call fails
+        queryClient.removeQueries({ queryKey: ['me'] })
+        queryClient.removeQueries({ queryKey: ['cart'] })
       }
-      queryClient.removeQueries({ queryKey: ['me'] })
-      queryClient.removeQueries({ queryKey: ['cart'] })
     },
   })
 

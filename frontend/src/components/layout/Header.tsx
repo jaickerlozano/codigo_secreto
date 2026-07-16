@@ -43,8 +43,13 @@ export function Header({
   const menuButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleLogout = async () => {
-    await logout()
-    navigate('/')
+    try {
+      await logout()
+    } catch {
+      // Logout may fail due to network/CORS, but we still navigate
+    } finally {
+      navigate('/')
+    }
   }
 
   useEffect(() => {

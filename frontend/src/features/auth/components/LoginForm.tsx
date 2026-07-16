@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { useNavigate, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 
 import { loginSchema, type LoginSchema } from '../schemas/login.schema'
 import { useAuth } from '../context/AuthContext'
@@ -85,6 +85,13 @@ export function LoginForm() {
       >
         {isLoggingIn ? 'Ingresando...' : 'Iniciar sesión'}
       </button>
+
+      <p className="text-center text-sm text-base-300">
+        ¿No tienes cuenta?{' '}
+        <Link to="/register" className="font-medium text-neon-cyan-500 hover:text-neon-cyan-400 hover:underline">
+          Crear cuenta
+        </Link>
+      </p>
     </form>
   )
 }

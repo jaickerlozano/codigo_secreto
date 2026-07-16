@@ -68,33 +68,7 @@ export function CategoryPage() {
     initialCategory: currentCategory?.name,
   })
 
-  const displayProducts = useMemo(() => {
-    let result = productsData?.results ?? []
-
-    if (filters.experience.length > 0) {
-      result = result.filter((product) =>
-        filters.experience.includes(product.experienceLevel),
-      )
-    }
-
-    switch (filters.sort) {
-      case 'price-asc':
-        result = [...result].sort((a, b) => a.price - b.price)
-        break
-      case 'price-desc':
-        result = [...result].sort((a, b) => b.price - a.price)
-        break
-      case 'name':
-        result = [...result].sort((a, b) => a.name.localeCompare(b.name))
-        break
-      case 'newest':
-      default:
-        result = [...result].sort((a, b) => b.id - a.id)
-        break
-    }
-
-    return result
-  }, [productsData, filters.experience, filters.sort])
+  const displayProducts = filters.filteredProducts
 
   if (categoriesLoading || productsLoading) {
     return (
