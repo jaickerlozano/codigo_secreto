@@ -3,6 +3,9 @@ from .models import Product, Supplier, Category, StockMovement
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 class ProductSerializer(serializers.ModelSerializer):
+    # Sobrescribimos el campo de la imagen para personalizar su salida
+    image = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
         fields = '__all__'
@@ -14,6 +17,20 @@ class ProductSerializer(serializers.ModelSerializer):
         # Si la instancia ya existe, estamos actualizando (PUT/PATCH)
         if self.instance is not None:
             self.fields['current_stock'].read_only = True
+
+    def get_image(self, obj):
+        # Si el producto no tiene una imagen asociada, retornamos None (o una URL de placeholder si prefieres)
+        if not obj.image:
+            return None
+        
+        url = obj.image.url
+        
+        # Si la URL pertenece a Cloudinary, le inyectamos los parámetros de optimización al vuelo
+        if '://cloudinary.com' in url:
+            # Reemplaza la ruta nativa '/upload/' por la optimizada para rendimiento web
+            return url.replace('/upload/', '/upload/f_auto,q_auto,w_1000/')
+            
+        return url
 
 
 class SupplierSerializer(serializers.ModelSerializer):
