@@ -112,6 +112,9 @@ class Command(BaseCommand):
                 "experience_level": item["level"],
                 "features": item["features"],
                 "badge": item["badge"],
+                # ASIGNACIÓN DE IMAGEN PREDECIBLE:
+                # Almacena el texto 'products/sku_101.webp' para que coincida con Cloudinary
+                "image": f"products/sku_{item['sku']}.webp", 
             }
 
             product, created = Product.objects.update_or_create(
