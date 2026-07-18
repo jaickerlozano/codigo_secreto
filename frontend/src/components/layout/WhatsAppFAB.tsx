@@ -12,7 +12,8 @@ export function WhatsAppFAB({
   phone = SUPPORT_PHONE,
   message = 'Hola, quisiera consultar',
 }: WhatsAppFABProps) {
-  const href = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+  const cleanPhone = phone.replace(/\D/g, '') 
+  const href = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`
 
   return (
     <motion.a

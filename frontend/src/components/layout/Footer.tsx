@@ -102,7 +102,7 @@ export function Footer() {
                 <Mail size={13} aria-hidden="true" /> contacto@codigosecreto.cl
               </button>
               <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
-                <Phone size={13} aria-hidden="true" /> +56 9 XXXX XXXX
+                <Phone size={13} aria-hidden="true" /> +56 9 5371 6242
               </div>
               <div className="flex items-center gap-2.5 text-[13px] text-muted-foreground">
                 <MapPin size={13} aria-hidden="true" /> Santiago, Chile
