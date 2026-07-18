@@ -72,15 +72,29 @@ export function ProductModal({
               className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br ${product.gradient} sm:aspect-auto sm:min-h-80 sm:rounded-l-2xl sm:rounded-tr-none`}
               aria-hidden="true"
             >
-              <span className="text-9xl opacity-[0.15]">
-                {product.icon}
-              </span>
-              <div
-                className="absolute inset-0 opacity-[0.05]"
-                style={{
-                  backgroundImage: 'var(--circuit-overlay)',
-                }}
-              />
+              {product.image ? (
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <>
+                    <span
+                      className="select-none text-7xl opacity-[0.18]"
+                      aria-hidden="true"
+                    >
+                      {product.icon}
+                    </span>
+                    <div
+                      className="absolute inset-0 opacity-[0.06]"
+                      style={{
+                        backgroundImage: 'var(--circuit-overlay)',
+                      }}
+                      aria-hidden="true"
+                    />
+                  </>
+                )}
             </div>
 
             <div className="p-6">

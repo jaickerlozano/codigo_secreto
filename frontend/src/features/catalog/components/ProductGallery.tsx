@@ -31,19 +31,29 @@ export function ProductGallery({ product }: ProductGalleryProps) {
         transition={{ duration: 0.3 }}
         className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br ${currentImage.gradient}`}
       >
-        <span
-          className="select-none text-9xl opacity-[0.18]"
-          aria-hidden="true"
-        >
-          {currentImage.icon}
-        </span>
-        <div
-          className="absolute inset-0 opacity-[0.05]"
-          style={{
-            backgroundImage: 'var(--circuit-overlay)',
-          }}
-          aria-hidden="true"
-        />
+        {product.image ? (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <>
+            <span
+              className="select-none text-9xl opacity-[0.18]"
+              aria-hidden="true"
+            >
+              {currentImage.icon}
+            </span>
+            <div
+              className="absolute inset-0 opacity-[0.05]"
+              style={{
+                backgroundImage: 'var(--circuit-overlay)',
+              }}
+              aria-hidden="true"
+            />
+          </>
+        )}
       </motion.div>
 
       {images.length > 1 && (

@@ -74,19 +74,29 @@ export function ProductCard({
       <div
         className={`relative flex aspect-square items-center justify-center overflow-hidden bg-gradient-to-br ${product.gradient}`}
       >
-        <span
-          className="select-none text-7xl opacity-[0.18]"
-          aria-hidden="true"
-        >
-          {product.icon}
-        </span>
-        <div
-          className="absolute inset-0 opacity-[0.06]"
-          style={{
-            backgroundImage: 'var(--circuit-overlay)',
-          }}
-          aria-hidden="true"
-        />
+        {product.image ? (
+          <img
+            src={product.image}
+            alt={product.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <>
+            <span
+              className="select-none text-7xl opacity-[0.18]"
+              aria-hidden="true"
+            >
+              {product.icon}
+            </span>
+            <div
+              className="absolute inset-0 opacity-[0.06]"
+              style={{
+                backgroundImage: 'var(--circuit-overlay)',
+              }}
+              aria-hidden="true"
+            />
+          </>
+        )}
         <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <button
             type="button"
