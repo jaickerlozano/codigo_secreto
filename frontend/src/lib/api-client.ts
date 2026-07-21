@@ -8,9 +8,9 @@ import { csrfMiddleware } from './csrf'
 import { env } from './env'
 
 const client = createClient<paths>({
-  baseUrl: env.API_URL,
+  baseUrl: '',
   credentials: 'include',
-  fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
+  // fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
 })
 
 const AUTH_PATHS_SKIP_401_REDIRECT = new Set([

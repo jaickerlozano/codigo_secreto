@@ -1,6 +1,5 @@
 export const env = {
   API_URL:
-    (import.meta.env.VITE_API_URL as string | undefined) ??
-    (import.meta.env.MODE === 'test' ? 'http://localhost' : 'http://localhost:8000'),
+    (import.meta.env.VITE_API_URL as string | undefined) ?? '',
   API_TIMEOUT_MS: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? '10000'),
 } as const
