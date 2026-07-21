@@ -5,7 +5,7 @@ import type { Middleware } from 'openapi-fetch'
 import type { paths } from '@/api/schema.d.ts'
 
 import { csrfMiddleware } from './csrf'
-import { env } from './env'
+// import { env } from './env'
 
 const client = createClient<paths>({
   baseUrl: '',
