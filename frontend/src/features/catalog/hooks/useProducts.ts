@@ -7,11 +7,14 @@ import { mapApiProduct } from '../lib/mappers'
 
 export interface UseProductsFilters {
   page?: number
-  pageSize?: number
   category?: number
   search?: string
   minPrice?: number
   maxPrice?: number
+  experienceLevel?: number
+  experienceLevelGte?: number
+  experienceLevelLte?: number
+  supplier?: number
 }
 
 interface ProductsResponse {
@@ -24,11 +27,14 @@ interface ProductsResponse {
 export function useProducts(filters: UseProductsFilters = {}) {
   const {
     page = 1,
-    pageSize = 12,
     category,
     search,
     minPrice,
     maxPrice,
+    experienceLevel,
+    experienceLevelGte,
+    experienceLevelLte,
+    supplier,
   } = filters
 
   return useQuery<ProductsResponse, Error>({
@@ -36,14 +42,15 @@ export function useProducts(filters: UseProductsFilters = {}) {
     queryFn: async () => {
       const query = {
         page,
-        page_size: pageSize,
         ...(category !== undefined && { category }),
         ...(search && { search }),
-        ...(minPrice !== undefined && { min_price: minPrice }),
-        ...(maxPrice !== undefined && { max_price: maxPrice }),
-      } as unknown as NonNullable<
-        operations['products_list']['parameters']['query']
-      >
+        ...(minPrice !== undefined && { min_price: String(minPrice) }),
+        ...(maxPrice !== undefined && { max_price: String(maxPrice) }),
+        ...(experienceLevel !== undefined && { experience_level: experienceLevel }),
+        ...(experienceLevelGte !== undefined && { experience_level__gte: experienceLevelGte }),
+        ...(experienceLevelLte !== undefined && { experience_level__lte: experienceLevelLte }),
+        ...(supplier !== undefined && { supplier }),
+      } satisfies NonNullable<operations['products_list']['parameters']['query']>
 
       const { data, error } = await apiClient.GET('/api/products/', {
         params: { query },

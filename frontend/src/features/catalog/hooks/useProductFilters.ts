@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 
-import type { ExperienceLevel, Product } from '../types'
+import type { Product } from '../types'
 
 export type SortOption = 'price-asc' | 'price-desc' | 'name' | 'newest'
 
@@ -11,14 +11,7 @@ interface PriceRange {
 
 interface UseProductFiltersOptions {
   products: Product[]
-  initialCategory?: string
 }
-
-const EXPERIENCE_LEVELS: ExperienceLevel[] = [
-  'principiante',
-  'intermedio',
-  'avanzado',
-]
 
 function getInitialPriceRange(products: Product[]): PriceRange {
   if (products.length === 0) {
@@ -32,14 +25,7 @@ function getInitialPriceRange(products: Product[]): PriceRange {
   }
 }
 
-export function useProductFilters({
-  products,
-  initialCategory,
-}: UseProductFiltersOptions) {
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    initialCategory ? [initialCategory] : [],
-  )
-  const [experience, setExperience] = useState<ExperienceLevel[]>([])
+export function useProductFilters({ products }: UseProductFiltersOptions) {
   const [priceRange, setPriceRange] = useState<PriceRange>(
     getInitialPriceRange(products),
   )
@@ -50,37 +36,26 @@ export function useProductFilters({
     [products],
   )
 
-  useEffect(() => {
-    setSelectedCategories(initialCategory ? [initialCategory] : [])
-    setExperience([])
-    setPriceRange(getInitialPriceRange(products))
-  }, [initialCategory, products])
+  // useEffect(() => {
+  //   setPriceRange(getInitialPriceRange(products))
+  // }, [products])
+
+  // useEffect(() => {
+  //   if (
+  //     products.length > 0 &&
+  //     priceRange.min === 0 &&
+  //     priceRange.max === 0
+  //   ) {
+  //     setPriceRange(availableRange)
+  //   }
+  // }, [products, availableRange, priceRange.min, priceRange.max])
 
   useEffect(() => {
-    if (
-      products.length > 0 &&
-      priceRange.min === 0 &&
-      priceRange.max === 0
-    ) {
-      setPriceRange(availableRange)
+    if (products.length > 0) {
+      const range = getInitialPriceRange(products)
+      setPriceRange(range)
     }
-  }, [products, availableRange, priceRange.min, priceRange.max])
-
-  const toggleCategory = (category: string) => {
-    setSelectedCategories((previous) =>
-      previous.includes(category)
-        ? previous.filter((item) => item !== category)
-        : [...previous, category],
-    )
-  }
-
-  const toggleExperience = (level: ExperienceLevel) => {
-    setExperience((previous) =>
-      previous.includes(level)
-        ? previous.filter((item) => item !== level)
-        : [...previous, level],
-    )
-  }
+  }, [products]) // Dependencia limpia: Solo se ejecuta si cambia el array de productos
 
   const setMinPrice = (value: number) => {
     setPriceRange((previous) => ({ ...previous, min: value }))
@@ -91,27 +66,12 @@ export function useProductFilters({
   }
 
   const clearFilters = () => {
-    setSelectedCategories(initialCategory ? [initialCategory] : [])
-    setExperience([])
     setPriceRange(availableRange)
+    setSort('newest')
   }
 
   const filteredProducts = useMemo(() => {
     let result = products.filter((product) => {
-      if (
-        selectedCategories.length > 0 &&
-        !selectedCategories.includes(product.category)
-      ) {
-        return false
-      }
-
-      if (
-        experience.length > 0 &&
-        !experience.includes(product.experienceLevel)
-      ) {
-        return false
-      }
-
       if (
         product.price < priceRange.min ||
         product.price > priceRange.max
@@ -139,15 +99,10 @@ export function useProductFilters({
     }
 
     return result
-  }, [selectedCategories, experience, priceRange, sort, products])
+  }, [priceRange, sort, products])
 
   return {
     filteredProducts,
-    selectedCategories,
-    toggleCategory,
-    experience,
-    toggleExperience,
-    experienceLevels: EXPERIENCE_LEVELS,
     priceRange,
     availableRange,
     setMinPrice,
