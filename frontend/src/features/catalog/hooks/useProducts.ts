@@ -1,3 +1,4 @@
+// src/hooks/useProducts.ts
 import { useQuery } from '@tanstack/react-query'
 
 import { apiClient } from '@/lib/api-client'
@@ -11,6 +12,7 @@ export interface UseProductsFilters {
   search?: string
   minPrice?: number
   maxPrice?: number
+  ordering?: string
   experienceLevel?: number
   experienceLevelGte?: number
   experienceLevelLte?: number
@@ -25,12 +27,14 @@ interface ProductsResponse {
 }
 
 export function useProducts(filters: UseProductsFilters = {}) {
+  //  CORRECCIÓN 1: Extraemos 'ordering' de los filtros recibidos
   const {
     page = 1,
     category,
     search,
     minPrice,
     maxPrice,
+    ordering,
     experienceLevel,
     experienceLevelGte,
     experienceLevelLte,
@@ -38,8 +42,8 @@ export function useProducts(filters: UseProductsFilters = {}) {
   } = filters
 
   return useQuery<ProductsResponse, Error>({
-    //  SOLUCIÓN: Desestructuramos las propiedades primitivas dentro del arreglo. 
-    // De esta manera, React Query solo volverá a pedir datos si el número de id o página cambia realmente.
+    //  CORRECCIÓN 2: Añadimos 'ordering' a la queryKey. 
+    // Así, si el usuario cambia el orden, React Query sabe que debe invalidar la caché y pedir datos nuevos.
     queryKey: [
       'products', 
       { 
@@ -48,13 +52,16 @@ export function useProducts(filters: UseProductsFilters = {}) {
         search, 
         minPrice, 
         maxPrice, 
+        ordering,
         experienceLevel, 
         supplier 
       }
     ],
     queryFn: async () => {
+      //  CORRECCIÓN 3: Mapeamos la propiedad 'ordering' hacia el objeto de consulta de la API
       const query = {
         page,
+        ...(ordering && { ordering }), // Envía ?ordering=-id, ?ordering=price, etc.
         ...(category !== undefined && { category }),
         ...(search && { search }),
         ...(minPrice !== undefined && { min_price: String(minPrice) }),
