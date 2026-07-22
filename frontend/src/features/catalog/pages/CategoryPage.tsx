@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router'
 import { motion } from 'motion/react'
 import { ArrowLeft, ChevronLeft, ChevronRight, PackageX } from 'lucide-react'
@@ -17,21 +17,13 @@ import {
 import { useCategories } from '../hooks/useCategories'
 import { useProducts } from '../hooks/useProducts'
 import { useProductFilters, type SortOption } from '../hooks/useProductFilters'
-import { CategoryGrid } from '../components/CategoryGrid'
 import { FilterSheet } from '../components/FilterSheet'
 import { FilterSidebar } from '../components/FilterSidebar'
 import { ProductCard } from '../components/ProductCard'
 import { ProductModal } from '../components/ProductModal'
 import type { Product } from '../types'
 
-const SORT_LABELS: Record<SortOption, string> = {
-  'price-asc': 'Precio: menor a mayor',
-  'price-desc': 'Precio: mayor a menor',
-  name: 'Nombre A-Z',
-  newest: 'Más recientes',
-}
-
-const PAGE_SIZE = 12
+const PAGE_SIZE = 10
 
 export function CategoryPage() {
   const { categoryId } = useParams<{ categoryId: string }>()
@@ -41,6 +33,10 @@ export function CategoryPage() {
   const [page, setPage] = useState(1)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const { addItem } = useCart()
+
+  useEffect(() => {
+    setPage(1)
+  }, [categoryId])
 
   const {
     data: categories,
@@ -59,16 +55,16 @@ export function CategoryPage() {
     error: productsError,
   } = useProducts({
     page,
-    pageSize: PAGE_SIZE,
-    category: currentCategory?.id,
+    category: numericCategoryId,
   })
+
+  const displayProducts = productsData?.results ?? []
 
   const filters = useProductFilters({
-    products: productsData?.results ?? [],
-    initialCategory: currentCategory?.name,
+    products: displayProducts,
   })
 
-  const displayProducts = filters.filteredProducts
+  const filteredProducts = filters.filteredProducts
 
   if (categoriesLoading || productsLoading) {
     return (
@@ -127,14 +123,14 @@ export function CategoryPage() {
   }
 
   const heading = currentCategory?.name ?? 'Todos los productos'
-  const resultCount = displayProducts.length
+  const resultCount = filteredProducts.length
   const totalCount = productsData?.count ?? resultCount
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const categoryDescription = `Explora ${heading.toLowerCase()} en Código Secreto. Envío discreto a todo Chile.`
 
   return (
-    <>
+    <div key={categoryId} className="contents">
       <SEO
         pageTitle={heading}
         description={categoryDescription}
@@ -163,11 +159,22 @@ export function CategoryPage() {
           </motion.div>
 
           <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-            <FilterSidebar categories={categories ?? []} {...filters} />
+            <FilterSidebar
+              priceRange={filters.priceRange}
+              availableRange={filters.availableRange}
+              setMinPrice={filters.setMinPrice}
+              setMaxPrice={filters.setMaxPrice}
+              clearFilters={filters.clearFilters}
+            />
 
             <section aria-label="Productos filtrados">
               <div className="mb-4 flex items-center justify-between gap-4">
-                <FilterSheet categories={categories ?? []} {...filters} />
+                <FilterSheet
+                  priceRange={filters.priceRange}
+                  setMinPrice={filters.setMinPrice}
+                  setMaxPrice={filters.setMaxPrice}
+                  clearFilters={filters.clearFilters}
+                />
 
                 <div className="flex items-center gap-2">
                   <label
@@ -190,14 +197,15 @@ export function CategoryPage() {
                     </SelectTrigger>
                     <SelectContent className="border-border bg-card">
                       {(
-                        Object.keys(SORT_LABELS) as SortOption[]
-                      ).map((option) => (
-                        <SelectItem
-                          key={option}
-                          value={option}
-                          className="text-xs text-foreground"
-                        >
-                          {SORT_LABELS[option]}
+                        [
+                          ['price-asc', 'Precio: menor a mayor'],
+                          ['price-desc', 'Precio: mayor a menor'],
+                          ['name', 'Nombre A-Z'],
+                          ['newest', 'Más recientes'],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -210,7 +218,7 @@ export function CategoryPage() {
                   layout
                   className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                 >
-                  {displayProducts.map((product, index) => (
+                  {filteredProducts.map((product, index) => (
                     <motion.div
                       key={product.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -243,7 +251,7 @@ export function CategoryPage() {
                     No encontramos productos con esos filtros.
                   </p>
                   <p className="mb-5 text-xs text-muted-foreground">
-                    Prueba ajustando el rango de precio o las categorías.
+                    Prueba ajustando el rango de precio.
                   </p>
                   <button
                     type="button"
@@ -257,44 +265,45 @@ export function CategoryPage() {
               )}
 
               {totalPages > 1 && (
-                <div className="mt-8 flex items-center justify-center gap-4">
-                  <button
-                    type="button"
-                    disabled={page <= 1}
-                    onClick={() => setPage((previous) => previous - 1)}
-                    className="flex items-center gap-1 rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold uppercase tracking-wide text-foreground transition-all hover:border-neon-magenta hover:text-neon-magenta disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <ChevronLeft size={14} /> Anterior
-                  </button>
-                  <span className="text-xs text-muted-foreground">
+                <nav
+                  className="mt-8 flex items-center justify-center gap-2"
+                  aria-label="Paginación"
+                >
+                  {page > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => p - 1)}
+                      className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <ChevronLeft size={16} className="mx-auto" />
+                    </button>
+                  )}
+                  <span className="text-sm text-muted-foreground">
                     Página {page} de {totalPages}
                   </span>
-                  <button
-                    type="button"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage((previous) => previous + 1)}
-                    className="flex items-center gap-1 rounded-xl border border-border bg-card px-4 py-2 text-xs font-bold uppercase tracking-wide text-foreground transition-all hover:border-neon-magenta hover:text-neon-magenta disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    Siguiente <ChevronRight size={14} />
-                  </button>
-                </div>
+                  {page < totalPages && (
+                    <button
+                      type="button"
+                      onClick={() => setPage((p) => p + 1)}
+                      className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <ChevronRight size={16} className="mx-auto" />
+                    </button>
+                  )}
+                </nav>
               )}
             </section>
           </div>
         </div>
-
-        <CategoryGrid
-          categories={categories ?? []}
-          activeCategoryId={categoryId}
-        />
-
+      </main>
+      {selectedProduct && (
         <ProductModal
           product={selectedProduct}
-          isOpen={Boolean(selectedProduct)}
+          isOpen
           onClose={() => setSelectedProduct(null)}
           onAddToCart={addItem}
         />
-      </main>
-    </>
+      )}
+    </div>
   )
 }
