@@ -5,53 +5,17 @@ from .serializers import ProductSerializer, SupplierSerializer, CategorySerializ
 from .models import Product, Supplier, Category, StockMovement
 from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
+from .filters import ProductFilter
 
 # Create your views here.
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('category', 'supplier').all()
     serializer_class = ProductSerializer
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    # Quito 'category' de filterset_fields porque ahora haremos un filtro personalizado más potente
-    filterset_fields = ['supplier']
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = ProductFilter
     search_fields = ['name', 'description']
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        category_id = self.request.query_params.get('category')
-
-        if category_id:
-            try:
-                # Buscamos la categoría solicitada
-                category = Category.objects.get(id=category_id)
-                
-                # Expresión recursiva de Django: busca la categoría seleccionada
-                # Y ADEMÁS busca en cualquier nivel de subcategoría descendiente
-                descendants = Category.objects.filter(pk=category_id) | Category.objects.filter(parent=category)
-                
-                # Para cubrir hasta 3 niveles de profundidad (Padre -> Hijo -> Nieto)
-                sub_descendants = Category.objects.filter(parent__in=descendants)
-                all_categories = descendants | sub_descendants
-
-                queryset = queryset.filter(category__in=all_categories)
-            except Category.DoesNotExist:
-                pass
-
-        min_price = self.request.query_params.get('min_price')
-        max_price = self.request.query_params.get('max_price')
-
-        if min_price is not None:
-            try:
-                queryset = queryset.filter(price__gte=int(min_price))
-            except ValueError:
-                pass
-
-        if max_price is not None:
-            try:
-                queryset = queryset.filter(price__lte=int(max_price))
-            except ValueError:
-                pass
-
-        return queryset
+    ordering_fields = ['price', 'name', 'id'] # <-- Campos permitidos para ordenar
+    ordering = ['-id'] # Orden por defecto (más recientes)
 
     def create(self, request, *args, **kwargs):
         """
@@ -112,4 +76,3 @@ class StockMovementViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, m
         self.perform_create(serializer)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
