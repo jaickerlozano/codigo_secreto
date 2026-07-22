@@ -6,40 +6,50 @@ class ProductSerializer(serializers.ModelSerializer):
     # Sobrescribimos el campo de la imagen para personalizar su salida
     image = serializers.SerializerMethodField()
 
+    #  SOLUCIÓN: Añadimos campos calculados de solo lectura para el frontend de React
+    category = serializers.CharField(source='category.name', read_only=True)
+    stock = serializers.IntegerField(source='current_stock', read_only=True)
+    experienceLevel = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
-        fields = '__all__'
+        # En lugar de '__all__', declaramos explícitamente los campos incluyendo los nuevos en camelCase
+        fields = [
+            'id', 'name', 'sku', 'price', 'description', 'image',
+            'gradient', 'icon', 'badge', 'features', 
+            'category', 'stock', 'experienceLevel',
+            # Mantenemos los originales abajo por si el administrador de Django o tus formularios internos los necesitan:
+            'current_stock', 'minimum_stock', 'supplier', 'created_at', 'updated_at'
+        ]
 
-    # Para evitar que el cliente intente manipular el stock directamente, lo dejamos como read-only. El stock se maneja a través de movimientos de stock.
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-            
-        # Si la instancia ya existe, estamos actualizando (PUT/PATCH)
         if self.instance is not None:
             self.fields['current_stock'].read_only = True
 
     def get_image(self, obj):
-        # Si el producto no tiene una imagen asociada, retornamos None (o una URL de placeholder si prefieres)
         if not obj.image:
-            return None
-        
-        # Obtenemos la URL cruda que da la librería
+            return ""
         url = obj.image.url
-        
-        # Si la URL pertenece a Cloudinary, le inyectamos los parámetros de optimización al vuelo
         if 'res.cloudinary.com' in url:
-            # 1. Si la URL ya contiene '/upload/', la reemplazamos con los modificadores
             if '/upload/' in url:
                 url = url.replace('/upload/', '/upload/f_auto,q_auto,w_1000/')
-            
-            # 2. Si por alguna razón la URL de Cloudinary viene sin formato explícito al final (.png/.jpg)
-            # Cloudinary acepta que le obliguemos a renderizar como webp agregando la extensión al final del string
             if not url.endswith('.webp') and not url.endswith('.png') and not url.endswith('.jpg'):
                 url = f"{url}.webp"
-                
             return url
-            
         return url
+
+    #  SOLUCIÓN: Mapea el número de experiencia (1, 2, 3) a los strings que espera tu ProductCard.tsx
+    def get_experienceLevel(self, obj):
+        # Si tu modelo usa un ChoiceField con texto, puedes usar: return obj.get_experience_level_display().lower()
+        # Si usa enteros directos, los mapeamos explícitamente según tus estilos de CSS:
+        mapping = {
+            1: "principiante",
+            2: "intermedio",
+            3: "avanzado"
+        }
+        # Retorna el nivel correspondiente, o "principiante" por defecto si no coincide
+        return mapping.get(obj.experience_level, "principiante")
 
 
 class SupplierSerializer(serializers.ModelSerializer):
