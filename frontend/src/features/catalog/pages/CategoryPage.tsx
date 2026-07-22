@@ -25,6 +25,14 @@ import type { Product } from '../types'
 
 const PAGE_SIZE = 10
 
+// Mapeador para traducir las opciones de la interfaz al formato de ordenamiento que entiende Django
+const FRONTEND_TO_DJANGO_SORT: Record<SortOption, string> = {
+  'price-asc': 'price',     // ?ordering=price
+  'price-desc': '-price',   // ?ordering=-price
+  'name': 'name',           // ?ordering=name
+  'newest': '-id',          // ?ordering=-id
+}
+
 export function CategoryPage() {
   const { categoryId } = useParams<{ categoryId: string }>()
   const isAllView = categoryId === 'todos'
@@ -34,8 +42,17 @@ export function CategoryPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const { addItem } = useCart()
 
+    //  MUDAMOS LOS ESTADOS AQUÍ: Ahora controlan la petición de red directamente
+  const [minPrice, setMinPrice] = useState<number | undefined>(undefined)
+  const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined)
+  const [sort, setSort] = useState<string>('-id') // Formato Django: 'price', '-price', 'name', '-id'
+
+  // Reseteamos estados al cambiar de categoría
   useEffect(() => {
     setPage(1)
+    setMinPrice(undefined)
+    setMaxPrice(undefined)
+    setSort('newest')
   }, [categoryId])
 
   const {
@@ -49,6 +66,7 @@ export function CategoryPage() {
     [categories, numericCategoryId],
   )
 
+  // El hook useProducts ahora reaccionará a CUALQUIER cambio de precio o de orden y le pedirá datos nuevos a Django
   const {
     data: productsData,
     isLoading: productsLoading,
@@ -56,6 +74,9 @@ export function CategoryPage() {
   } = useProducts({
     page,
     category: numericCategoryId,
+    minPrice,
+    maxPrice,
+    ordering: FRONTEND_TO_DJANGO_SORT[sort], // Se envía mapeado: 'price', '-price', etc.
   })
 
   const displayProducts = productsData?.results ?? []
@@ -63,8 +84,6 @@ export function CategoryPage() {
   const filters = useProductFilters({
     products: displayProducts,
   })
-
-  const filteredProducts = filters.filteredProducts
 
   if (categoriesLoading || productsLoading) {
     return (
@@ -122,15 +141,16 @@ export function CategoryPage() {
     )
   }
 
+  //  ASÍ DEBE QUEDAR (Conteo puro del Backend):
   const heading = currentCategory?.name ?? 'Todos los productos'
-  const resultCount = filteredProducts.length
-  const totalCount = productsData?.count ?? resultCount
+  const totalCount = productsData?.count ?? 0 // Es el número global que da Django (ej: 3)
+  const resultCount = displayProducts.length  // Es lo que se ve en la página actual (máximo 10)
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
 
   const categoryDescription = `Explora ${heading.toLowerCase()} en Código Secreto. Envío discreto a todo Chile.`
 
   return (
-    <div key={categoryId} className="contents">
+    <div key={categoryId || 'todos'} className="contents">
       <SEO
         pageTitle={heading}
         description={categoryDescription}
@@ -184,10 +204,8 @@ export function CategoryPage() {
                     Ordenar por
                   </label>
                   <Select
-                    value={filters.sort}
-                    onValueChange={(value) =>
-                      filters.setSort(value as SortOption)
-                    }
+                    value={sort as SortOption}
+                    onValueChange={(value) => setSort(value as SortOption)}
                   >
                     <SelectTrigger
                       id="sort-select"
@@ -218,7 +236,7 @@ export function CategoryPage() {
                   layout
                   className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
                 >
-                  {filteredProducts.map((product, index) => (
+                  {filters.filteredProducts.map((product, index) => (
                     <motion.div
                       key={product.id}
                       initial={{ opacity: 0, y: 20 }}
