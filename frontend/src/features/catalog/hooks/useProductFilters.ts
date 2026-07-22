@@ -72,6 +72,13 @@ export function useProductFilters({ products }: UseProductFiltersOptions) {
 
   const filteredProducts = useMemo(() => {
     let result = products.filter((product) => {
+      // 💡 SOLUCIÓN: Si la categoría tiene productos pero el estado local aún no ha sincronizado el rango (está en 0),
+      // dejamos pasar los productos para que no se quede la pantalla vacía de forma intermitente.
+      if (priceRange.min === 0 && priceRange.max === 0) {
+        return true
+      }
+
+      // Filtro de rangos estándar y seguro
       if (
         product.price < priceRange.min ||
         product.price > priceRange.max
@@ -82,6 +89,7 @@ export function useProductFilters({ products }: UseProductFiltersOptions) {
       return true
     })
 
+    // Bloque de ordenamiento (switch sort)
     switch (sort) {
       case 'price-asc':
         result = result.sort((a, b) => a.price - b.price)
@@ -99,7 +107,7 @@ export function useProductFilters({ products }: UseProductFiltersOptions) {
     }
 
     return result
-  }, [priceRange, sort, products])
+  }, [priceRange.min, priceRange.max, sort, products])
 
   return {
     filteredProducts,

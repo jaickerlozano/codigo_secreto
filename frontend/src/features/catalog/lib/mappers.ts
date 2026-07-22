@@ -2,14 +2,7 @@ import type { components } from '@/api/schema.d.ts'
 import type { Category, ExperienceLevel, Product } from '../types'
 import { getCategoryStyle } from './categoryStyle'
 
-const EXPERIENCE_MAP: Record<number, ExperienceLevel> = {
-  1: 'principiante',
-  2: 'principiante',
-  3: 'intermedio',
-  4: 'avanzado',
-  5: 'avanzado',
-}
-
+// Esta función es vital para que carguen las secciones de categorías
 export function mapApiCategory(
   apiCategory: components['schemas']['Category'],
 ): Category {
@@ -23,6 +16,7 @@ export function mapApiCategory(
   }
 }
 
+// Mapeador de productos optimizado para Django Serializer
 export function mapApiProduct(
   apiProduct: components['schemas']['Product'],
   categoryName?: string,
@@ -31,13 +25,28 @@ export function mapApiProduct(
     ? (apiProduct.features as string[])
     : []
 
+  const rawExperience = (apiProduct as any).experienceLevel || apiProduct.experience_level;
+  let finalExperience: ExperienceLevel = 'intermedio';
+  
+  if (typeof rawExperience === 'string') {
+    finalExperience = rawExperience as ExperienceLevel;
+  } else if (typeof rawExperience === 'number') {
+    const EXPERIENCE_MAP: Record<number, ExperienceLevel> = {
+      1: 'principiante',
+      2: 'principiante',
+      3: 'intermedio',
+      4: 'avanzado',
+      5: 'avanzado',
+    };
+    finalExperience = EXPERIENCE_MAP[rawExperience] ?? 'intermedio';
+  }
+
   return {
     id: apiProduct.id,
     name: apiProduct.name,
     price: apiProduct.price,
-    category: categoryName ?? 'Sin categoría',
-    experienceLevel:
-      EXPERIENCE_MAP[apiProduct.experience_level ?? 3] ?? 'intermedio',
+    category: (apiProduct as any).category ?? categoryName ?? 'Sin categoría',
+    experienceLevel: finalExperience,
     features,
     description: apiProduct.description ?? '',
     materials: [],
@@ -47,7 +56,7 @@ export function mapApiProduct(
       apiProduct.gradient ??
       'from-violet-950 via-purple-900 to-violet-800',
     sku: apiProduct.sku ?? null,
-    stock: apiProduct.current_stock ?? 0,
+    stock: (apiProduct as any).stock ?? apiProduct.current_stock ?? 0,
     image: apiProduct.image ?? null,
     badge: (apiProduct.badge as Product['badge']) ?? undefined,
   }

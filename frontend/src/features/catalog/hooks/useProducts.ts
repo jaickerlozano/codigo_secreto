@@ -38,7 +38,20 @@ export function useProducts(filters: UseProductsFilters = {}) {
   } = filters
 
   return useQuery<ProductsResponse, Error>({
-    queryKey: ['products', filters],
+    //  SOLUCIÓN: Desestructuramos las propiedades primitivas dentro del arreglo. 
+    // De esta manera, React Query solo volverá a pedir datos si el número de id o página cambia realmente.
+    queryKey: [
+      'products', 
+      { 
+        page, 
+        category, 
+        search, 
+        minPrice, 
+        maxPrice, 
+        experienceLevel, 
+        supplier 
+      }
+    ],
     queryFn: async () => {
       const query = {
         page,
