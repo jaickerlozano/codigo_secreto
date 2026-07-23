@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
-
+import { useMemo, useState, useEffect } from 'react'
 import type { Product } from '../types'
 
 export type SortOption = 'price-asc' | 'price-desc' | 'name' | 'newest'
@@ -14,10 +13,9 @@ interface UseProductFiltersOptions {
 }
 
 function getInitialPriceRange(products: Product[]): PriceRange {
-  if (products.length === 0) {
+  if (!products || products.length === 0) {
     return { min: 0, max: 0 }
   }
-
   const prices = products.map((product) => product.price)
   return {
     min: Math.min(...prices),
@@ -26,36 +24,18 @@ function getInitialPriceRange(products: Product[]): PriceRange {
 }
 
 export function useProductFilters({ products }: UseProductFiltersOptions) {
-  const [priceRange, setPriceRange] = useState<PriceRange>(
-    getInitialPriceRange(products),
-  )
   const [sort, setSort] = useState<SortOption>('newest')
 
-  const availableRange = useMemo(
-    () => getInitialPriceRange(products),
-    [products],
-  )
+  // 1. Calculamos el rango disponible nativamente cada vez que la API cambie los productos
+  const availableRange = useMemo(() => getInitialPriceRange(products), [products])
 
-  // useEffect(() => {
-  //   setPriceRange(getInitialPriceRange(products))
-  // }, [products])
+  // 2. El rango seleccionado por el usuario. Empieza en 0 y solo se aplica si es mayor a 0
+  const [priceRange, setPriceRange] = useState<PriceRange>({ min: 0, max: 0 })
 
-  // useEffect(() => {
-  //   if (
-  //     products.length > 0 &&
-  //     priceRange.min === 0 &&
-  //     priceRange.max === 0
-  //   ) {
-  //     setPriceRange(availableRange)
-  //   }
-  // }, [products, availableRange, priceRange.min, priceRange.max])
-
+  // 3. Reseteamos el filtro manual del usuario cada vez que cambie la lista de productos de la API
   useEffect(() => {
-    if (products.length > 0) {
-      const range = getInitialPriceRange(products)
-      setPriceRange(range)
-    }
-  }, [products]) // Dependencia limpia: Solo se ejecuta si cambia el array de productos
+    setPriceRange({ min: 0, max: 0 })
+  }, [products])
 
   const setMinPrice = (value: number) => {
     setPriceRange((previous) => ({ ...previous, min: value }))
@@ -66,43 +46,36 @@ export function useProductFilters({ products }: UseProductFiltersOptions) {
   }
 
   const clearFilters = () => {
-    setPriceRange(availableRange)
+    setPriceRange({ min: 0, max: 0 })
     setSort('newest')
   }
 
   const filteredProducts = useMemo(() => {
-    let result = products.filter((product) => {
-      // 💡 SOLUCIÓN: Si la categoría tiene productos pero el estado local aún no ha sincronizado el rango (está en 0),
-      // dejamos pasar los productos para que no se quede la pantalla vacía de forma intermitente.
+    let result = [...products]
+
+    // 4. Filtrado de rango de precios ultra seguro
+    result = result.filter((product) => {
+      // Si el usuario no ha movido los filtros (están en 0), se muestran todos
       if (priceRange.min === 0 && priceRange.max === 0) {
         return true
       }
-
-      // Filtro de rangos estándar y seguro
-      if (
-        product.price < priceRange.min ||
-        product.price > priceRange.max
-      ) {
-        return false
-      }
-
-      return true
+      return product.price >= priceRange.min && product.price <= priceRange.max
     })
 
-    // Bloque de ordenamiento (switch sort)
+    // 5. Ordenamiento
     switch (sort) {
       case 'price-asc':
-        result = result.sort((a, b) => a.price - b.price)
+        result.sort((a, b) => a.price - b.price)
         break
       case 'price-desc':
-        result = result.sort((a, b) => b.price - a.price)
+        result.sort((a, b) => b.price - a.price)
         break
       case 'name':
-        result = result.sort((a, b) => a.name.localeCompare(b.name))
+        result.sort((a, b) => a.name.localeCompare(b.name))
         break
       case 'newest':
       default:
-        result = result.sort((a, b) => b.id - a.id)
+        result.sort((a, b) => b.id - a.id)
         break
     }
 
@@ -111,7 +84,7 @@ export function useProductFilters({ products }: UseProductFiltersOptions) {
 
   return {
     filteredProducts,
-    priceRange,
+    priceRange: priceRange.min === 0 && priceRange.max === 0 ? availableRange : priceRange,
     availableRange,
     setMinPrice,
     setMaxPrice,

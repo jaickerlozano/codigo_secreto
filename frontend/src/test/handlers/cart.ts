@@ -23,7 +23,7 @@ const testProduct: components['schemas']['Product'] = {
   current_stock: 10,
   minimum_stock: 1,
   price: 29990,
-  image: null,
+  image: '',
   sku: '101',
   icon: '✦',
   gradient: 'from-violet-950 via-purple-900 to-violet-800',

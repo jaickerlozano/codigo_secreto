@@ -52,7 +52,7 @@ export function ProductCard({
     setAdded(true)
     setTimeout(() => setAdded(false), 1600)
   }
-
+  
   const handleQuickView = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()
     e.stopPropagation()

@@ -1,8 +1,8 @@
+// src/features/catalog/components/FilterSheet.tsx
 import { SlidersHorizontal } from 'lucide-react'
 import { motion } from 'motion/react'
 
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
   Sheet,
@@ -15,35 +15,32 @@ import {
 } from '@/components/ui/sheet'
 
 import type { Category } from '../types'
-import type { ProductFilters } from '../hooks/useProductFilters'
 
-interface FilterSheetProps
-  extends Pick<
-    ProductFilters,
-    | 'selectedCategories'
-    | 'toggleCategory'
-    | 'experience'
-    | 'toggleExperience'
-    | 'experienceLevels'
-    | 'priceRange'
-    | 'setMinPrice'
-    | 'setMaxPrice'
-    | 'clearFilters'
-  > {
+// 💡 CORRECCIÓN DE TIPADO: Declaramos explícitamente las propiedades idénticas a la barra lateral
+export interface FilterSheetProps {
+  priceRange: { min: number; max: number }
+  setMinPrice: (value: number) => void
+  setMaxPrice: (value: number) => void
+  clearFilters: () => void
   categories: Category[]
+  selectedCategories: number[]
+  toggleCategory: (id: number) => void
+  experienceLevels: { value: number; label: string }[]
+  experience: number[]
+  toggleExperience: (level: number) => void
 }
 
 export function FilterSheet({
-  categories,
-  selectedCategories,
-  toggleCategory,
-  experience,
-  toggleExperience,
-  experienceLevels,
   priceRange,
   setMinPrice,
   setMaxPrice,
   clearFilters,
+  categories,
+  selectedCategories,
+  toggleCategory,
+  experienceLevels,
+  experience,
+  toggleExperience,
 }: FilterSheetProps) {
   return (
     <Sheet>
@@ -58,61 +55,21 @@ export function FilterSheet({
           Filtros
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-[300px] border-border bg-card p-0">
+      <SheetContent side="left" className="w-[300px] border-border bg-card p-0 flex flex-col h-full">
         <SheetHeader className="p-5 pb-0">
           <SheetTitle className="text-sm font-bold uppercase tracking-wide text-foreground">
-            Filtros
+            Filtros Móviles
           </SheetTitle>
         </SheetHeader>
 
+        {/* Usamos flex-1 y overflow-y-auto para que los filtros hagan scroll en celulares sin tapar los botones de abajo */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25, delay: 0.1 }}
-          className="space-y-6 overflow-y-auto p-5"
+          className="flex-1 space-y-6 overflow-y-auto p-5 scrollbar-thin"
         >
-          <FilterGroup title="Categorías">
-            <div className="space-y-2.5">
-              {categories.map((category) => (
-                <div key={category.id} className="flex items-center gap-2.5">
-                  <Checkbox
-                    id={`mobile-category-${category.id}`}
-                    checked={selectedCategories.includes(category.name)}
-                    onCheckedChange={() => toggleCategory(category.name)}
-                    aria-label={category.name}
-                  />
-                  <Label
-                    htmlFor={`mobile-category-${category.id}`}
-                    className="cursor-pointer text-xs font-medium text-muted-foreground"
-                  >
-                    {category.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </FilterGroup>
-
-          <FilterGroup title="Nivel de experiencia">
-            <div className="space-y-2.5">
-              {experienceLevels.map((level) => (
-                <div key={level} className="flex items-center gap-2.5">
-                  <Checkbox
-                    id={`mobile-experience-${level}`}
-                    checked={experience.includes(level)}
-                    onCheckedChange={() => toggleExperience(level)}
-                    aria-label={level}
-                  />
-                  <Label
-                    htmlFor={`mobile-experience-${level}`}
-                    className="cursor-pointer text-xs font-medium capitalize text-muted-foreground"
-                  >
-                    {level}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </FilterGroup>
-
+          {/* 1. Rango de precio */}
           <FilterGroup title="Rango de precio">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -153,24 +110,70 @@ export function FilterSheet({
               </div>
             </div>
           </FilterGroup>
+
+          {/* 2. Categorías móviles */}
+          {categories.length > 0 && (
+            <FilterGroup title="Categorías">
+              <div className="space-y-3 max-h-[160px] overflow-y-auto pr-1">
+                {categories.map((cat) => {
+                  const isChecked = selectedCategories.includes(cat.id)
+                  return (
+                    <label key={cat.id} className="flex items-center gap-3 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors py-0.5">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleCategory(cat.id)}
+                        className="rounded border-border text-neon-magenta focus:ring-neon-magenta/40 size-4 bg-background"
+                      />
+                      <span className={isChecked ? "font-semibold text-foreground" : ""}>
+                        {cat.name}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </FilterGroup>
+          )}
+
+          {/* 3. Nivel de Experiencia móvil */}
+          <FilterGroup title="Nivel de Experiencia">
+            <div className="space-y-3">
+              {experienceLevels.map((lvl) => {
+                const isChecked = experience.includes(lvl.value)
+                return (
+                  <label key={lvl.value} className="flex items-center gap-3 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors py-0.5">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleExperience(lvl.value)}
+                      className="rounded border-border text-neon-magenta focus:ring-neon-magenta/40 size-4 bg-background"
+                    />
+                    <span className={isChecked ? "font-semibold text-foreground" : ""}>
+                      {lvl.label}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+          </FilterGroup>
         </motion.div>
 
-        <SheetFooter className="grid grid-cols-2 gap-3 p-5">
+        <SheetFooter className="grid grid-cols-2 gap-3 p-5 border-t border-border bg-background/50">
           <Button
             type="button"
             variant="outline"
             onClick={clearFilters}
-            className="border-border text-foreground hover:bg-secondary"
+            className="border-border text-foreground hover:bg-secondary text-xs font-bold uppercase tracking-wide"
           >
             Limpiar
           </Button>
           <SheetClose asChild>
             <Button
               type="button"
-              className="text-background"
+              className="text-background text-xs font-bold uppercase tracking-wide"
               style={{ background: 'var(--gradient-brand)' }}
             >
-              Aplicar filtros
+              Aplicar
             </Button>
           </SheetClose>
         </SheetFooter>
@@ -188,7 +191,7 @@ function FilterGroup({
 }) {
   return (
     <div className="border-t border-border pt-5 first:border-t-0 first:pt-0">
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-foreground">
+      <h3 className="mb-3.5 text-[11px] font-bold uppercase tracking-wider text-foreground/80">
         {title}
       </h3>
       {children}

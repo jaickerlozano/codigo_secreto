@@ -35,6 +35,7 @@ export function Header({
   categories = [],
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('') // 💡 NUEVO ESTADO
   const navigate = useNavigate()
   const { isAuthenticated, user, logout } = useAuth()
   const { totalItems: cartCount } = useCart()
@@ -96,6 +97,14 @@ export function Header({
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  // 💡 NUEVA FUNCIÓN MANEJADORA
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (searchTerm.trim()) {
+      // Redirige al catálogo general inyectando la palabra en la URL
+      navigate(`/category/todos?search=${encodeURIComponent(searchTerm.trim())}`)
+    }
+  }
   return (
     <header
       className="sticky top-0 z-50 bg-background/96 backdrop-blur-md border-b border-border"
@@ -104,7 +113,10 @@ export function Header({
       <div className="max-w-7xl mx-auto px-4 h-[64px] grid grid-cols-[auto_1fr_auto] items-center gap-4">
         <CSLogo onClick={handleHome} />
 
-        <div className="hidden sm:block max-w-xl w-full mx-auto">
+        <form 
+          onSubmit={handleSearchSubmit} 
+          className="hidden sm:block max-w-xl w-full mx-auto"
+        >
           <div className="relative">
             <Search
               size={15}
@@ -113,12 +125,14 @@ export function Header({
             />
             <input
               type="search"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)} // Vinculamos el texto
               placeholder="¿Qué estás buscando?"
               className="w-full bg-popover border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-magenta-500 focus:ring-1 focus:ring-neon-magenta-500/40 transition-all"
               aria-label="Buscar productos"
             />
           </div>
-        </div>
+        </form>
 
         <div className="flex items-center gap-0.5">
           <button
@@ -254,7 +268,13 @@ export function Header({
             className="md:hidden overflow-hidden border-t border-border bg-background"
           >
             <div className="max-w-7xl mx-auto px-4 py-3">
-              <div className="relative mb-3">
+              <form 
+                onSubmit={(e) => {
+                  handleSearchSubmit(e);
+                  setMenuOpen(false); // Cierra automáticamente el menú lateral en celulares tras buscar
+                }} 
+                className="relative mb-3"
+              >
                 <Search
                   size={14}
                   className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -262,11 +282,13 @@ export function Header({
                 />
                 <input
                   type="search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)} // Vinculamos el mismo estado global de búsqueda
                   placeholder="¿Qué estás buscando?"
                   className="w-full bg-popover border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-magenta-500 focus:ring-1 focus:ring-neon-magenta-500/40"
                   aria-label="Buscar"
                 />
-              </div>
+              </form>
               <nav className="flex flex-col" aria-label="Menú móvil">
                 {categories.map((category) => (
                   <Link

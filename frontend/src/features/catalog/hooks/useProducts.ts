@@ -1,4 +1,3 @@
-// src/hooks/useProducts.ts
 import { useQuery } from '@tanstack/react-query'
 
 import { apiClient } from '@/lib/api-client'
@@ -8,12 +7,13 @@ import { mapApiProduct } from '../lib/mappers'
 
 export interface UseProductsFilters {
   page?: number
-  category?: number
+  category?: number []
   search?: string
+  sku?: string
   minPrice?: number
   maxPrice?: number
   ordering?: string
-  experienceLevel?: number
+  experienceLevel?: number []
   experienceLevelGte?: number
   experienceLevelLte?: number
   supplier?: number
@@ -27,11 +27,11 @@ interface ProductsResponse {
 }
 
 export function useProducts(filters: UseProductsFilters = {}) {
-  //  CORRECCIÓN 1: Extraemos 'ordering' de los filtros recibidos
   const {
     page = 1,
     category,
     search,
+    sku,
     minPrice,
     maxPrice,
     ordering,
@@ -42,28 +42,30 @@ export function useProducts(filters: UseProductsFilters = {}) {
   } = filters
 
   return useQuery<ProductsResponse, Error>({
-    //  CORRECCIÓN 2: Añadimos 'ordering' a la queryKey. 
-    // Así, si el usuario cambia el orden, React Query sabe que debe invalidar la caché y pedir datos nuevos.
+    // CORRECCIÓN: Se añaden todos los filtros a la queryKey para que React Query reaccione a sus cambios
     queryKey: [
       'products', 
       { 
         page, 
         category, 
         search, 
+        sku,
         minPrice, 
         maxPrice, 
         ordering,
         experienceLevel, 
+        experienceLevelGte,
+        experienceLevelLte,
         supplier 
       }
     ],
     queryFn: async () => {
-      //  CORRECCIÓN 3: Mapeamos la propiedad 'ordering' hacia el objeto de consulta de la API
       const query = {
         page,
-        ...(ordering && { ordering }), // Envía ?ordering=-id, ?ordering=price, etc.
+        ...(ordering && { ordering }),
         ...(category !== undefined && { category }),
         ...(search && { search }),
+        ...(sku && { sku : String(sku) }),
         ...(minPrice !== undefined && { min_price: String(minPrice) }),
         ...(maxPrice !== undefined && { max_price: String(maxPrice) }),
         ...(experienceLevel !== undefined && { experience_level: experienceLevel }),
@@ -94,9 +96,7 @@ export function useProducts(filters: UseProductsFilters = {}) {
         count: data.count,
         next: data.next ?? null,
         previous: data.previous ?? null,
-        results: data.results.map((apiProduct) =>
-          mapApiProduct(apiProduct),
-        ),
+        results: data.results.map((apiProduct) => mapApiProduct(apiProduct)),
       }
     },
   })

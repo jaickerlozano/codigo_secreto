@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useParams, useSearchParams } from 'react-router'
 import { motion } from 'motion/react'
 import { ArrowLeft, ChevronLeft, ChevronRight, PackageX } from 'lucide-react'
 
@@ -38,22 +38,50 @@ export function CategoryPage() {
   const isAllView = categoryId === 'todos'
   const numericCategoryId = isAllView ? undefined : Number(categoryId)
 
+  const [searchParams] = useSearchParams()
+  const searchQuery = searchParams.get('search') ?? undefined
+
   const [page, setPage] = useState(1)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const { addItem } = useCart()
 
-    //  MUDAMOS LOS ESTADOS AQUÍ: Ahora controlan la petición de red directamente
   const [minPrice, setMinPrice] = useState<number | undefined>(undefined)
   const [maxPrice, setMaxPrice] = useState<number | undefined>(undefined)
-  const [sort, setSort] = useState<string>('-id') // Formato Django: 'price', '-price', 'name', '-id'
+  const [sort, setSort] = useState<SortOption>('newest')
 
-  // Reseteamos estados al cambiar de categoría
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([])
+  const [experience, setExperience] = useState<number[]>([])
+
+  const experienceLevels = [
+    { value: 1, label: 'Principiante' },
+    { value: 2, label: 'Intermedio' },
+    { value: 3, label: 'Avanzado' },
+  ]
+
+  // Reseteamos estados al cambiar de categoría o búsqueda
   useEffect(() => {
     setPage(1)
     setMinPrice(undefined)
     setMaxPrice(undefined)
     setSort('newest')
-  }, [categoryId])
+    setSelectedCategories([])
+    setExperience([])
+  }, [categoryId, searchQuery])
+
+  // Funciones de conmutación (Toggle)
+  const toggleCategory = (id: number) => {
+    setSelectedCategories(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+    setPage(1)
+  }
+
+  const toggleExperience = (value: number) => {
+    setExperience(prev => 
+      prev.includes(value) ? prev.filter(item => item !== value) : [...prev, value]
+    )
+    setPage(1)
+  }
 
   const {
     data: categories,
@@ -66,17 +94,19 @@ export function CategoryPage() {
     [categories, numericCategoryId],
   )
 
-  // El hook useProducts ahora reaccionará a CUALQUIER cambio de precio o de orden y le pedirá datos nuevos a Django
+  // 💡 UNA ÚNICA LLAMADA: Eliminamos la otra copia que generaba el error de duplicidad
   const {
     data: productsData,
     isLoading: productsLoading,
     error: productsError,
   } = useProducts({
     page,
-    category: numericCategoryId,
+    category: selectedCategories.length > 0 ? selectedCategories : (numericCategoryId ? [numericCategoryId] : undefined),
     minPrice,
     maxPrice,
-    ordering: FRONTEND_TO_DJANGO_SORT[sort], // Se envía mapeado: 'price', '-price', etc.
+    search: searchQuery,
+    ordering: FRONTEND_TO_DJANGO_SORT[sort],
+    experienceLevel: experience.length > 0 ? experience : undefined,
   })
 
   const displayProducts = productsData?.results ?? []
@@ -182,18 +212,40 @@ export function CategoryPage() {
             <FilterSidebar
               priceRange={filters.priceRange}
               availableRange={filters.availableRange}
-              setMinPrice={filters.setMinPrice}
-              setMaxPrice={filters.setMaxPrice}
-              clearFilters={filters.clearFilters}
+              setMinPrice={setMinPrice}
+              setMaxPrice={(val) => setMaxPrice(val)}
+              clearFilters={() => {
+                setMinPrice(undefined)
+                setMaxPrice(undefined)
+                setSelectedCategories([])
+                setExperience([])
+                setSort('newest')
+              }}
+              categories={categories ?? []}
+              selectedCategories={selectedCategories}
+              toggleCategory={toggleCategory}
+              experienceLevels={experienceLevels}
+              experience={experience}
+              toggleExperience={toggleExperience}
             />
 
             <section aria-label="Productos filtrados">
               <div className="mb-4 flex items-center justify-between gap-4">
                 <FilterSheet
                   priceRange={filters.priceRange}
-                  setMinPrice={filters.setMinPrice}
-                  setMaxPrice={filters.setMaxPrice}
-                  clearFilters={filters.clearFilters}
+                  setMinPrice={setMinPrice}
+                  setMaxPrice={(val) => setMaxPrice(val)}
+                  clearFilters={() => {
+                    setMinPrice(undefined)
+                    setMaxPrice(undefined)
+                    setSort('newest')
+                  }}
+                  categories={categories ?? []}
+                  selectedCategories={[]}
+                  toggleCategory={() => {}}
+                  experience={[]}
+                  toggleExperience={() => {}}
+                  experienceLevels={[]}
                 />
 
                 <div className="flex items-center gap-2">

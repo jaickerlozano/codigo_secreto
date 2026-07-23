@@ -26,7 +26,7 @@ export function HomePage() {
     data: productsData,
     isLoading: productsLoading,
     error: productsError,
-  } = useProducts({ pageSize: 8 })
+  } = useProducts({})
   const {
     data: categories,
     isLoading: categoriesLoading,
