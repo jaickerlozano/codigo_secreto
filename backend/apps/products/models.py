@@ -10,7 +10,7 @@ class Product(models.Model):
     supplier = models.ForeignKey('Supplier', on_delete=models.CASCADE, related_name='products', verbose_name='proveedor')
     current_stock = models.PositiveIntegerField(default=0)
     minimum_stock = models.PositiveIntegerField(default=0)
-    price = models.IntegerField()
+    price = models.IntegerField(db_index=True)
     image = models.ImageField(upload_to='products/', blank=True, null=True, verbose_name='imagen')
 
     # Campos SKU y UI para catálogo e integración frontend
@@ -20,7 +20,8 @@ class Product(models.Model):
     experience_level = models.PositiveSmallIntegerField(
         default=3,
         choices=[(i, i) for i in range(1, 6)],
-        verbose_name='nivel de experiencia'
+        verbose_name='nivel de experiencia',
+        db_index=True
     )
     features = models.JSONField(default=list, verbose_name='características')
     badge = models.CharField(max_length=50, null=True, blank=True, verbose_name='badge')
@@ -55,7 +56,7 @@ class Category(models.Model):
     description = models.TextField(null=True, blank=True, verbose_name='descripción')
 
     # Este campo será para crear la jerarquía de categorías. Si es null, es una categoría raíz. Si tiene valor, es una subcategoría de la categoría indicada.
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories', verbose_name='categoría padre')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='subcategories', verbose_name='categoría padre', db_index=True)
 
     def __str__(self):
         category_name = self.name or "Categoría sin nombre"

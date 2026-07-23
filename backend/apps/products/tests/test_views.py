@@ -176,17 +176,13 @@ def test_filter_by_category(staff_client, category_tree, product_factory):
     assert product_other.id not in ids
 
 
-def test_filter_by_nonexistent_category_returns_all(staff_client, product_factory):
-    """?category=99999 devuelve todos los productos sin error."""
+def test_filter_by_nonexistent_category_returns_404(staff_client, product_factory):
+    """?category=99999 devuelve 404 para categoría inexistente."""
     product1 = product_factory()
     product2 = product_factory()
 
     response = staff_client.get("/api/products/?category=99999")
-    assert response.status_code == status.HTTP_200_OK
-
-    ids = _ids(response)
-    assert product1.id in ids
-    assert product2.id in ids
+    assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 def test_filter_by_supplier(staff_client, supplier_factory, product_factory):
