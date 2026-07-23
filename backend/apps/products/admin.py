@@ -1,6 +1,14 @@
+# backend/apps/products/admin.py
 from django.contrib import admin
-from .models import Product, Supplier, Category, StockMovement
+from .models import Product, Supplier, Category, StockMovement, ProductImage # 💡 Agregamos ProductImage
 from django.utils.html import format_html
+
+# 💡 ESTA ES LA CLAVE: Define las casillas de carga masiva en línea para la galería
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 3  # Genera 3 filas vacías por defecto en el panel para subir fotos al mismo tiempo
+    fields = ['image']
+
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -24,7 +32,6 @@ class SupplierAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    # CORRECCIÓN: Cambiamos 'price' por 'price_clp' para usar nuestro método personalizado
     list_display = ('id', 'sku', 'name', 'category', 'supplier', 'badge', 'experience_level', 'stock_status', 'minimum_stock', 'price_clp', 'created_at', 'updated_at')
     list_filter = ('category', 'supplier', 'badge', 'experience_level')
     search_fields = ('name', 'description', 'sku')
@@ -43,19 +50,18 @@ class ProductAdmin(admin.ModelAdmin):
         }),
     )
 
-    # CORRECCIÓN: Renombrado a price_clp para no chocar con el campo del modelo
+    # 💡 INYECTAMOS LA GALERÍA AQUÍ: Esto dibuja las filas de carga justo debajo de los fieldsets
+    inlines = [ProductImageInline]
+
     def price_clp(self, obj):
         return f"${obj.price:,}".replace(",", ".")
     price_clp.short_description = "Precio"
 
     def stock_status(self, obj):
         if obj.current_stock == 0:
-            # Django 6 exige marcar de forma segura strings fijos o usar marcadores de posición
             return format_html('<b style="color: red;">{0}</b>', "⚠️ SIN STOCK (0)")
-        
         elif obj.current_stock <= obj.minimum_stock:
             return format_html('<b style="color: orange;">🟨 Stock Bajo ({0})</b>', obj.current_stock)
-        
         return format_html('<span style="color: green;">🟩 {0} Unidades</span>', obj.current_stock)
     stock_status.short_description = "Estado del Stock"
 
@@ -68,16 +74,13 @@ class StockMovementAdmin(admin.ModelAdmin):
     search_fields = ('product__name',)
     ordering = ('-timestamp',)
     
-    # Bloquea la edición de movimientos existentes en el Admin
     def has_change_permission(self, request, obj=None):
         return False
 
-    # Bloquea la eliminación de movimientos existentes en el Admin
     def has_delete_permission(self, request, obj=None):
         return False
 
     def get_type_badge(self, obj):
-        # CORRECCIÓN: Añadimos marcadores {0} para cumplir la regla estricta de Django 6
         if obj.movement_type == 'IN':
             return format_html('<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "ENTRADA")
         return format_html('<span style="background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "SALIDA")

@@ -124,3 +124,31 @@ class StockMovement(models.Model):
         ordering = ['-timestamp']
         verbose_name_plural = 'Movimientos de Stock'
         verbose_name = 'Movimiento de Stock' 
+
+
+# Agrega este modelo al final de tu backend/apps/products/models.py
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(
+        'Product', 
+        on_delete=models.CASCADE, 
+        related_name='images', # Importante: permitirá acceder a la galería desde el producto
+        verbose_name='producto'
+    )
+    # Al igual que tu modelo principal, el MediaCloudinaryStorage se encargará de subir esto a Cloudinary
+    image = models.ImageField(
+        upload_to='products/gallery/', 
+        verbose_name='imagen de galería'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True, 
+        verbose_name='fecha de creación'
+    )
+
+    def __str__(self):
+        return f"Galería {self.id} - {self.product.name}"
+
+    class Meta:
+        ordering = ['created_at']
+        verbose_name = 'Imagen de Galería'
+        verbose_name_plural = 'Imágenes de Galería'
