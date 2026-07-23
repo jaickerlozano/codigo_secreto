@@ -458,6 +458,30 @@ paths:
     get:
       operationId: products_list
       parameters:
+      - in: query
+        name: category
+        schema:
+          type: integer
+      - in: query
+        name: experience_level
+        schema:
+          type: integer
+      - in: query
+        name: experience_level__gte
+        schema:
+          type: integer
+      - in: query
+        name: experience_level__lte
+        schema:
+          type: integer
+      - in: query
+        name: max_price
+        schema:
+          type: string
+      - in: query
+        name: min_price
+        schema:
+          type: string
       - name: page
         required: false
         in: query
@@ -1389,6 +1413,9 @@ components:
         id:
           type: integer
           readOnly: true
+        image:
+          type: string
+          readOnly: true
         name:
           type: string
           title: Nombre
@@ -1412,11 +1439,6 @@ components:
           maximum: 9223372036854775807
           minimum: -9223372036854775808
           format: int64
-        image:
-          type: string
-          format: uri
-          nullable: true
-          title: Imagen
         sku:
           type: string
           nullable: true
@@ -1501,6 +1523,9 @@ components:
         id:
           type: integer
           readOnly: true
+        image:
+          type: string
+          readOnly: true
         name:
           type: string
           title: Nombre
@@ -1524,11 +1549,6 @@ components:
           maximum: 9223372036854775807
           minimum: -9223372036854775808
           format: int64
-        image:
-          type: string
-          format: uri
-          nullable: true
-          title: Imagen
         sku:
           type: string
           nullable: true
@@ -1573,6 +1593,7 @@ components:
       - category
       - created_at
       - id
+      - image
       - name
       - price
       - supplier

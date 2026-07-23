@@ -697,6 +697,7 @@ export interface components {
         };
         PatchedProduct: {
             readonly id?: number;
+            readonly image?: string;
             /** Nombre */
             name?: string;
             /** Descripción */
@@ -707,11 +708,6 @@ export interface components {
             minimum_stock?: number;
             /** Format: int64 */
             price?: number;
-            /**
-             * Imagen
-             * Format: uri
-             */
-            image?: string | null;
             sku?: string | null;
             /** Icono */
             icon?: string;
@@ -763,6 +759,7 @@ export interface components {
         PaymentMethodEnum: "webpay" | "flow" | "mercadopago" | "transfer";
         Product: {
             readonly id: number;
+            readonly image: string;
             /** Nombre */
             name: string;
             /** Descripción */
@@ -773,11 +770,6 @@ export interface components {
             minimum_stock?: number;
             /** Format: int64 */
             price: number;
-            /**
-             * Imagen
-             * Format: uri
-             */
-            image?: string | null;
             sku?: string | null;
             /** Icono */
             icon?: string;
@@ -1366,6 +1358,12 @@ export interface operations {
     products_list: {
         parameters: {
             query?: {
+                category?: number;
+                experience_level?: number;
+                experience_level__gte?: number;
+                experience_level__lte?: number;
+                max_price?: string;
+                min_price?: string;
                 /** @description Un número de página dentro del conjunto de resultados paginado. */
                 page?: number;
                 /** @description Un término de búsqueda. */

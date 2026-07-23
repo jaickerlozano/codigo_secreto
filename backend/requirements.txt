@@ -4,7 +4,7 @@ certifi==2026.6.17
 charset-normalizer==3.4.9
 cloudinary==1.45.0
 coverage==7.15.1
-Django==6.0.6
+Django==5.2.6
 django-cloudinary-storage==0.3.0
 django-cors-headers==4.9.0
 django-environ==0.13.0
@@ -31,7 +31,7 @@ pytest-django==4.12.0
 PyYAML==6.0.3
 referencing==0.37.0
 requests==2.34.2
-rpds-py==2026.5.1
+rpds-py==0.30.0
 six==1.17.0
 sqlparse==0.5.5
 typing_extensions==4.15.0

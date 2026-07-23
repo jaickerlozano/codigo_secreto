@@ -179,18 +179,39 @@ SPECTACULAR_SETTINGS = {
 AUTH_USER_MODEL = 'authentication.User'
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",          # Por ejemplo, si usas Vite
+    "http://localhost:5173",          # Vite default
     "http://127.0.0.1:5173",
+    "http://localhost:3000",          # Create React App / Next.js default
+    "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
 ]
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
+    "x-csrftoken",          # Requerido para CSRF cross-origin
+    "content-type",
 ]
 
-# Solo si el JWT viaja en Cookies de forma automática
+# Obligatorio para cookies cross-origin (diferentes puertos localhost)
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF Trusted Origins - OBLIGATORIO en Django 4+ para cross-origin
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+# Cookie settings para cross-origin localhost (puerto 5173 -> 8000)
+# "Lax" permite cookies en navegación cross-origin (top-level)
+CSRF_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SECURE = False          # True solo en producción con HTTPS
+SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SECURE = False       # True solo en producción con HTTPS
 
 # Configura el almacenamiento de archivos multimedia para que apunte a Cloudinary
 STORAGES = {
