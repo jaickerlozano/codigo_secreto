@@ -41,6 +41,12 @@ export function mapApiProduct(
     finalExperience = EXPERIENCE_MAP[rawExperience] ?? 'intermedio';
   }
 
+  // Captura el array de imágenes de la API, o un arreglo vacío si el producto no tiene galería
+  const apiImages = (apiProduct as any).images 
+  const galleryImages = Array.isArray(apiImages) 
+    ? apiImages.map((img: any) => ({ id: Number(img.id), image: String(img.image) }))
+    : []
+
   return {
     id: apiProduct.id,
     name: apiProduct.name,
@@ -59,5 +65,6 @@ export function mapApiProduct(
     stock: (apiProduct as any).stock ?? apiProduct.current_stock ?? 0,
     image: apiProduct.image ?? null,
     badge: (apiProduct.badge as Product['badge']) ?? undefined,
+    images: galleryImages, 
   }
 }
