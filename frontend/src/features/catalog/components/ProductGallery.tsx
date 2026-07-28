@@ -44,7 +44,7 @@ export function ProductGallery({ product }: ProductGalleryProps) {
   return (
     <div className="space-y-4">
       {/* ─── CONTENEDOR PRINCIPAL DE LA IMAGEN ─── */}
-      <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-border">
+      <div className="relative w-full overflow-hidden rounded-2xl border border-border aspect-[3/4] max-h-[70dvh] lg:aspect-[4/5] lg:max-h-[75dvh]">
         <AnimatePresence mode="wait">
           <motion.div
             key={selectedIndex}

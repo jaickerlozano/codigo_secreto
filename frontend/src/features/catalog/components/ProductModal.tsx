@@ -11,6 +11,7 @@ import {
 import { formatCLP } from '@/lib/format'
 
 import type { Product } from '../types'
+import { ProductGallery } from './ProductGallery'
 import { StarRating } from './StarRating'
 
 interface ProductModalProps {
@@ -68,33 +69,8 @@ export function ProductModal({
           transition={{ duration: 0.26, ease: [0.4, 0, 0.2, 1] }}
         >
           <div className="grid sm:grid-cols-2">
-            <div
-              className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-t-2xl bg-gradient-to-br ${product.gradient} sm:aspect-auto sm:min-h-80 sm:rounded-l-2xl sm:rounded-tr-none`}
-              aria-hidden="true"
-            >
-              {product.image ? (
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <>
-                    <span
-                      className="select-none text-7xl opacity-[0.18]"
-                      aria-hidden="true"
-                    >
-                      {product.icon}
-                    </span>
-                    <div
-                      className="absolute inset-0 opacity-[0.06]"
-                      style={{
-                        backgroundImage: 'var(--circuit-overlay)',
-                      }}
-                      aria-hidden="true"
-                    />
-                  </>
-                )}
+            <div className="max-h-[50vh] overflow-hidden sm:max-h-[60vh]">
+              <ProductGallery product={product} />
             </div>
 
             <div className="p-6">
