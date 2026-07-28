@@ -126,8 +126,6 @@ class StockMovement(models.Model):
         verbose_name = 'Movimiento de Stock' 
 
 
-# Agrega este modelo al final de tu backend/apps/products/models.py
-
 class ProductImage(models.Model):
     product = models.ForeignKey(
         'Product', 
@@ -135,7 +133,7 @@ class ProductImage(models.Model):
         related_name='images', # Importante: permitirá acceder a la galería desde el producto
         verbose_name='producto'
     )
-    # Al igual que tu modelo principal, el MediaCloudinaryStorage se encargará de subir esto a Cloudinary
+    # Al igual que el modelo principal, el MediaCloudinaryStorage se encargará de subir esto a Cloudinary
     image = models.ImageField(
         upload_to='products/gallery/', 
         verbose_name='imagen de galería'
