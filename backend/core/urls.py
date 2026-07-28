@@ -11,6 +11,10 @@ from apps.carts.views import MyCartView
 from apps.orders.views import OrderViewSet
 from apps.payments.views import InitiatePaymentView
 
+admin.site.site_header = "Administración de Código Secreto"
+admin.site.site_title = "Portal de Código Secreto"
+admin.site.index_title = "Panel de control de Código Secreto"
+
 # Configuración limpia del Router (Solo para ViewSets)
 router = routers.DefaultRouter()
 router.register(r'products', ProductViewSet, 'products')
