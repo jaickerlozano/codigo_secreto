@@ -11,7 +11,7 @@ export const testUser = {
 }
 
 export const authHandlers = [
-  http.post('*api/auth/login/', () =>
+  http.post('http://localhost:8000/api/auth/login/', () =>
     HttpResponse.json(
       {
         access: 'access-token',
@@ -23,19 +23,19 @@ export const authHandlers = [
     ),
   ),
 
-  http.post('*api/auth/register/', () =>
+  http.post('http://localhost:8000/api/auth/register/', () =>
     HttpResponse.json(
       { message: 'Usuario registrado con éxito de forma segura.' },
       { status: 201 },
     ),
   ),
 
-  http.post('*api/auth/logout/', () =>
+  http.post('http://localhost:8000/api/auth/logout/', () =>
     HttpResponse.json(
       { message: 'Sesión cerrada correctamente.' },
       { status: 200 },
     ),
   ),
 
-  http.get('*api/auth/me/', () => HttpResponse.json(testUser, { status: 200 })),
+  http.get('http://localhost:8000/api/auth/me/', () => HttpResponse.json(testUser, { status: 200 })),
 ]

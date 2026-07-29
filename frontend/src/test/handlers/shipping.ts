@@ -12,7 +12,7 @@ const testComunas = [
 ]
 
 export const shippingHandlers = [
-  http.get('*api/shipping/regions/', () =>
+  http.get(/\/api\/shipping\/regions\/$/, () =>
     HttpResponse.json({
       count: testRegions.length,
       next: null,
@@ -21,7 +21,7 @@ export const shippingHandlers = [
     }),
   ),
 
-  http.get('*api/shipping/comunas/', ({ request }) => {
+  http.get(/\/api\/shipping\/comunas\/$/, ({ request }) => {
     const url = new URL(request.url)
     const regionParam = url.searchParams.get('region')
     const regionId = regionParam ? parseInt(regionParam, 10) : null

@@ -36,6 +36,9 @@ class ProductFilter(django_filters.FilterSet):
         if not value:
             return queryset
 
+        if Category.objects.filter(id__in=value).count() != len(set(value)):
+            raise Http404("Categoría no encontrada.")
+
         # 'value' ahora es una lista de IDs gracias a NumberInFilter (ej:)
         # Convertimos la lista en un formato seguro para SQL nativo
         placeholders = ', '.join(['%s'] * len(value))

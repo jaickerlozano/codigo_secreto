@@ -29,7 +29,7 @@ const testProduct = {
 }
 
 export const catalogHandlers = [
-  http.get('*api/categories/', () =>
+  http.get('http://localhost:8000/api/categories/', () =>
     HttpResponse.json({
       count: 1,
       next: null,
@@ -38,7 +38,7 @@ export const catalogHandlers = [
     }),
   ),
 
-  http.get('*api/products/', () =>
+  http.get('http://localhost:8000/api/products/', () =>
     HttpResponse.json({
       count: 1,
       next: null,
@@ -47,7 +47,7 @@ export const catalogHandlers = [
     }),
   ),
 
-  http.get('*api/products/:id/', () =>
+  http.get('http://localhost:8000/api/products/:id/', () =>
     HttpResponse.json(testProduct),
   ),
 ]

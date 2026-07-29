@@ -28,7 +28,7 @@ describe('useRegions', () => {
 
   it('returns an error when the request fails', async () => {
     server.use(
-      http.get('*api/shipping/regions/', () =>
+       http.get(/\/api\/shipping\/regions\/$/, () =>
         HttpResponse.json({ detail: 'Error del servidor' }, { status: 500 }),
       ),
     )

@@ -1,1835 +1,1819 @@
-openapi: 3.0.3
-info:
-  title: Código Secreto Management API
-  version: 1.0.0
-  description: API for managing products, suppliers, and categories in the Código
-    Secreto inventory system.
-paths:
-  /api/auth/login/:
-    post:
-      operationId: auth_login_create
-      description: Recibe el correo electrónico y la contraseña. Devuelve un token
-        de acceso y un token de refresco.
-      summary: Iniciar sesión (Login)
-      tags:
-      - Autenticación
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPair'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPair'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TokenObtainPair'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TokenObtainPair'
-          description: ''
-  /api/auth/logout/:
-    post:
-      operationId: auth_logout_create
-      description: Elimina las cookies HttpOnly del token de acceso y refresco.
-      summary: Cerrar sesión (Logout)
-      tags:
-      - Autenticación
-      security:
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-          description: ''
-  /api/auth/me/:
-    get:
-      operationId: auth_me_retrieve
-      description: Lee el token JWT enviado en las cabeceras y devuelve los datos
-        personales del usuario conectado.
-      summary: Obtener perfil del usuario autenticado
-      tags:
-      - Autenticación
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserMe'
-          description: ''
-  /api/auth/register/:
-    post:
-      operationId: auth_register_create
-      description: Permite a los usuarios de la tienda crear una cuenta de cliente.
-        Crea el usuario y su perfil de despacho de forma automática.
-      summary: Registrar un nuevo cliente
-      tags:
-      - Autenticación
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Register'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Register'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Register'
-        required: true
-      security:
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Register'
-          description: ''
-  /api/auth/token/refresh/:
-    post:
-      operationId: auth_token_refresh_create
-      description: Recibe un token de refresco válido y entrega un nuevo token de
-        acceso para mantener la sesión activa.
-      summary: Refrescar token de acceso
-      tags:
-      - Autenticación
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TokenRefresh'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TokenRefresh'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TokenRefresh'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TokenRefresh'
-          description: ''
-  /api/cart/me/:
-    get:
-      operationId: cart_me_retrieve
-      description: Devuelve el carrito del usuario conectado con su lista de productos,
-        subtotales, envío y total.
-      summary: Ver mi carrito de compras
-      tags:
-      - Carrito
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Cart'
-          description: ''
-    post:
-      operationId: cart_me_create
-      description: Recibe un product_id y la cantidad. Si el producto ya está en el
-        carro, suma la cantidad; si no, lo añade.
-      summary: Añadir o actualizar producto en el carrito
-      tags:
-      - Carrito
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AddToCart'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AddToCart'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AddToCart'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Cart'
-          description: ''
-    delete:
-      operationId: cart_me_destroy
-      description: Recibe un product_id y la cantidad a quitar. Si la cantidad del
-        carro llega a cero o menos, el ítem se elimina por completo.
-      summary: Remover o disminuir producto del carrito
-      tags:
-      - Carrito
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Cart'
-          description: ''
-  /api/categories/:
-    get:
-      operationId: categories_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
-      - name: search
-        required: false
-        in: query
-        description: Un término de búsqueda.
-        schema:
-          type: string
-      tags:
-      - categories
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedCategoryList'
-          description: ''
-    post:
-      operationId: categories_create
-      tags:
-      - categories
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Category'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Category'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Category'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Category'
-          description: ''
-  /api/categories/{id}/:
-    get:
-      operationId: categories_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Categoría.
-        required: true
-      tags:
-      - categories
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Category'
-          description: ''
-    put:
-      operationId: categories_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Categoría.
-        required: true
-      tags:
-      - categories
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Category'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Category'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Category'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Category'
-          description: ''
-    patch:
-      operationId: categories_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Categoría.
-        required: true
-      tags:
-      - categories
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedCategory'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedCategory'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedCategory'
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Category'
-          description: ''
-    delete:
-      operationId: categories_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Categoría.
-        required: true
-      tags:
-      - categories
-      responses:
-        '204':
-          description: No response body
-  /api/orders/:
-    get:
-      operationId: orders_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
-      tags:
-      - orders
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedOrderList'
-          description: ''
-    post:
-      operationId: orders_create
-      tags:
-      - orders
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Order'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Order'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Order'
-        required: true
-      security:
-      - {}
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-          description: ''
-  /api/orders/{id}/:
-    get:
-      operationId: orders_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Pedido.
-        required: true
-      tags:
-      - orders
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-          description: ''
-  /api/orders/by-order-number/{order_number}/:
-    get:
-      operationId: orders_by_order_number_retrieve
-      description: |-
-        Endpoint público para consultar una orden por order_number.
-        Permite que guests y usuarios autenticados consulten el estado de su orden.
-      parameters:
-      - in: path
-        name: order_number
-        schema:
-          type: string
-          title: Número de pedido
-          description: 'Identificador público del pedido (ej: CS-XXXXXXX).'
-        required: true
-      tags:
-      - orders
-      security:
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-          description: ''
-  /api/orders/track/:
-    get:
-      operationId: orders_track_retrieve
-      description: |-
-        Permite a cualquier usuario (incluidos invitados) consultar un pedido
-        únicamente por su número de orden público (order_number).
-      parameters:
-      - in: query
-        name: order_number
-        schema:
-          type: string
-        description: 'Número de pedido público (ej: CS-XXXXXXX).'
-        required: true
-      tags:
-      - orders
-      security:
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-          description: ''
-  /api/payments/initiate/:
-    post:
-      operationId: payments_initiate_create
-      description: Recibe el order_id, registra el intento de pago en el backend y
-        devuelve la URL de redirección de la pasarela.
-      summary: Iniciar proceso de pago
-      tags:
-      - Pagos
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/InitiatePayment'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/InitiatePayment'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/InitiatePayment'
-        required: true
-      security:
-      - {}
-      responses:
-        '200':
-          description: No response body
-  /api/products/:
-    get:
-      operationId: products_list
-      parameters:
-      - in: query
-        name: category
-        schema:
-          type: array
-          items:
-            type: integer
-        description: Múltiples valores separados por comas.
-        explode: false
-        style: form
-      - in: query
-        name: experience_level
-        schema:
-          type: array
-          items:
-            type: integer
-        description: Múltiples valores separados por comas.
-        explode: false
-        style: form
-      - in: query
-        name: experience_level__gte
-        schema:
-          type: integer
-      - in: query
-        name: experience_level__lte
-        schema:
-          type: integer
-      - in: query
-        name: max_price
-        schema:
-          type: string
-      - in: query
-        name: min_price
-        schema:
-          type: string
-      - name: ordering
-        required: false
-        in: query
-        description: Qué campo usar para ordenar los resultados.
-        schema:
-          type: string
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
-      - name: search
-        required: false
-        in: query
-        description: Un término de búsqueda.
-        schema:
-          type: string
-      - in: query
-        name: sku
-        schema:
-          type: string
-      - in: query
-        name: supplier
-        schema:
-          type: integer
-      tags:
-      - products
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedProductList'
-          description: ''
-    post:
-      operationId: products_create
-      description: Crear un producto y registrar un movimiento de stock inicial si
-        se proporciona current_stock
-      tags:
-      - products
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Product'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Product'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Product'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Product'
-          description: ''
-  /api/products/{id}/:
-    get:
-      operationId: products_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Producto.
-        required: true
-      tags:
-      - products
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Product'
-          description: ''
-    put:
-      operationId: products_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Producto.
-        required: true
-      tags:
-      - products
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Product'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Product'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Product'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Product'
-          description: ''
-    patch:
-      operationId: products_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Producto.
-        required: true
-      tags:
-      - products
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedProduct'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedProduct'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedProduct'
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Product'
-          description: ''
-    delete:
-      operationId: products_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Producto.
-        required: true
-      tags:
-      - products
-      responses:
-        '204':
-          description: No response body
-  /api/shipping/comunas/:
-    get:
-      operationId: shipping_comunas_list
-      description: Devuelve el listado plano de todas las comunas de Chile. Permite
-        ver sus costos de despacho individuales.
-      summary: Listar todas las comunas de Chile sueltas
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
-      - in: query
-        name: region
-        schema:
-          type: integer
-      tags:
-      - Despachos
-      security:
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedComunaList'
-          description: ''
-  /api/shipping/comunas/{id}/:
-    get:
-      operationId: shipping_comunas_retrieve
-      description: Devuelve el listado plano de todas las comunas de Chile. Permite
-        ver sus costos de despacho individuales.
-      summary: Listar todas las comunas de Chile sueltas
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Comuna.
-        required: true
-      tags:
-      - Despachos
-      security:
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Comuna'
-          description: ''
-  /api/shipping/regions/:
-    get:
-      operationId: shipping_regions_list
-      description: Devuelve el listado completo de las 16 regiones oficiales ordenadas
-        de Norte a Sur, incluyendo sus comunas activas de forma anidada.
-      summary: Listar regiones de Chile con sus comunas
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
-      tags:
-      - Despachos
-      security:
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedRegionList'
-          description: ''
-  /api/shipping/regions/{id}/:
-    get:
-      operationId: shipping_regions_retrieve
-      description: Devuelve el listado completo de las 16 regiones oficiales ordenadas
-        de Norte a Sur, incluyendo sus comunas activas de forma anidada.
-      summary: Listar regiones de Chile con sus comunas
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Región.
-        required: true
-      tags:
-      - Despachos
-      security:
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Region'
-          description: ''
-  /api/stock-movements/:
-    get:
-      operationId: stock_movements_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
-      tags:
-      - stock-movements
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedStockMovementList'
-          description: ''
-    post:
-      operationId: stock_movements_create
-      description: Crear un movimiento de stock
-      tags:
-      - stock-movements
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/StockMovement'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/StockMovement'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/StockMovement'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StockMovement'
-          description: ''
-  /api/stock-movements/{id}/:
-    get:
-      operationId: stock_movements_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Movimiento de Stock.
-        required: true
-      tags:
-      - stock-movements
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/StockMovement'
-          description: ''
-  /api/suppliers/:
-    get:
-      operationId: suppliers_list
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
-      - name: search
-        required: false
-        in: query
-        description: Un término de búsqueda.
-        schema:
-          type: string
-      tags:
-      - suppliers
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedSupplierList'
-          description: ''
-    post:
-      operationId: suppliers_create
-      tags:
-      - suppliers
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Supplier'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Supplier'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Supplier'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Supplier'
-          description: ''
-  /api/suppliers/{id}/:
-    get:
-      operationId: suppliers_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Proveedor.
-        required: true
-      tags:
-      - suppliers
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Supplier'
-          description: ''
-    put:
-      operationId: suppliers_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Proveedor.
-        required: true
-      tags:
-      - suppliers
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Supplier'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Supplier'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Supplier'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Supplier'
-          description: ''
-    patch:
-      operationId: suppliers_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Proveedor.
-        required: true
-      tags:
-      - suppliers
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedSupplier'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedSupplier'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedSupplier'
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Supplier'
-          description: ''
-    delete:
-      operationId: suppliers_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: integer
-        description: Un valor de entero único que identifique este Proveedor.
-        required: true
-      tags:
-      - suppliers
-      responses:
-        '204':
-          description: No response body
-components:
-  schemas:
-    AddToCart:
-      type: object
-      properties:
-        product_id:
-          type: integer
-        quantity:
-          type: integer
-          minimum: 1
-      required:
-      - product_id
-      - quantity
-    Cart:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Fecha de creación
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Fecha de actualización
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/CartItem'
-          readOnly: true
-        monto_total_final:
-          type: integer
-          readOnly: true
-        subtotal:
-          type: integer
-          readOnly: true
-        shipping_cost:
-          type: integer
-          readOnly: true
-        total:
-          type: integer
-          readOnly: true
-        free_shipping_progress:
-          type: number
-          readOnly: true
-        free_shipping_threshold:
-          type: integer
-          readOnly: true
-      required:
-      - created_at
-      - free_shipping_progress
-      - free_shipping_threshold
-      - id
-      - items
-      - monto_total_final
-      - shipping_cost
-      - subtotal
-      - total
-      - updated_at
-    CartItem:
-      type: object
-      properties:
-        cart:
-          type: integer
-          title: Carro
-        product:
-          allOf:
-          - $ref: '#/components/schemas/Product'
-          readOnly: true
-        quantity:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-          title: Cantidad
-        subtotal:
-          type: integer
-          readOnly: true
-      required:
-      - cart
-      - product
-      - subtotal
-    Category:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          title: Nombre
-          maxLength: 255
-        description:
-          type: string
-          nullable: true
-          title: Descripción
-        parent:
-          type: integer
-          nullable: true
-          title: Categoría padre
-        subcategories:
-          type: string
-          readOnly: true
-      required:
-      - id
-      - name
-      - subcategories
-    Comuna:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          title: Nombre
-          maxLength: 100
-        shipping_cost:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-          title: Costo de envío
-          description: Costo de envío en CLP para esta comuna
-        is_active:
-          type: boolean
-          description: Indica si realizamos envíos a esta comuna
-      required:
-      - id
-      - name
-    InitiatePayment:
-      type: object
-      properties:
-        order_id:
-          type: integer
-      required:
-      - order_id
-    MovementTypeEnum:
-      enum:
-      - IN
-      - OUT
-      type: string
-      description: |-
-        * `IN` - Entrada
-        * `OUT` - Salida
-    Order:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        order_number:
-          type: string
-          readOnly: true
-        phone:
-          type: string
-          title: Teléfono de contacto
-          maxLength: 20
-        comuna:
-          type: integer
-        comuna_name:
-          type: string
-        comuna_display:
-          type: string
-          readOnly: true
-        region_name:
-          type: string
-        shipping_address:
-          type: string
-          title: Dirección de despacho
-          maxLength: 255
-        apartment_office:
-          type: string
-          nullable: true
-          title: Depto / oficina
-          maxLength: 50
-        guest_email:
-          type: string
-          format: email
-          nullable: true
-          title: Correo invitado
-          maxLength: 254
-        guest_name:
-          type: string
-          nullable: true
-          title: Nombre invitado
-          maxLength: 255
-        guest_items:
-          writeOnly: true
-          description: Lista de productos para invitados
-        payment_method:
-          $ref: '#/components/schemas/PaymentMethodEnum'
-        subtotal:
-          type: integer
-          readOnly: true
-          title: Subtotal productos
-        shipping_cost:
-          type: integer
-          readOnly: true
-          title: Costo de envío
-        total:
-          type: integer
-          readOnly: true
-          title: Total final
-        status:
-          allOf:
-          - $ref: '#/components/schemas/StatusEnum'
-          readOnly: true
-          title: Estado del pedido
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Fecha de creación
-        carrier:
-          type: string
-          readOnly: true
-          title: Transportista
-          description: Empresa de transporte encargada del envío.
-        tracking_number:
-          type: string
-          readOnly: true
-          nullable: true
-          title: Número de seguimiento
-          description: Código de rastreo proporcionado por el transportista.
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/OrderItem'
-          readOnly: true
-      required:
-      - carrier
-      - comuna_display
-      - created_at
-      - id
-      - items
-      - order_number
-      - phone
-      - shipping_address
-      - shipping_cost
-      - status
-      - subtotal
-      - total
-      - tracking_number
-    OrderItem:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        product_id:
-          type: integer
-          nullable: true
-          title: Producto
-          readOnly: true
-        product_name:
-          type: string
-          title: Nombre del producto congelado
-          maxLength: 255
-        price:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-          title: Precio unitario congelado
-        quantity:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-          title: Cantidad
-        subtotal:
-          type: integer
-          readOnly: true
-      required:
-      - id
-      - price
-      - product_id
-      - product_name
-      - quantity
-      - subtotal
-    PaginatedCategoryList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Category'
-    PaginatedComunaList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Comuna'
-    PaginatedOrderList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Order'
-    PaginatedProductList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Product'
-    PaginatedRegionList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Region'
-    PaginatedStockMovementList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/StockMovement'
-    PaginatedSupplierList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Supplier'
-    PatchedCategory:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          title: Nombre
-          maxLength: 255
-        description:
-          type: string
-          nullable: true
-          title: Descripción
-        parent:
-          type: integer
-          nullable: true
-          title: Categoría padre
-        subcategories:
-          type: string
-          readOnly: true
-    PatchedProduct:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          title: Nombre
-          maxLength: 255
-        sku:
-          type: string
-          nullable: true
-          maxLength: 50
-        price:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-        description:
-          type: string
-          nullable: true
-          title: Descripción
-        image:
-          type: string
-          readOnly: true
-        images:
-          type: array
-          items:
-            $ref: '#/components/schemas/ProductImage'
-          readOnly: true
-        gradient:
-          type: string
-          title: Gradiente
-          maxLength: 200
-        icon:
-          type: string
-          title: Icono
-          maxLength: 100
-        badge:
-          type: string
-          nullable: true
-          maxLength: 50
-        features:
-          title: Características
-        category:
-          type: string
-          readOnly: true
-        stock:
-          type: integer
-          readOnly: true
-        experienceLevel:
-          type: string
-          readOnly: true
-        current_stock:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        minimum_stock:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        supplier:
-          type: integer
-          title: Proveedor
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Fecha de creación
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Fecha de actualización
-    PatchedSupplier:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          title: Nombre
-          maxLength: 255
-        contact:
-          type: string
-          title: Contacto
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          title: Correo electrónico
-          maxLength: 254
-        phone:
-          type: string
-          title: Teléfono
-          maxLength: 20
-        address:
-          type: string
-          title: Dirección
-    PaymentMethodEnum:
-      enum:
-      - webpay
-      - flow
-      - mercadopago
-      - transfer
-      type: string
-      description: |-
-        * `webpay` - Webpay
-        * `flow` - Flow
-        * `mercadopago` - MercadoPago
-        * `transfer` - Transferencia Bancaria
-    Product:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          title: Nombre
-          maxLength: 255
-        sku:
-          type: string
-          nullable: true
-          maxLength: 50
-        price:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-        description:
-          type: string
-          nullable: true
-          title: Descripción
-        image:
-          type: string
-          readOnly: true
-        images:
-          type: array
-          items:
-            $ref: '#/components/schemas/ProductImage'
-          readOnly: true
-        gradient:
-          type: string
-          title: Gradiente
-          maxLength: 200
-        icon:
-          type: string
-          title: Icono
-          maxLength: 100
-        badge:
-          type: string
-          nullable: true
-          maxLength: 50
-        features:
-          title: Características
-        category:
-          type: string
-          readOnly: true
-        stock:
-          type: integer
-          readOnly: true
-        experienceLevel:
-          type: string
-          readOnly: true
-        current_stock:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        minimum_stock:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-        supplier:
-          type: integer
-          title: Proveedor
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Fecha de creación
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Fecha de actualización
-      required:
-      - category
-      - created_at
-      - experienceLevel
-      - id
-      - image
-      - images
-      - name
-      - price
-      - stock
-      - supplier
-      - updated_at
-    ProductImage:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        image:
-          type: string
-          readOnly: true
-      required:
-      - id
-      - image
-    Region:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          title: Nombre
-          maxLength: 100
-        ordinal_number:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-          title: Orden geográfico
-          description: Orden geográfico de la región de Norte a Sur
-        comunas:
-          type: string
-          readOnly: true
-      required:
-      - comunas
-      - id
-      - name
-      - ordinal_number
-    Register:
-      type: object
-      properties:
-        first_name:
-          type: string
-          title: Nombre
-          maxLength: 150
-        last_name:
-          type: string
-          title: Apellidos
-          maxLength: 150
-        email:
-          type: string
-          format: email
-          maxLength: 254
-        rut:
-          type: string
-          nullable: true
-          maxLength: 12
-        phone:
-          type: string
-          nullable: true
-          maxLength: 20
-        password:
-          type: string
-          writeOnly: true
-        password_confirm:
-          type: string
-          writeOnly: true
-      required:
-      - email
-      - password
-      - password_confirm
-    StatusEnum:
-      enum:
-      - PENDING
-      - PAID
-      - SHIPPED
-      - DELIVERED
-      - CANCELLED
-      type: string
-      description: |-
-        * `PENDING` - Pendiente de Pago
-        * `PAID` - Pagado / Listo para Despacho
-        * `SHIPPED` - Enviado a Destino
-        * `DELIVERED` - Entregado al Cliente
-        * `CANCELLED` - Cancelado / Anulado
-    StockMovement:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        product:
-          type: integer
-          title: Producto
-        movement_type:
-          allOf:
-          - $ref: '#/components/schemas/MovementTypeEnum'
-          title: Tipo de movimiento
-        quantity:
-          type: integer
-          maximum: 9223372036854775807
-          minimum: 0
-          format: int64
-          title: Cantidad
-        timestamp:
-          type: string
-          format: date-time
-          readOnly: true
-          title: Fecha y hora
-        alert:
-          type: string
-          readOnly: true
-      required:
-      - alert
-      - id
-      - movement_type
-      - product
-      - quantity
-      - timestamp
-    Supplier:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        name:
-          type: string
-          title: Nombre
-          maxLength: 255
-        contact:
-          type: string
-          title: Contacto
-          maxLength: 255
-        email:
-          type: string
-          format: email
-          title: Correo electrónico
-          maxLength: 254
-        phone:
-          type: string
-          title: Teléfono
-          maxLength: 20
-        address:
-          type: string
-          title: Dirección
-      required:
-      - address
-      - contact
-      - email
-      - id
-      - name
-      - phone
-    TokenObtainPair:
-      type: object
-      properties:
-        email:
-          type: string
-          writeOnly: true
-        password:
-          type: string
-          writeOnly: true
-        access:
-          type: string
-          readOnly: true
-        refresh:
-          type: string
-          readOnly: true
-      required:
-      - access
-      - email
-      - password
-      - refresh
-    TokenRefresh:
-      type: object
-      properties:
-        access:
-          type: string
-          readOnly: true
-        refresh:
-          type: string
-          writeOnly: true
-      required:
-      - access
-      - refresh
-    UserMe:
-      type: object
-      properties:
-        id:
-          type: integer
-          readOnly: true
-        first_name:
-          type: string
-          title: Nombre
-          maxLength: 150
-        last_name:
-          type: string
-          title: Apellidos
-          maxLength: 150
-        email:
-          type: string
-          format: email
-          maxLength: 254
-        rut:
-          type: string
-          nullable: true
-          maxLength: 12
-        phone:
-          type: string
-          nullable: true
-          maxLength: 20
-        is_admin:
-          type: boolean
-          readOnly: true
-      required:
-      - email
-      - id
-      - is_admin
+/**
+ * This file was auto-generated by openapi-typescript.
+ * Do not make direct changes to the file.
+ */
+
+export interface paths {
+    "/api/auth/login/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Iniciar sesión (Login)
+         * @description Recibe el correo electrónico y la contraseña. Devuelve un token de acceso y un token de refresco.
+         */
+        post: operations["auth_login_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/logout/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cerrar sesión (Logout)
+         * @description Elimina las cookies HttpOnly del token de acceso y refresco.
+         */
+        post: operations["auth_logout_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/me/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Obtener perfil del usuario autenticado
+         * @description Lee el token JWT enviado en las cabeceras y devuelve los datos personales del usuario conectado.
+         */
+        get: operations["auth_me_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/register/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registrar un nuevo cliente
+         * @description Permite a los usuarios de la tienda crear una cuenta de cliente. Crea el usuario y su perfil de despacho de forma automática.
+         */
+        post: operations["auth_register_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/token/refresh/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refrescar token de acceso
+         * @description Recibe un token de refresco válido y entrega un nuevo token de acceso para mantener la sesión activa.
+         */
+        post: operations["auth_token_refresh_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/cart/me/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver mi carrito de compras
+         * @description Devuelve el carrito del usuario conectado con su lista de productos, subtotales, envío y total.
+         */
+        get: operations["cart_me_retrieve"];
+        put?: never;
+        /**
+         * Añadir o actualizar producto en el carrito
+         * @description Recibe un product_id y la cantidad. Si el producto ya está en el carro, suma la cantidad; si no, lo añade.
+         */
+        post: operations["cart_me_create"];
+        /**
+         * Remover o disminuir producto del carrito
+         * @description Recibe un product_id y la cantidad a quitar. Si la cantidad del carro llega a cero o menos, el ítem se elimina por completo.
+         */
+        delete: operations["cart_me_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/categories/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["categories_list"];
+        put?: never;
+        post: operations["categories_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/categories/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["categories_retrieve"];
+        put: operations["categories_update"];
+        post?: never;
+        delete: operations["categories_destroy"];
+        options?: never;
+        head?: never;
+        patch: operations["categories_partial_update"];
+        trace?: never;
+    };
+    "/api/orders/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orders_list"];
+        put?: never;
+        post: operations["orders_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orders/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orders_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orders/by-order-number/{order_number}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Endpoint público para consultar una orden por order_number.
+         *     Permite que guests y usuarios autenticados consulten el estado de su orden.
+         */
+        get: operations["orders_by_order_number_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orders/track/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Permite a cualquier usuario (incluidos invitados) consultar un pedido
+         *     únicamente por su número de orden público (order_number).
+         */
+        get: operations["orders_track_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/initiate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Iniciar proceso de pago
+         * @description Recibe el order_id, registra el intento de pago en el backend y devuelve la URL de redirección de la pasarela.
+         */
+        post: operations["payments_initiate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/products/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_list"];
+        put?: never;
+        /** @description Crear un producto y registrar un movimiento de stock inicial si se proporciona current_stock */
+        post: operations["products_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/products/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["products_retrieve"];
+        put: operations["products_update"];
+        post?: never;
+        delete: operations["products_destroy"];
+        options?: never;
+        head?: never;
+        patch: operations["products_partial_update"];
+        trace?: never;
+    };
+    "/api/shipping/comunas/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar todas las comunas de Chile sueltas
+         * @description Devuelve el listado plano de todas las comunas de Chile. Permite ver sus costos de despacho individuales.
+         */
+        get: operations["shipping_comunas_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shipping/comunas/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar todas las comunas de Chile sueltas
+         * @description Devuelve el listado plano de todas las comunas de Chile. Permite ver sus costos de despacho individuales.
+         */
+        get: operations["shipping_comunas_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shipping/regions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar regiones de Chile con sus comunas
+         * @description Devuelve el listado completo de las 16 regiones oficiales ordenadas de Norte a Sur, incluyendo sus comunas activas de forma anidada.
+         */
+        get: operations["shipping_regions_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/shipping/regions/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar regiones de Chile con sus comunas
+         * @description Devuelve el listado completo de las 16 regiones oficiales ordenadas de Norte a Sur, incluyendo sus comunas activas de forma anidada.
+         */
+        get: operations["shipping_regions_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stock-movements/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["stock_movements_list"];
+        put?: never;
+        /** @description Crear un movimiento de stock */
+        post: operations["stock_movements_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stock-movements/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["stock_movements_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suppliers/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["suppliers_list"];
+        put?: never;
+        post: operations["suppliers_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suppliers/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["suppliers_retrieve"];
+        put: operations["suppliers_update"];
+        post?: never;
+        delete: operations["suppliers_destroy"];
+        options?: never;
+        head?: never;
+        patch: operations["suppliers_partial_update"];
+        trace?: never;
+    };
+}
+export type webhooks = Record<string, never>;
+export interface components {
+    schemas: {
+        AddToCart: {
+            product_id: number;
+            quantity: number;
+        };
+        Cart: {
+            readonly id: number;
+            /**
+             * Fecha de creación
+             * Format: date-time
+             */
+            readonly created_at: string;
+            /**
+             * Fecha de actualización
+             * Format: date-time
+             */
+            readonly updated_at: string;
+            readonly items: components["schemas"]["CartItem"][];
+            readonly monto_total_final: number;
+            readonly subtotal: number;
+            readonly shipping_cost: number;
+            readonly total: number;
+            readonly free_shipping_progress: number;
+            readonly free_shipping_threshold: number;
+        };
+        CartItem: {
+            /** Carro */
+            cart: number;
+            readonly product: components["schemas"]["Product"];
+            /**
+             * Cantidad
+             * Format: int64
+             */
+            quantity?: number;
+            readonly subtotal: number;
+        };
+        Category: {
+            readonly id: number;
+            /** Nombre */
+            name: string;
+            /** Descripción */
+            description?: string | null;
+            /** Categoría padre */
+            parent?: number | null;
+            readonly subcategories: string;
+        };
+        Comuna: {
+            readonly id: number;
+            /** Nombre */
+            name: string;
+            /**
+             * Costo de envío
+             * Format: int64
+             * @description Costo de envío en CLP para esta comuna
+             */
+            shipping_cost?: number;
+            /** @description Indica si realizamos envíos a esta comuna */
+            is_active?: boolean;
+        };
+        InitiatePayment: {
+            order_id: number;
+        };
+        /**
+         * @description * `IN` - Entrada
+         *     * `OUT` - Salida
+         * @enum {string}
+         */
+        MovementTypeEnum: "IN" | "OUT";
+        Order: {
+            readonly id: number;
+            readonly order_number: string;
+            /** Teléfono de contacto */
+            phone: string;
+            comuna?: number;
+            comuna_name?: string;
+            readonly comuna_display: string;
+            region_name?: string;
+            /** Dirección de despacho */
+            shipping_address: string;
+            /** Depto / oficina */
+            apartment_office?: string | null;
+            /**
+             * Correo invitado
+             * Format: email
+             */
+            guest_email?: string | null;
+            /** Nombre invitado */
+            guest_name?: string | null;
+            /** @description Lista de productos para invitados */
+            guest_items?: unknown;
+            payment_method?: components["schemas"]["PaymentMethodEnum"];
+            /** Subtotal productos */
+            readonly subtotal: number;
+            /** Costo de envío */
+            readonly shipping_cost: number;
+            /** Total final */
+            readonly total: number;
+            /** Estado del pedido */
+            readonly status: components["schemas"]["StatusEnum"];
+            /**
+             * Fecha de creación
+             * Format: date-time
+             */
+            readonly created_at: string;
+            /**
+             * Transportista
+             * @description Empresa de transporte encargada del envío.
+             */
+            readonly carrier: string;
+            /**
+             * Número de seguimiento
+             * @description Código de rastreo proporcionado por el transportista.
+             */
+            readonly tracking_number: string | null;
+            readonly items: components["schemas"]["OrderItem"][];
+        };
+        OrderItem: {
+            readonly id: number;
+            /** Producto */
+            readonly product_id: number | null;
+            /** Nombre del producto congelado */
+            product_name: string;
+            /**
+             * Precio unitario congelado
+             * Format: int64
+             */
+            price: number;
+            /**
+             * Cantidad
+             * Format: int64
+             */
+            quantity: number;
+            readonly subtotal: number;
+        };
+        PaginatedCategoryList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["Category"][];
+        };
+        PaginatedComunaList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["Comuna"][];
+        };
+        PaginatedOrderList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["Order"][];
+        };
+        PaginatedProductList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["Product"][];
+        };
+        PaginatedRegionList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["Region"][];
+        };
+        PaginatedStockMovementList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["StockMovement"][];
+        };
+        PaginatedSupplierList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["Supplier"][];
+        };
+        PatchedCategory: {
+            readonly id?: number;
+            /** Nombre */
+            name?: string;
+            /** Descripción */
+            description?: string | null;
+            /** Categoría padre */
+            parent?: number | null;
+            readonly subcategories?: string;
+        };
+        PatchedProduct: {
+            readonly id?: number;
+            /** Nombre */
+            name?: string;
+            sku?: string | null;
+            /** Format: int64 */
+            price?: number;
+            /** Descripción */
+            description?: string | null;
+            readonly image?: string;
+            readonly images?: components["schemas"]["ProductImage"][];
+            /** Gradiente */
+            gradient?: string;
+            /** Icono */
+            icon?: string;
+            badge?: string | null;
+            /** Características */
+            features?: unknown;
+            readonly category?: string;
+            readonly stock?: number;
+            readonly experienceLevel?: string;
+            /** Format: int64 */
+            current_stock?: number;
+            /** Format: int64 */
+            minimum_stock?: number;
+            /** Proveedor */
+            supplier?: number;
+            /**
+             * Fecha de creación
+             * Format: date-time
+             */
+            readonly created_at?: string;
+            /**
+             * Fecha de actualización
+             * Format: date-time
+             */
+            readonly updated_at?: string;
+        };
+        PatchedSupplier: {
+            readonly id?: number;
+            /** Nombre */
+            name?: string;
+            /** Contacto */
+            contact?: string;
+            /**
+             * Correo electrónico
+             * Format: email
+             */
+            email?: string;
+            /** Teléfono */
+            phone?: string;
+            /** Dirección */
+            address?: string;
+        };
+        /**
+         * @description * `webpay` - Webpay
+         *     * `flow` - Flow
+         *     * `mercadopago` - MercadoPago
+         *     * `transfer` - Transferencia Bancaria
+         * @enum {string}
+         */
+        PaymentMethodEnum: "webpay" | "flow" | "mercadopago" | "transfer";
+        Product: {
+            readonly id: number;
+            /** Nombre */
+            name: string;
+            sku?: string | null;
+            /** Format: int64 */
+            price: number;
+            /** Descripción */
+            description?: string | null;
+            readonly image: string;
+            readonly images: components["schemas"]["ProductImage"][];
+            /** Gradiente */
+            gradient?: string;
+            /** Icono */
+            icon?: string;
+            badge?: string | null;
+            /** Características */
+            features?: unknown;
+            readonly category: string;
+            readonly stock: number;
+            readonly experienceLevel: string;
+            /** Format: int64 */
+            current_stock?: number;
+            /** Format: int64 */
+            minimum_stock?: number;
+            /** Proveedor */
+            supplier: number;
+            /**
+             * Fecha de creación
+             * Format: date-time
+             */
+            readonly created_at: string;
+            /**
+             * Fecha de actualización
+             * Format: date-time
+             */
+            readonly updated_at: string;
+        };
+        ProductImage: {
+            readonly id: number;
+            readonly image: string;
+        };
+        Region: {
+            readonly id: number;
+            /** Nombre */
+            name: string;
+            /**
+             * Orden geográfico
+             * Format: int64
+             * @description Orden geográfico de la región de Norte a Sur
+             */
+            ordinal_number: number;
+            readonly comunas: string;
+        };
+        Register: {
+            /** Nombre */
+            first_name?: string;
+            /** Apellidos */
+            last_name?: string;
+            /** Format: email */
+            email: string;
+            rut?: string | null;
+            phone?: string | null;
+            password: string;
+            password_confirm: string;
+        };
+        /**
+         * @description * `PENDING` - Pendiente de Pago
+         *     * `PAID` - Pagado / Listo para Despacho
+         *     * `SHIPPED` - Enviado a Destino
+         *     * `DELIVERED` - Entregado al Cliente
+         *     * `CANCELLED` - Cancelado / Anulado
+         * @enum {string}
+         */
+        StatusEnum: "PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+        StockMovement: {
+            readonly id: number;
+            /** Producto */
+            product: number;
+            /** Tipo de movimiento */
+            movement_type: components["schemas"]["MovementTypeEnum"];
+            /**
+             * Cantidad
+             * Format: int64
+             */
+            quantity: number;
+            /**
+             * Fecha y hora
+             * Format: date-time
+             */
+            readonly timestamp: string;
+            readonly alert: string;
+        };
+        Supplier: {
+            readonly id: number;
+            /** Nombre */
+            name: string;
+            /** Contacto */
+            contact: string;
+            /**
+             * Correo electrónico
+             * Format: email
+             */
+            email: string;
+            /** Teléfono */
+            phone: string;
+            /** Dirección */
+            address: string;
+        };
+        TokenObtainPair: {
+            email: string;
+            password: string;
+            readonly access: string;
+            readonly refresh: string;
+        };
+        TokenRefresh: {
+            readonly access: string;
+            refresh: string;
+        };
+        UserMe: {
+            readonly id: number;
+            /** Nombre */
+            first_name?: string;
+            /** Apellidos */
+            last_name?: string;
+            /** Format: email */
+            email: string;
+            rut?: string | null;
+            phone?: string | null;
+            readonly is_admin: boolean;
+        };
+    };
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
+}
+export type $defs = Record<string, never>;
+export interface operations {
+    auth_login_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenObtainPair"];
+                "application/x-www-form-urlencoded": components["schemas"]["TokenObtainPair"];
+                "multipart/form-data": components["schemas"]["TokenObtainPair"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenObtainPair"];
+                };
+            };
+        };
+    };
+    auth_logout_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        message?: string;
+                    };
+                };
+            };
+        };
+    };
+    auth_me_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserMe"];
+                };
+            };
+        };
+    };
+    auth_register_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Register"];
+                "application/x-www-form-urlencoded": components["schemas"]["Register"];
+                "multipart/form-data": components["schemas"]["Register"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Register"];
+                };
+            };
+        };
+    };
+    auth_token_refresh_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenRefresh"];
+                "application/x-www-form-urlencoded": components["schemas"]["TokenRefresh"];
+                "multipart/form-data": components["schemas"]["TokenRefresh"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenRefresh"];
+                };
+            };
+        };
+    };
+    cart_me_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cart"];
+                };
+            };
+        };
+    };
+    cart_me_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddToCart"];
+                "application/x-www-form-urlencoded": components["schemas"]["AddToCart"];
+                "multipart/form-data": components["schemas"]["AddToCart"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cart"];
+                };
+            };
+        };
+    };
+    cart_me_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Cart"];
+                };
+            };
+        };
+    };
+    categories_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                /** @description Un término de búsqueda. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedCategoryList"];
+                };
+            };
+        };
+    };
+    categories_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Category"];
+                "application/x-www-form-urlencoded": components["schemas"]["Category"];
+                "multipart/form-data": components["schemas"]["Category"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+        };
+    };
+    categories_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Categoría. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+        };
+    };
+    categories_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Categoría. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Category"];
+                "application/x-www-form-urlencoded": components["schemas"]["Category"];
+                "multipart/form-data": components["schemas"]["Category"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+        };
+    };
+    categories_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Categoría. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    categories_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Categoría. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedCategory"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedCategory"];
+                "multipart/form-data": components["schemas"]["PatchedCategory"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Category"];
+                };
+            };
+        };
+    };
+    orders_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedOrderList"];
+                };
+            };
+        };
+    };
+    orders_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Order"];
+                "application/x-www-form-urlencoded": components["schemas"]["Order"];
+                "multipart/form-data": components["schemas"]["Order"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+        };
+    };
+    orders_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Pedido. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+        };
+    };
+    orders_by_order_number_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                order_number: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+        };
+    };
+    orders_track_retrieve: {
+        parameters: {
+            query: {
+                /** @description Número de pedido público (ej: CS-XXXXXXX). */
+                order_number: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+        };
+    };
+    payments_initiate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InitiatePayment"];
+                "application/x-www-form-urlencoded": components["schemas"]["InitiatePayment"];
+                "multipart/form-data": components["schemas"]["InitiatePayment"];
+            };
+        };
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    products_list: {
+        parameters: {
+            query?: {
+                /** @description Múltiples valores separados por comas. */
+                category?: number[];
+                /** @description Múltiples valores separados por comas. */
+                experience_level?: number[];
+                experience_level__gte?: number;
+                experience_level__lte?: number;
+                max_price?: string;
+                min_price?: string;
+                /** @description Qué campo usar para ordenar los resultados. */
+                ordering?: string;
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                /** @description Un término de búsqueda. */
+                search?: string;
+                sku?: string;
+                supplier?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedProductList"];
+                };
+            };
+        };
+    };
+    products_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Product"];
+                "application/x-www-form-urlencoded": components["schemas"]["Product"];
+                "multipart/form-data": components["schemas"]["Product"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    products_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Producto. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    products_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Producto. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Product"];
+                "application/x-www-form-urlencoded": components["schemas"]["Product"];
+                "multipart/form-data": components["schemas"]["Product"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    products_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Producto. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    products_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Producto. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedProduct"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedProduct"];
+                "multipart/form-data": components["schemas"]["PatchedProduct"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Product"];
+                };
+            };
+        };
+    };
+    shipping_comunas_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                region?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedComunaList"];
+                };
+            };
+        };
+    };
+    shipping_comunas_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Comuna. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Comuna"];
+                };
+            };
+        };
+    };
+    shipping_regions_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedRegionList"];
+                };
+            };
+        };
+    };
+    shipping_regions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Región. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Region"];
+                };
+            };
+        };
+    };
+    stock_movements_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedStockMovementList"];
+                };
+            };
+        };
+    };
+    stock_movements_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StockMovement"];
+                "application/x-www-form-urlencoded": components["schemas"]["StockMovement"];
+                "multipart/form-data": components["schemas"]["StockMovement"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockMovement"];
+                };
+            };
+        };
+    };
+    stock_movements_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Movimiento de Stock. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockMovement"];
+                };
+            };
+        };
+    };
+    suppliers_list: {
+        parameters: {
+            query?: {
+                /** @description Un número de página dentro del conjunto de resultados paginado. */
+                page?: number;
+                /** @description Un término de búsqueda. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedSupplierList"];
+                };
+            };
+        };
+    };
+    suppliers_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Supplier"];
+                "application/x-www-form-urlencoded": components["schemas"]["Supplier"];
+                "multipart/form-data": components["schemas"]["Supplier"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supplier"];
+                };
+            };
+        };
+    };
+    suppliers_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Proveedor. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supplier"];
+                };
+            };
+        };
+    };
+    suppliers_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Proveedor. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Supplier"];
+                "application/x-www-form-urlencoded": components["schemas"]["Supplier"];
+                "multipart/form-data": components["schemas"]["Supplier"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supplier"];
+                };
+            };
+        };
+    };
+    suppliers_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Proveedor. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    suppliers_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Un valor de entero único que identifique este Proveedor. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedSupplier"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedSupplier"];
+                "multipart/form-data": components["schemas"]["PatchedSupplier"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Supplier"];
+                };
+            };
+        };
+    };
+}

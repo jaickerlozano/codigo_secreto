@@ -2,32 +2,9 @@ import type { components } from '@/api/schema.d.ts'
 import type { Category, ExperienceLevel, Product } from '../types'
 import { getCategoryStyle } from './categoryStyle'
 
-// Tipo auxiliar para los campos que vienen del backend pero no están
-// correctamente tipados en el schema generado (skipLibCheck=true).
-interface RawProduct {
-  id: number
-  name: string
-  price: number
-  description: string | null
-  image: string | null
-  images: Array<{ id: number; image: string }> | null
-  gradient: string | null
-  icon: string | null
-  badge: string | null
-  features: string[] | null
-  category: string | null
-  stock: number | null
-  current_stock: number | null
-  sku: string | null
-  experienceLevel: number | string | null
-  experience_level: number | string | null
+type ApiProduct = components['schemas']['Product'] & {
+  experience_level?: number | string | null
 }
-
-const SCHEMA_FIELDS: ReadonlyArray<keyof RawProduct> = [
-  'id', 'name', 'price', 'description', 'image', 'images',
-  'gradient', 'icon', 'badge', 'features', 'category',
-  'stock', 'current_stock', 'sku', 'experienceLevel', 'experience_level',
-]
 
 // Esta función es vital para que carguen las secciones de categorías
 export function mapApiCategory(
@@ -48,9 +25,9 @@ export function mapApiProduct(
   apiProduct: components['schemas']['Product'],
   categoryName?: string,
 ): Product {
-  const raw = apiProduct as unknown as RawProduct
+  const raw = apiProduct as ApiProduct
 
-  const features = Array.isArray(raw.features) ? raw.features : []
+  const features = Array.isArray(raw.features) ? (raw.features as string[]) : []
 
   const rawExperience = raw.experienceLevel ?? raw.experience_level
   let finalExperience: ExperienceLevel = 'intermedio'

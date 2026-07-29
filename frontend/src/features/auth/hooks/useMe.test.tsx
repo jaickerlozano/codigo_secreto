@@ -18,7 +18,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 describe('useMe', () => {
   it('returns the current user when authenticated', async () => {
     server.use(
-      http.get('*api/auth/me/', () =>
+       http.get('http://localhost:8000/api/auth/me/', () =>
         HttpResponse.json({
           id: 1,
           email: 'test@example.com',
@@ -39,7 +39,7 @@ describe('useMe', () => {
 
   it('returns null when the user is not authenticated', async () => {
     server.use(
-      http.get('*api/auth/me/', () =>
+       http.get('http://localhost:8000/api/auth/me/', () =>
         HttpResponse.json({ detail: 'No autenticado' }, { status: 401 }),
       ),
     )

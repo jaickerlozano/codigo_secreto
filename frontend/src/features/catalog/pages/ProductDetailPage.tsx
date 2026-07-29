@@ -58,7 +58,7 @@ export function ProductDetailPage() {
   const categoryId = product ? categoryByName.get(product.category) : undefined
 
   const { data: relatedProductsData } = useProducts({
-    category: categoryId,
+    ...(categoryId !== undefined ? { category: [categoryId] } : {}),
   })
 
   const { addItemWithQuantity } = useCart()

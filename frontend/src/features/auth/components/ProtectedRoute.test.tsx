@@ -23,7 +23,7 @@ function Wrapper({ children }: { children: ReactNode }) {
 describe('ProtectedRoute', () => {
   it('renders children when the user is authenticated', async () => {
     server.use(
-      http.get('*api/auth/me/', () =>
+       http.get('http://localhost:8000/api/auth/me/', () =>
         HttpResponse.json({
           id: 1,
           email: 'test@example.com',
@@ -57,7 +57,7 @@ describe('ProtectedRoute', () => {
 
   it('redirects to login when the user is not authenticated', async () => {
     server.use(
-      http.get('*api/auth/me/', () =>
+       http.get('http://localhost:8000/api/auth/me/', () =>
         HttpResponse.json({ detail: 'No autenticado' }, { status: 401 }),
       ),
     )

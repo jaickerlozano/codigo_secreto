@@ -5,12 +5,19 @@ import type { Middleware } from 'openapi-fetch'
 import type { paths } from '@/api/schema.d.ts'
 
 import { csrfMiddleware } from './csrf'
-// import { env } from './env'
+import { env } from './env'
+
+const apiBaseUrl =
+  import.meta.env.MODE === 'test'
+    ? 'http://localhost:8000'
+    : env.API_URL.startsWith('http://') || env.API_URL.startsWith('https://')
+      ? env.API_URL
+      : globalThis.location?.origin || 'http://localhost:8000'
 
 const client = createClient<paths>({
-  baseUrl: '',
+  baseUrl: apiBaseUrl,
   credentials: 'include',
-  // fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
+  fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
 })
 
 const AUTH_PATHS_SKIP_401_REDIRECT = new Set([
