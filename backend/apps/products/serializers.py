@@ -12,7 +12,7 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
     def get_image(self, obj):
         if not obj.image:
-            return ""
+            return None
         url = obj.image.url
         # Aplicamos exactamente la misma lógica inteligente de optimización para Cloudinary
         if 'res.cloudinary.com' in url:
@@ -24,6 +24,13 @@ class ProductImageSerializer(serializers.ModelSerializer):
         return url
 
 
+class CategoryNameField(serializers.PrimaryKeyRelatedField):
+    def to_representation(self, value):
+        if not hasattr(value, 'name'):
+            value = Category.objects.get(pk=value.pk)
+        return value.name
+
+
 class ProductSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
     
@@ -31,7 +38,7 @@ class ProductSerializer(serializers.ModelSerializer):
     # Marcamos many=True porque es una lista, y read_only=True para proteger la integridad.
     images = ProductImageSerializer(many=True, read_only=True)
 
-    category = serializers.CharField(source='category.name', read_only=True)
+    category = CategoryNameField(queryset=Category.objects.all())
     stock = serializers.IntegerField(source='current_stock', read_only=True)
     experienceLevel = serializers.SerializerMethodField()
 
@@ -53,7 +60,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def get_image(self, obj):
         if not obj.image:
-            return ""
+            return None
         url = obj.image.url
         if 'res.cloudinary.com' in url:
             if '/upload/' in url:

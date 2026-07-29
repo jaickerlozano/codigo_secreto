@@ -29,6 +29,7 @@ const testProduct = {
   sku: '101',
   stock: 10,
   image: null,
+  images: [],
 }
 
 describe('useCart', () => {

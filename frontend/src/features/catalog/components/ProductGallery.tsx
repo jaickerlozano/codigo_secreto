@@ -39,7 +39,14 @@ export function ProductGallery({ product }: ProductGalleryProps) {
 
   const showPlaceholder = (index: number) => imgError.has(index) || !images[index]?.url
 
-  const currentImage = images[selectedIndex] ?? images[0]
+  const currentImage =
+    images[selectedIndex] ??
+    images[0] ?? {
+      url: '',
+      gradient: product.gradient,
+      icon: product.icon,
+      alt: product.name,
+    }
 
   return (
     <div className="space-y-4">

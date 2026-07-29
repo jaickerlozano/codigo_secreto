@@ -43,7 +43,7 @@ describe('OrderTrackingPage', () => {
 
   it('allows a guest to track an order stored in localStorage', async () => {
     server.use(
-      http.get('*api/auth/me/', () =>
+       http.get('http://localhost:8000/api/auth/me/', () =>
         HttpResponse.json({ detail: 'No autenticado' }, { status: 401 }),
       ),
     )

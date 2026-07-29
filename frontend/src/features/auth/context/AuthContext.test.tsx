@@ -26,7 +26,7 @@ describe('AuthProvider', () => {
 
   it('provides an unauthenticated state by default', async () => {
     server.use(
-      http.get('*api/auth/me/', () =>
+       http.get('http://localhost:8000/api/auth/me/', () =>
         HttpResponse.json({ detail: 'No autenticado' }, { status: 401 }),
       ),
     )

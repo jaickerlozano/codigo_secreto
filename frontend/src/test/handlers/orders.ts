@@ -72,7 +72,7 @@ export const testOrder: Order = makeOrder(
 )
 
 export const orderHandlers = [
-  http.post('*api/orders/', async ({ request }) => {
+  http.post('http://localhost:8000/api/orders/', async ({ request }) => {
     const body = (await request.json()) as CreateOrderInput
     const order = makeOrder(body, [
       {
@@ -88,12 +88,12 @@ export const orderHandlers = [
     return HttpResponse.json(order, { status: 201 })
   }),
 
-  http.get('*api/orders/by-order-number/:orderNumber/', ({ params }) => {
+  http.get('http://localhost:8000/api/orders/by-order-number/:orderNumber/', ({ params }) => {
     const orderNumber = params.orderNumber as string
     return HttpResponse.json(trackedOrders.get(orderNumber) ?? testOrder)
   }),
 
-  http.get('*api/orders/track/', ({ request }) => {
+  http.get('http://localhost:8000/api/orders/track/', ({ request }) => {
     const url = new URL(request.url)
     const orderNumber = url.searchParams.get('order_number')
 

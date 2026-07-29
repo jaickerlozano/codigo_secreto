@@ -33,7 +33,7 @@ describe('router', () => {
 
   it('renders the login page at /login when not authenticated', async () => {
     server.use(
-      http.get('*api/auth/me/', () =>
+       http.get('http://localhost:8000/api/auth/me/', () =>
         HttpResponse.json({ detail: 'No autenticado' }, { status: 401 }),
       ),
     )

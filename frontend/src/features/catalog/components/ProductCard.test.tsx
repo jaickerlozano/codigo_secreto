@@ -20,6 +20,7 @@ const mockProduct: Product = {
   sku: '101',
   stock: 10,
   image: null,
+  images: [],
 }
 
 function renderWithRouter(ui: React.ReactNode) {

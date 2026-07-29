@@ -33,7 +33,7 @@ describe('useRegister', () => {
 
   it('exposes server errors on failure', async () => {
     server.use(
-      http.post('*api/auth/register/', () =>
+       http.post('http://localhost:8000/api/auth/register/', () =>
         HttpResponse.json({ detail: 'Email ya registrado' }, { status: 400 }),
       ),
     )

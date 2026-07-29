@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 
 export const paymentHandlers = [
-  http.post('*api/payments/initiate/', async ({ request }) => {
+  http.post('http://localhost:8000/api/payments/initiate/', async ({ request }) => {
     const body = (await request.json()) as { order_id: number }
     const token = `token_simulado_cl_f_${body.order_id}x99`
 

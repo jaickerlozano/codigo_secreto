@@ -38,7 +38,6 @@ export const routes: RouteObject[] = [
       {
         path: 'category/:categoryId',
         element: <CategoryPage />,
-        unstable_viewTransition: true,
       },
       {
         path: 'product/:productId',

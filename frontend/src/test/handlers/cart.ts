@@ -23,16 +23,18 @@ const testProduct: components['schemas']['Product'] = {
   current_stock: 10,
   minimum_stock: 1,
   price: 29990,
+  stock: 10,
   image: '',
+  images: [],
   sku: '101',
   icon: '✦',
   gradient: 'from-violet-950 via-purple-900 to-violet-800',
-  experience_level: 3,
+  experienceLevel: 'intermedio',
   features: [],
   badge: null,
   created_at: '2026-07-09T00:00:00Z',
   updated_at: '2026-07-09T00:00:00Z',
-  category: 1,
+  category: '1',
   supplier: 1,
 }
 
@@ -83,9 +85,9 @@ export function resetServerCart(): void {
 }
 
 export const cartHandlers = [
-  http.get('*api/cart/me/', () => HttpResponse.json(serverCart)),
+  http.get('http://localhost:8000/api/cart/me/', () => HttpResponse.json(serverCart)),
 
-  http.post('*api/cart/me/', async ({ request }) => {
+  http.post('http://localhost:8000/api/cart/me/', async ({ request }) => {
     const body = (await request.json()) as AddToCart
     const index = serverCart.items.findIndex(
       (item) => item.product.id === body.product_id,
@@ -112,7 +114,7 @@ export const cartHandlers = [
     return HttpResponse.json(serverCart, { status: 201 })
   }),
 
-  http.delete('*api/cart/me/', async ({ request }) => {
+  http.delete('http://localhost:8000/api/cart/me/', async ({ request }) => {
     const body = (await request.json()) as AddToCart
     const index = serverCart.items.findIndex(
       (item) => item.product.id === body.product_id,
