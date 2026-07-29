@@ -1,36 +1,29 @@
+import type { components } from '@/api/schema.d.ts'
+
+type ApiProduct = components['schemas']['Product']
+type ApiCategory = components['schemas']['Category']
+
 export type ExperienceLevel = 'principiante' | 'intermedio' | 'avanzado'
 
-export interface Product {
-  id: number
-  name: string
-  price: number
+export interface Product extends
+  Omit<ApiProduct, 'features' | 'description' | 'image' | 'badge' | 'experienceLevel' | 'current_stock' | 'minimum_stock' | 'supplier' | 'created_at' | 'updated_at'> {
   originalPrice?: number
-  category: string
-  experienceLevel: ExperienceLevel
   features: string[]
   description: string
+  image: string | null
+  badge?: 'discount' | 'new' | 'popular'
+  experienceLevel: ExperienceLevel
   materials: string[]
   usageInstructions: string
-  icon: string
-  gradient: string
   isNew?: boolean
   isOnSale?: boolean
-  badge?: 'discount' | 'new' | 'popular'
   /** Extended fields preserved from the original Figma Make catalog UI. */
   rating?: number
   reviewCount?: number
   shortDesc?: string
-  /** Fields coming from the backend Product model. */
-  sku: string | null
-  stock: number
-  image: string | null
-  /** Gallery images array from ProductImage model. */
-  images: Array<{ id: number; image: string }>
 }
 
-export interface Category {
-  id: number
-  name: string
+export interface Category extends Pick<ApiCategory, 'id' | 'name'> {
   icon: string
   gradient: string
   count?: number
