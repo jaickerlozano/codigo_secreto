@@ -1,5 +1,9 @@
+import hashlib
+import secrets
+
 import pytest
 from django.db.models import ProtectedError
+from django.utils import timezone
 
 from apps.orders.models import Order, OrderItem
 
@@ -72,3 +76,65 @@ def test_comuna_delete_protected(order_factory):
 
     with pytest.raises(ProtectedError):
         order.comuna.delete()
+
+
+def test_guest_access_token_issued_once(order_factory):
+    """Issuing a guest access token returns a raw value and persists its digest."""
+    order = order_factory()
+    raw = order.issue_guest_access()
+    order.refresh_from_db()
+    assert raw and len(raw) >= 32
+    assert order.guest_access_digest is not None
+    assert order.guest_access_version == 1
+    assert order.guest_access_expires_at > order.guest_access_issued_at
+
+
+def test_guest_access_digest_is_sha256_hex(order_factory):
+    """Stored digest is the SHA-256 hex digest of the raw token."""
+    order = order_factory()
+    raw = order.issue_guest_access()
+    order.refresh_from_db()
+    expected = hashlib.sha256(raw.encode()).hexdigest()
+    assert order.guest_access_digest == expected
+    assert len(order.guest_access_digest) == 64
+
+
+def test_guest_access_verifies_with_constant_time(order_factory):
+    """Correct token verifies; wrong token fails without leaking via timing."""
+    order = order_factory()
+    raw = order.issue_guest_access()
+    assert order.verify_guest_access(raw) is True
+    assert order.verify_guest_access(raw + "x") is False
+    assert order.verify_guest_access("") is False
+
+
+def test_guest_access_expires_after_90_days(order_factory):
+    """A token older than 90 days is rejected."""
+    order = order_factory()
+    raw = order.issue_guest_access()
+    order.guest_access_issued_at = timezone.now() - timezone.timedelta(days=91)
+    order.guest_access_expires_at = order.guest_access_issued_at + timezone.timedelta(days=90)
+    order.save()
+    assert order.verify_guest_access(raw) is False
+
+
+def test_guest_access_revocation(order_factory):
+    """Revoked token is rejected even if not expired."""
+    order = order_factory()
+    raw = order.issue_guest_access()
+    order.revoke_guest_access()
+    order.refresh_from_db()
+    assert order.guest_access_revoked_at is not None
+    assert order.verify_guest_access(raw) is False
+
+
+def test_guest_access_rotation_bumps_version(order_factory):
+    """Rotation revokes the current token and issues a new one with a higher version."""
+    order = order_factory()
+    old_raw = order.issue_guest_access()
+    new_raw = order.rotate_guest_access()
+    order.refresh_from_db()
+    assert new_raw != old_raw
+    assert order.guest_access_version == 2
+    assert order.verify_guest_access(old_raw) is False
+    assert order.verify_guest_access(new_raw) is True

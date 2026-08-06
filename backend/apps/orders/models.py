@@ -1,9 +1,22 @@
+import hashlib
+import hmac
+import secrets
 import uuid
 
 from django.db import models
+from django.utils import timezone
+
 from apps.authentication.models import User
 from apps.shipping.models import Comuna
 from apps.products.models import Product
+
+
+GUEST_ACCESS_TOKEN_BYTES = 32
+GUEST_ACCESS_VALIDITY_DAYS = 90
+
+
+def _guest_access_digest(raw_token):
+    return hashlib.sha256(raw_token.encode()).hexdigest()
 
 
 def generate_order_number():
@@ -82,10 +95,59 @@ class Order(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='fecha de actualización')
 
+    # 5. Capacidad de acceso secreto para pedidos de invitados
+    guest_access_digest = models.CharField(
+        max_length=64, null=True, blank=True,
+        verbose_name='hash de acceso de invitado',
+        help_text='SHA-256 hex digest del token de acceso. Nunca almacenar el token en claro.',
+    )
+    guest_access_issued_at = models.DateTimeField(null=True, blank=True, verbose_name='fecha de emisión del acceso')
+    guest_access_expires_at = models.DateTimeField(null=True, blank=True, verbose_name='fecha de expiración del acceso')
+    guest_access_revoked_at = models.DateTimeField(null=True, blank=True, verbose_name='fecha de revocación del acceso')
+    guest_access_version = models.PositiveIntegerField(default=0, verbose_name='versión del acceso')
+
     def save(self, *args, **kwargs):
         if not self.order_number:
             self.order_number = generate_order_number()
         super().save(*args, **kwargs)
+
+    def issue_guest_access(self):
+        """Generate a raw guest access token and store its SHA-256 digest."""
+        raw_token = secrets.token_urlsafe(GUEST_ACCESS_TOKEN_BYTES)
+        now = timezone.now()
+        self.guest_access_digest = _guest_access_digest(raw_token)
+        self.guest_access_issued_at = now
+        self.guest_access_expires_at = now + timezone.timedelta(days=GUEST_ACCESS_VALIDITY_DAYS)
+        self.guest_access_revoked_at = None
+        self.guest_access_version += 1
+        self.save(update_fields=[
+            'guest_access_digest', 'guest_access_issued_at', 'guest_access_expires_at',
+            'guest_access_revoked_at', 'guest_access_version', 'updated_at',
+        ])
+        return raw_token
+
+    def verify_guest_access(self, raw_token):
+        """Verify a raw token against the stored digest in constant time."""
+        if not raw_token or not self.guest_access_digest:
+            return False
+        if self.guest_access_revoked_at is not None:
+            return False
+        now = timezone.now()
+        if self.guest_access_issued_at and now < self.guest_access_issued_at:
+            return False
+        if self.guest_access_expires_at and now > self.guest_access_expires_at:
+            return False
+        return hmac.compare_digest(self.guest_access_digest, _guest_access_digest(raw_token))
+
+    def revoke_guest_access(self):
+        """Revoke the current guest access capability."""
+        self.guest_access_revoked_at = timezone.now()
+        self.save(update_fields=['guest_access_revoked_at', 'updated_at'])
+
+    def rotate_guest_access(self):
+        """Revoke the current capability and issue a new one."""
+        self.revoke_guest_access()
+        return self.issue_guest_access()
 
     def __str__(self):
         return f"Pedido #{self.id} - {self.get_status_display()} (${self.total:,})"
