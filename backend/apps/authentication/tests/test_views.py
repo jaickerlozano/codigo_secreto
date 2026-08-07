@@ -1,5 +1,6 @@
 import pytest
 from django.urls import reverse
+from django.utils.crypto import get_random_string
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -80,8 +81,8 @@ def test_register_endpoint_invalid_data(api_client):
     assert "password" in response.data
 
 
-def test_login_sets_cookies(api_client):
-    """Login exitoso setea access_token y refresh_token como cookies HttpOnly."""
+def test_login_sets_cookies_and_no_tokens_in_body(api_client):
+    """Login sets HttpOnly cookies and returns user info, never tokens in body."""
     user = UserFactory.create(email="login@example.com")
     user.set_password("SecurePass123!")
     user.save()
@@ -93,10 +94,12 @@ def test_login_sets_cookies(api_client):
     )
 
     assert response.status_code == 200
-    assert "access" in response.data
-    assert "refresh" in response.data
+    assert "access" not in response.data
+    assert "refresh" not in response.data
+    assert "message" in response.data
     assert "access_token" in response.cookies
     assert "refresh_token" in response.cookies
+    assert "csrftoken" in response.cookies
     assert response.cookies["access_token"]["httponly"] is True
     assert response.cookies["refresh_token"]["httponly"] is True
     assert response.cookies["access_token"]["samesite"] == "Lax"
@@ -129,25 +132,25 @@ def test_login_nonexistent_email(api_client):
     assert response.status_code == 401
 
 
-def test_refresh_reads_cookie(jwt_cookies_client):
-    """Refresh lee el token desde la cookie HttpOnly cuando el body está vacío."""
+def test_refresh_reads_cookie_and_no_token_in_body(jwt_cookies_client):
+    """Refresh reads HttpOnly cookie and returns no access token in body."""
     response = jwt_cookies_client.post(REFRESH_URL, {}, format="json")
 
     assert response.status_code == 200
-    assert "access" in response.data
+    assert "access" not in response.data
     assert "access_token" in response.cookies
     assert response.cookies["access_token"]["httponly"] is True
 
 
-def test_refresh_from_body(api_client, user):
-    """Refresh acepta el token directamente en el body."""
+def test_refresh_from_body_no_token_in_body(api_client, user):
+    """Refresh accepts token in body but still returns no token in body."""
     refresh = RefreshToken.for_user(user)
     response = api_client.post(
         REFRESH_URL, {"refresh": str(refresh)}, format="json"
     )
 
     assert response.status_code == 200
-    assert "access" in response.data
+    assert "access" not in response.data
 
 
 def test_refresh_invalid_token(api_client):
@@ -228,20 +231,28 @@ def test_auth_with_empty_header(api_client):
 
 
 def test_logout_clears_cookies(api_client):
-    """POST /api/auth/logout/ elimina las cookies access_token y refresh_token."""
+    """POST /api/auth/logout/ requires CSRF when cookies exist and clears them."""
     user = UserFactory.create(email="logout@example.com")
     user.set_password("SecurePass123!")
     user.save()
 
-    api_client.post(
+    login_response = api_client.post(
         LOGIN_URL,
         {"email": user.email, "password": "SecurePass123!"},
         format="json",
     )
     assert "access_token" in api_client.cookies
     assert "refresh_token" in api_client.cookies
+    assert "csrftoken" in login_response.cookies
 
-    response = api_client.post(LOGOUT_URL, {}, format="json")
+    csrf_token = api_client.cookies["csrftoken"].value
+    api_client.handler.enforce_csrf_checks = True
+    response = api_client.post(
+        LOGOUT_URL,
+        {},
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
 
     assert response.status_code == 200
     assert response.data["message"] == "Sesión cerrada correctamente."
@@ -255,3 +266,173 @@ def test_logout_without_session_still_succeeds(api_client):
 
     assert response.status_code == 200
     assert "message" in response.data
+
+
+CSRF_URL = "/api/auth/csrf/"
+ECHO_UNSAFE_URL = "/api/test/echo-unsafe/"
+
+
+def _make_user(email, password="SecurePass123!"):
+    user = UserFactory.create(email=email)
+    user.set_password(password)
+    user.save()
+    return user
+
+
+def test_csrf_endpoint_sets_cookie(api_client):
+    """GET /api/auth/csrf/ sets a readable CSRF cookie."""
+    response = api_client.get(CSRF_URL)
+    assert response.status_code == 204
+    assert "csrftoken" in response.cookies
+    assert response.cookies["csrftoken"].value
+
+
+@pytest.mark.urls("apps.authentication.tests.urls")
+def test_cookie_auth_unsafe_without_csrf_rejected(api_client, user):
+    """Cookie-authenticated POST without CSRF token is rejected."""
+    refresh = RefreshToken.for_user(user)
+    api_client.cookies["access_token"] = str(refresh.access_token)
+    api_client.handler.enforce_csrf_checks = True
+    response = api_client.post(ECHO_UNSAFE_URL, {}, format="json")
+    assert response.status_code == 403
+
+
+@pytest.mark.urls("apps.authentication.tests.urls")
+def test_cookie_auth_unsafe_with_csrf_accepted(api_client, user):
+    """Cookie-authenticated POST with matching CSRF token succeeds."""
+    csrf_token = get_random_string(32)
+    refresh = RefreshToken.for_user(user)
+    api_client.cookies["access_token"] = str(refresh.access_token)
+    api_client.cookies["csrftoken"] = csrf_token
+    api_client.handler.enforce_csrf_checks = True
+    response = api_client.post(
+        ECHO_UNSAFE_URL,
+        {},
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
+    assert response.status_code == 200
+    assert response.data["ok"] is True
+
+
+@pytest.mark.urls("apps.authentication.tests.urls")
+def test_bearer_auth_unsafe_without_csrf_accepted(api_client, user):
+    """Bearer-authenticated POST is exempt from cookie CSRF checks."""
+    refresh = RefreshToken.for_user(user)
+    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {str(refresh.access_token)}")
+    api_client.handler.enforce_csrf_checks = True
+    response = api_client.post(ECHO_UNSAFE_URL, {}, format="json")
+    assert response.status_code == 200
+    assert response.data["ok"] is True
+
+
+def test_refresh_cookie_requires_csrf(jwt_cookies_client):
+    """Refresh using the refresh cookie requires a valid CSRF token."""
+    jwt_cookies_client.handler.enforce_csrf_checks = True
+    response = jwt_cookies_client.post(REFRESH_URL, {}, format="json")
+    assert response.status_code == 403
+
+
+def test_refresh_cookie_with_csrf_succeeds(jwt_cookies_client):
+    """Refresh with matching CSRF token returns no token body and sets access cookie."""
+    csrf_token = get_random_string(32)
+    jwt_cookies_client.cookies["csrftoken"] = csrf_token
+    jwt_cookies_client.handler.enforce_csrf_checks = True
+    response = jwt_cookies_client.post(
+        REFRESH_URL,
+        {},
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_token,
+    )
+    assert response.status_code == 200
+    assert "access" not in response.data
+    assert "access_token" in response.cookies
+
+
+def test_logout_without_csrf_rejected(api_client):
+    """Logout with auth cookies but no CSRF token is rejected."""
+    user = _make_user("logout-csrf@example.com")
+    api_client.handler.enforce_csrf_checks = True
+    api_client.post(
+        LOGIN_URL,
+        {"email": user.email, "password": "SecurePass123!"},
+        format="json",
+    )
+    response = api_client.post(LOGOUT_URL, {}, format="json")
+    assert response.status_code == 403
+
+
+def test_throttle_login_rate_limit(api_client):
+    """More than 5 login requests per minute from the same client are throttled."""
+    user = _make_user("throttle-login@example.com")
+    for _ in range(5):
+        response = api_client.post(
+            LOGIN_URL,
+            {"email": user.email, "password": "SecurePass123!"},
+            format="json",
+        )
+        assert response.status_code == 200
+    response = api_client.post(
+        LOGIN_URL,
+        {"email": user.email, "password": "SecurePass123!"},
+        format="json",
+    )
+    assert response.status_code == 429
+
+
+def test_throttle_register_rate_limit(api_client):
+    """More than 3 register requests per hour from the same client are throttled."""
+    for i in range(3):
+        data = {
+            "first_name": "Test",
+            "last_name": "User",
+            "email": f"throttle-register{i}@example.com",
+            "rut": f"12.345.{i:03d}-9",
+            "phone": f"+5691234567{i}",
+            "password": "SecurePass123!",
+            "password_confirm": "SecurePass123!",
+        }
+        response = api_client.post(REGISTER_URL, data, format="json")
+        assert response.status_code == 201
+    response = api_client.post(
+        REGISTER_URL,
+        {
+            "first_name": "Test",
+            "last_name": "User",
+            "email": "throttle-register3@example.com",
+            "rut": "12.345.003-9",
+            "phone": "+56912345673",
+            "password": "SecurePass123!",
+            "password_confirm": "SecurePass123!",
+        },
+        format="json",
+    )
+    assert response.status_code == 429
+
+
+def test_throttle_reset_allows_request(api_client):
+    """Clearing the throttle cache permits a new request after rate limiting."""
+    from django.core.cache import cache
+
+    user = _make_user("throttle-reset@example.com")
+    for _ in range(5):
+        api_client.post(
+            LOGIN_URL,
+            {"email": user.email, "password": "SecurePass123!"},
+            format="json",
+        )
+    throttled = api_client.post(
+        LOGIN_URL,
+        {"email": user.email, "password": "SecurePass123!"},
+        format="json",
+    )
+    assert throttled.status_code == 429
+
+    cache.clear()
+
+    response = api_client.post(
+        LOGIN_URL,
+        {"email": user.email, "password": "SecurePass123!"},
+        format="json",
+    )
+    assert response.status_code == 200
