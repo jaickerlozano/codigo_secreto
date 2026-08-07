@@ -155,7 +155,22 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "apps.authentication.authentication.CookieJWTAuthentication",
     ),
+
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "login": env("THROTTLE_LOGIN", default="5/min"),
+        "register": env("THROTTLE_REGISTER", default="3/hour"),
+        "order_create": env("THROTTLE_ORDER_CREATE", default="10/hour"),
+        "order_lookup": env("THROTTLE_ORDER_LOOKUP", default="30/min"),
+        "payment_initiate": env("THROTTLE_PAYMENT_INITIATE", default="10/min"),
+    },
 }
+
+# Number of proxy hops the deployment uses. Keep None/0 to avoid trusting
+# arbitrary X-Forwarded-For headers; set to the actual proxy count only.
+NUM_PROXIES = env("NUM_PROXIES", default=None)
 
 # Esto hace invisible el token para javascript
 SIMPLE_JWT = {

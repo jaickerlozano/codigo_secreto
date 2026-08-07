@@ -31,3 +31,13 @@ def jwt_cookies_client(api_client, user):
     api_client.cookies["refresh_token"]["httponly"] = True
 
     return api_client
+
+
+@pytest.fixture(autouse=True)
+def clear_throttle_cache():
+    """Reset DRF throttle cache before each test to avoid cross-test leakage."""
+    from django.core.cache import cache
+
+    cache.clear()
+    yield
+    cache.clear()
