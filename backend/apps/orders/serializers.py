@@ -56,6 +56,14 @@ class OrderSerializer(serializers.ModelSerializer):
         else:
             data['comuna_name'] = None
             data['region_name'] = None
+
+        raw_token = getattr(instance, '_guest_access_token', None)
+        if raw_token:
+            data['guest_access'] = {
+                'token': raw_token,
+                'expires_at': instance.guest_access_expires_at,
+            }
+            del instance._guest_access_token
         return data
 
     def validate(self, attrs):
@@ -164,6 +172,9 @@ class OrderSerializer(serializers.ModelSerializer):
                 total=total_final
             )
 
+            if not user.is_authenticated:
+                order._guest_access_token = order.issue_guest_access()
+
             # Clonamos y congelamos los productos recolectados
             for prod in productos_a_comprar:
                 OrderItem.objects.create(
@@ -179,4 +190,3 @@ class OrderSerializer(serializers.ModelSerializer):
                 cart_items.delete()
 
         return order
-
