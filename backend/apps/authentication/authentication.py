@@ -1,30 +1,46 @@
 from django.conf import settings
+from rest_framework import exceptions
+from rest_framework.authentication import CSRFCheck
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 
 class CookieJWTAuthentication(JWTAuthentication):
-    """
-    Autenticación JWT que lee el token de acceso desde una cookie HttpOnly.
+    """JWT authentication from Authorization header or HttpOnly cookie; cookie writes require CSRF."""
 
-    Si la petición trae el header ``Authorization`` se comporta exactamente
-    igual que ``JWTAuthentication`` (compatibilidad con clientes que aún
-    envíen el Bearer token). Si no hay header, intenta leer la cookie
-    configurada en ``SIMPLE_JWT['JWT_AUTH_COOKIE']``.
-    """
+    def enforce_csrf(self, request):
+        """Replicate DRF SessionAuthentication CSRF enforcement."""
+        check = CSRFCheck(lambda req: None)
+        check.process_request(request)
+        reason = check.process_view(request, None, (), {})
+        if reason:
+            raise exceptions.PermissionDenied(f"CSRF Failed: {reason}")
 
     def authenticate(self, request):
-        access_cookie_name = settings.SIMPLE_JWT.get('JWT_AUTH_COOKIE', 'access_token')
-
         header = self.get_header(request)
         if header is not None:
             raw_token = self.get_raw_token(header)
-        elif access_cookie_name in request.COOKIES:
-            raw_token = request.COOKIES.get(access_cookie_name)
-        else:
+            validated_token = self.get_validated_token(raw_token)
+            return self.get_user(validated_token), validated_token
+
+        access_cookie_name = settings.SIMPLE_JWT.get("JWT_AUTH_COOKIE", "access_token")
+        if access_cookie_name not in request.COOKIES:
             return None
 
+        raw_token = request.COOKIES.get(access_cookie_name)
         if raw_token is None:
             return None
 
         validated_token = self.get_validated_token(raw_token)
-        return self.get_user(validated_token), validated_token
+        user = self.get_user(validated_token)
+        if request.method not in ("GET", "HEAD", "OPTIONS", "TRACE"):
+            self.enforce_csrf(request)
+        return user, validated_token
+
+
+def enforce_csrf(request):
+    """Standalone CSRF enforcement helper for cookie-backed views."""
+    check = CSRFCheck(lambda req: None)
+    check.process_request(request)
+    reason = check.process_view(request, None, (), {})
+    if reason:
+        raise exceptions.PermissionDenied(f"CSRF Failed: {reason}")
