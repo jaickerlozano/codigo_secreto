@@ -36,6 +36,7 @@ def test_create_order_authenticated(authenticated_client, cart_factory, cart_ite
     assert order.items.count() == 1
     assert order.total == 5000  # (2*1000) + 3000
     assert order.user == user
+    assert "guest_access" not in response.json()
 
 
 def _detail_contains(response_data, substring):
@@ -98,6 +99,7 @@ def test_create_order_guest(api_client, product_factory, comuna_factory):
     assert order.user is None
     assert order.items.count() == 1
     assert order.total == 5000
+
 
 
 def test_guest_missing_email(api_client, comuna_factory):

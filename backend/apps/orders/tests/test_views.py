@@ -1,4 +1,7 @@
+import hashlib
+
 import pytest
+from django.utils import timezone
 from rest_framework import status
 
 from apps.orders.models import Order
@@ -42,6 +45,9 @@ def test_create_order_allow_any(api_client, product_factory, comuna_factory):
     data = response.json()
     assert "order_number" in data
     assert data["order_number"].startswith("CS-")
+    assert data["guest_access"]["token"]
+    order = Order.objects.get(id=data["id"])
+    assert order.guest_access_digest == hashlib.sha256(data["guest_access"]["token"].encode()).hexdigest()
 
 
 def test_create_order_by_comuna_name(api_client, product_factory, comuna_factory):
@@ -198,45 +204,54 @@ def test_order_retrieve_shows_nested_items(authenticated_client, order_factory, 
     assert item["subtotal"] == 16000
 
 
-def test_track_order_by_number_allow_any(api_client, order_factory):
-    """Guest users can track an order by its public order_number."""
-    order = order_factory()
-
-    response = api_client.get(f"/api/orders/track/?order_number={order.order_number}")
-
-    assert response.status_code == status.HTTP_200_OK
-    data = response.json()
-    assert data["order_number"] == order.order_number
-    assert "subtotal" in data
-    assert "shipping_cost" in data
-    assert "total" in data
+def _exchange(client, order, token):
+    return client.post(
+        f"/api/orders/by-order-number/{order.order_number}/access/",
+        {}, format="json", HTTP_X_ORDER_CAPABILITY=token,
+    )
 
 
-def test_track_order_requires_order_number(api_client):
-    """Track endpoint returns 400 when order_number is missing."""
-    response = api_client.get("/api/orders/track/")
-
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert "número de pedido" in response.json()["detail"].lower()
+def _use_guest_cookie(client, response):
+    client.cookies['guest_order_access'] = response.cookies['guest_order_access'].value
 
 
-def test_track_order_not_found(api_client):
-    """Track endpoint returns 404 for an unknown order_number."""
-    response = api_client.get("/api/orders/track/?order_number=CS-NOTFOUND")
+def test_secure_guest_access_boundaries(api_client, order_factory):
+    order, foreign = order_factory(user=None), order_factory(user=None)
+    assert api_client.get(f"/api/orders/by-order-number/{order.order_number}/").status_code == 404
+    raw = order.issue_guest_access()
+    exchange = _exchange(api_client, order, raw)
+    cookie = exchange.cookies['guest_order_access']
+    assert exchange.status_code == 204 and cookie['httponly'] and cookie['samesite'] == 'Strict'
+    assert raw not in cookie.value
+    _use_guest_cookie(api_client, exchange)
+    assert api_client.get(f"/api/orders/by-order-number/{order.order_number}/").status_code == 200
+    order.revoke_guest_access()
+    assert api_client.get(f"/api/orders/by-order-number/{order.order_number}/").status_code == 404
+    foreign_raw = foreign.issue_guest_access()
+    for bad in ('wrong', 'malformed', foreign_raw):
+        assert _exchange(api_client, order, bad).status_code == 404
+    query = api_client.post(
+        f"/api/orders/by-order-number/{order.order_number}/access/?capability={foreign_raw}", {}, format='json'
+    )
+    path = api_client.post(
+        f"/api/orders/by-order-number/{order.order_number}/access/{foreign_raw}/", {}, format='json'
+    )
+    assert query.status_code == path.status_code == 404
+    for state in ('expired', 'revoked'):
+        candidate = order_factory(user=None)
+        token = candidate.issue_guest_access()
+        if state == 'expired':
+            candidate.guest_access_expires_at = timezone.now() - timezone.timedelta(seconds=1)
+            candidate.save(update_fields=['guest_access_expires_at'])
+        else:
+            candidate.revoke_guest_access()
+        assert _exchange(api_client, candidate, token).status_code == 404
 
-    assert response.status_code == status.HTTP_404_NOT_FOUND
 
-
-def test_guest_can_retrieve_own_order_by_order_number(api_client, order_factory):
-    """Guest users can retrieve their own guest orders by order_number."""
-    order = order_factory(user=None, guest_email="guest@example.com", guest_name="Invitado")
-
-    response = api_client.get(f"/api/orders/by-order-number/{order.order_number}/")
-
-    assert response.status_code == status.HTTP_200_OK
-    data = response.json()
-    assert data["order_number"] == order.order_number
-    assert data["guest_email"] == "guest@example.com"
+def test_owner_and_staff_can_retrieve_order_by_number(authenticated_client, staff_client, order_factory, user):
+    own, staff_order = order_factory(user=user), order_factory()
+    assert authenticated_client.get(f"/api/orders/by-order-number/{own.order_number}/").status_code == 200
+    assert staff_client.get(f"/api/orders/by-order-number/{staff_order.order_number}/").status_code == 200
 
 
 def test_authenticated_user_can_retrieve_own_order_by_order_number(authenticated_client, order_factory, user):
@@ -251,20 +266,22 @@ def test_authenticated_user_can_retrieve_own_order_by_order_number(authenticated
 
 def test_authenticated_user_cannot_retrieve_other_order_by_order_number(authenticated_client, order_factory):
     """Authenticated users cannot retrieve orders that belong to someone else."""
-    order = order_factory()  # Different user
+    order = order_factory()
 
     response = authenticated_client.get(f"/api/orders/by-order-number/{order.order_number}/")
 
-    assert response.status_code == status.HTTP_403_FORBIDDEN
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json() == {'detail': 'Not found.'}
 
 
 def test_guest_cannot_retrieve_authenticated_order_by_order_number(api_client, order_factory, user):
-    """Guest users cannot retrieve orders that require authentication."""
+    """A guest cannot retrieve an authenticated order by number alone."""
     order = order_factory(user=user)
 
     response = api_client.get(f"/api/orders/by-order-number/{order.order_number}/")
 
-    assert response.status_code == status.HTTP_401_UNAUTHORIZED
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json() == {"detail": "Not found."}
 
 
 def test_order_by_order_number_not_found(api_client):
@@ -284,6 +301,14 @@ def test_order_by_order_number_includes_comuna_and_region_names(api_client, orde
         comuna=comuna,
     )
 
+    raw_token = order.issue_guest_access()
+    exchange = api_client.post(
+        f"/api/orders/by-order-number/{order.order_number}/access/",
+        {},
+        format="json",
+        HTTP_X_ORDER_CAPABILITY=raw_token,
+    )
+    api_client.cookies["guest_order_access"] = exchange.cookies["guest_order_access"].value
     response = api_client.get(f"/api/orders/by-order-number/{order.order_number}/")
 
     assert response.status_code == status.HTTP_200_OK
