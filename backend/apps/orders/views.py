@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -6,13 +7,16 @@ from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from .models import Order
 from .serializers import OrderSerializer
+from .services import GUEST_ACCESS_COOKIE_MAX_AGE, GUEST_ACCESS_COOKIE_NAME, authorize_order_access, issue_guest_access_cookie
+
+
+CAPABILITY_HEADER = "X-Order-Capability"
 
 
 class OrderViewSet(mixins.CreateModelMixin,
                    mixins.RetrieveModelMixin,
                    mixins.ListModelMixin,
                    viewsets.GenericViewSet):
-
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
 
@@ -22,9 +26,18 @@ class OrderViewSet(mixins.CreateModelMixin,
         o consultar el estado de un pedido por su número de orden.
         Pero exige estar Autenticado para ver la lista de pedidos del historial.
         """
-        if self.action in ('create', 'track', 'by_order_number'):
+        if self.action in ('create', 'by_order_number', 'access'):
             return [AllowAny()]
         return [IsAuthenticated()]
+
+    def get_throttles(self):
+        if self.action == 'create':
+            self.throttle_scope = 'order_create'
+        elif self.action in ('by_order_number', 'access'):
+            self.throttle_scope = 'order_lookup'
+        else:
+            self.throttle_scope = None
+        return super().get_throttles()
 
     def get_queryset(self):
         # Los administradores ven todo. Los clientes registrados solo ven lo suyo.
@@ -32,6 +45,10 @@ class OrderViewSet(mixins.CreateModelMixin,
         if self.request.user.is_staff:
             return Order.objects.all()
         return Order.objects.filter(user=self.request.user)
+
+    @staticmethod
+    def _masked_not_found():
+        return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     @extend_schema(
         parameters=[
@@ -45,58 +62,43 @@ class OrderViewSet(mixins.CreateModelMixin,
         ],
         responses={200: OrderSerializer},
     )
-    @action(detail=False, methods=['get'], url_path='track')
-    def track(self, request):
-        """
-        Permite a cualquier usuario (incluidos invitados) consultar un pedido
-        únicamente por su número de orden público (order_number).
-        """
-        order_number = request.query_params.get('order_number')
-        if not order_number:
-            return Response(
-                {'detail': 'Debes indicar el número de pedido.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            order = Order.objects.get(order_number=order_number)
-        except Order.DoesNotExist:
-            return Response(
-                {'detail': 'Pedido no encontrado.'},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-        serializer = self.get_serializer(order)
-        return Response(serializer.data)
-
     @action(detail=False, methods=['get'], url_path='by-order-number/(?P<order_number>[^/.]+)')
     def by_order_number(self, request, order_number=None):
         """
-        Endpoint público para consultar una orden por order_number.
-        Permite que guests y usuarios autenticados consulten el estado de su orden.
+        Endpoint seguro para consultar una orden por order_number.
+        Requiere propietario, staff o cookie de capacidad válida.
         """
-        try:
-            order = Order.objects.get(order_number=order_number)
+        order = authorize_order_access(
+            order_number,
+            user=request.user,
+            access_cookie=request.COOKIES.get(GUEST_ACCESS_COOKIE_NAME),
+        )
+        if order is None:
+            return self._masked_not_found()
 
-            # Si el usuario está autenticado, verificar que la orden le pertenezca
-            if request.user.is_authenticated and order.user and order.user != request.user:
-                return Response(
-                    {'detail': 'No tienes permiso para ver esta orden.'},
-                    status=status.HTTP_403_FORBIDDEN
-                )
+        return Response(self.get_serializer(order).data)
 
-            # Si el usuario no está autenticado y la orden tiene user, requerir autenticación
-            if not request.user.is_authenticated and order.user:
-                return Response(
-                    {'detail': 'Esta orden requiere autenticación para ser consultada.'},
-                    status=status.HTTP_401_UNAUTHORIZED
-                )
+    @action(detail=False, methods=['post'], url_path='by-order-number/(?P<order_number>[^/.]+)/access')
+    def access(self, request, order_number=None):
+        raw_token = request.headers.get(CAPABILITY_HEADER)
+        if not raw_token:
+            return self._masked_not_found()
 
-            serializer = self.get_serializer(order)
-            return Response(serializer.data)
+        order = authorize_order_access(
+            order_number,
+            capability=raw_token,
+        )
+        if order is None:
+            return self._masked_not_found()
 
-        except Order.DoesNotExist:
-            return Response(
-                {'detail': 'Orden no encontrada.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+        cookie_value = issue_guest_access_cookie(order)
+        if cookie_value is None:
+            return self._masked_not_found()
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        simple_jwt = getattr(settings, "SIMPLE_JWT", {})
+        response.set_cookie(
+            GUEST_ACCESS_COOKIE_NAME, cookie_value, max_age=GUEST_ACCESS_COOKIE_MAX_AGE,
+            httponly=True, secure=getattr(settings, "GUEST_ORDER_ACCESS_COOKIE_SECURE", simple_jwt.get("JWT_COOKIE_SECURE", False)),
+            samesite=getattr(settings, "GUEST_ORDER_ACCESS_COOKIE_SAMESITE", "Strict"), path="/",
+        )
+        return response

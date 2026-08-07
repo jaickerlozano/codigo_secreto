@@ -4,19 +4,21 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema
 from django.db import transaction
-from apps.orders.models import Order
+from apps.orders.services import GUEST_ACCESS_COOKIE_NAME, authorize_order_access
 from .models import Transaction
 from .serializers import InitiatePaymentSerializer
 
+CAPABILITY_HEADER = 'X-Order-Capability'
+
+
 class InitiatePaymentView(APIView):
-    """
-    Endpoint para iniciar el proceso de pago de un pedido.
-    """
-    permission_classes = [AllowAny] # Público para soportar invitados
+    """Endpoint para iniciar el proceso de pago de un pedido autorizado."""
+    permission_classes = [AllowAny]
+    throttle_scope = 'payment_initiate'
 
     @extend_schema(
         summary="Iniciar proceso de pago",
-        description="Recibe el order_id, registra el intento de pago en el backend y devuelve la URL de redirección de la pasarela.",
+        description="Recibe el order_id, registra el intento mock y devuelve la URL de pago.",
         tags=["Pagos"],
         request=InitiatePaymentSerializer
     )
@@ -24,14 +26,25 @@ class InitiatePaymentView(APIView):
         serializer = InitiatePaymentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        order_id = serializer.validated_data['order_id']
-        order = Order.objects.get(id=order_id)
+        order = authorize_order_access(
+            order_id=serializer.validated_data['order_id'],
+            user=request.user,
+            capability=request.headers.get(CAPABILITY_HEADER),
+            access_cookie=request.COOKIES.get(GUEST_ACCESS_COOKIE_NAME),
+        )
+        if order is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if order.status != 'PENDING':
+            return Response(
+                {'order_id': [f"Este pedido no se puede pagar porque su estado es: {order.get_status_display()}."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if order.transactions.filter(status='APPROVED').exists():
+            return Response({'order_id': ['Este pedido ya fue pagado.']}, status=status.HTTP_400_BAD_REQUEST)
 
         with transaction.atomic():
-            # 1. Registramos el intento de pago en nuestra base de datos
-            # De forma temporal, simulamos una referencia simulada de pasarela
+            # Registramos el intento de pago con el proveedor mock existente.
             token_simulado = f"token_simulado_cl_f_{order.id}x99"
-            
             payment_transaction = Transaction.objects.create(
                 order=order,
                 amount=order.total,
@@ -39,9 +52,6 @@ class InitiatePaymentView(APIView):
                 gateway_reference=token_simulado,
                 payment_method='MÉTODO SIMULADO'
             )
-
-            # 2. Simulamos la URL a la que el frontend enviará al usuario a pagar
-            # Cuando el cliente elija Flow/Webpay, esta URL se reemplazará por la del proveedor real
             url_pago_simulada = f"https://api.tu_pasarela.cl/mock-checkout?token={token_simulado}"
 
         return Response({
