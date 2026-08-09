@@ -60,6 +60,7 @@ def test_quote_optional_comuna_and_create_parity(api_client, product_factory, co
     created = api_client.post("/api/orders/", {
         "guest_email": "guest@example.com", "guest_name": "Guest", "phone": "+56912345678",
         "comuna": comuna.id, "shipping_address": "Street 1", "guest_items": item_list,
+        "confirmed_revision": quote.json()["revision"],
     }, format="json")
     assert subtotal.status_code == quote.status_code == status.HTTP_200_OK
     assert subtotal.json()["subtotal"] == 4400 and "total" not in subtotal.json()

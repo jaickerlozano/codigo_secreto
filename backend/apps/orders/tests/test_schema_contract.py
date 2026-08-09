@@ -41,6 +41,11 @@ def test_order_creation_schema_uses_typed_guest_items_request():
     assert guest_items['type'] == 'array'
     assert guest_items['items'] == {'$ref': '#/components/schemas/GuestOrderItem'}
     assert guest_items['writeOnly'] is True
+    confirmed_revision = schema['components']['schemas']['OrderCreate']['properties'][
+        'confirmed_revision'
+    ]
+    assert confirmed_revision['type'] == 'string'
+    assert confirmed_revision['writeOnly'] is True
     assert schema['components']['schemas']['GuestOrderItem']['properties'] == {
         'product_id': {'type': 'integer', 'minimum': 1},
         'quantity': {'type': 'integer', 'minimum': 1},

@@ -1,7 +1,12 @@
 from rest_framework import serializers
 from django.db import transaction
 from .models import Order, OrderItem
-from .services import GuestQuoteValidationError, calculate_guest_quote
+from .services import (
+    GuestQuoteRevisionStale,
+    GuestQuoteValidationError,
+    calculate_guest_quote,
+    quote_revision_matches,
+)
 from apps.shipping.services import ShippingSnapshotResolutionError, resolve_comuna_shipping_snapshot
 
 class OrderItemSerializer(serializers.ModelSerializer):
@@ -26,6 +31,15 @@ class GuestOrderItemSerializer(serializers.Serializer):
             raise serializers.ValidationError('Only product_id and quantity are accepted.')
         if any(isinstance(data[key], bool) or not isinstance(data[key], int) for key in data):
             raise serializers.ValidationError('Product identifiers and quantities must be integers.')
+        return super().to_internal_value(data)
+
+
+class ConfirmedRevisionField(serializers.CharField):
+    """Keep malformed primitives available for the deterministic stale response."""
+
+    def to_internal_value(self, data):
+        if data is None or not isinstance(data, str):
+            return data
         return super().to_internal_value(data)
 
 
@@ -65,6 +79,12 @@ class QuoteErrorSerializer(serializers.Serializer):
     detail = serializers.CharField()
 
 
+class QuoteRevisionStaleSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    detail = serializers.CharField()
+    refreshed_quote = GuestQuoteResponseSerializer()
+
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     order_number = serializers.CharField(read_only=True)
@@ -76,6 +96,10 @@ class OrderSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False,
         help_text="Lista de productos para invitados",
+    )
+    confirmed_revision = ConfirmedRevisionField(
+        required=False, allow_blank=True, allow_null=True, write_only=True,
+        help_text="Signed quote revision explicitly confirmed by a guest.",
     )
 
     # Permitimos resolver la comuna por ID (tests) o por nombre + región (frontend checkout)
@@ -94,7 +118,7 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'order_number', 'phone', 'comuna', 'comuna_name', 'comuna_display', 'region_name',
             'shipping_address', 'apartment_office',
-            'guest_email', 'guest_name', 'guest_items', 'payment_method',
+            'guest_email', 'guest_name', 'guest_items', 'confirmed_revision', 'payment_method',
             'guest_access',
             'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
             'carrier', 'tracking_number', 'items'
@@ -130,6 +154,33 @@ class OrderSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = self.context['request'].user
 
+        # Guest creation resolves and locks its destination inside create().
+        if not user or user.is_anonymous:
+            if not attrs.get('guest_email') or not attrs.get('guest_name'):
+                raise serializers.ValidationError({
+                    "detail": "Para compras como invitado, el correo y el nombre son obligatorios."
+                })
+            if not attrs.get('guest_items'):
+                raise serializers.ValidationError({
+                    "guest_items": "Debes enviar la lista de productos del carrito local."
+                })
+            if 'comuna_id' in attrs:
+                attrs.pop('comuna_name', None)
+                attrs.pop('region_name', None)
+                attrs['_comuna_selector'] = {'comuna_id': attrs['comuna_id']}
+            else:
+                comuna_name = attrs.pop('comuna_name', None)
+                region_name = attrs.pop('region_name', None)
+                if not comuna_name or not region_name:
+                    raise serializers.ValidationError({
+                        'comuna': 'Debes indicar la comuna de entrega.'
+                    })
+                attrs['_comuna_selector'] = {
+                    'comuna_name': comuna_name,
+                    'region_name': region_name,
+                }
+            return attrs
+
         # Resolve the shipping snapshot without importing the shipping model.
         if 'comuna_id' not in attrs:
             comuna_name = attrs.pop('comuna_name', None)
@@ -157,20 +208,53 @@ class OrderSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'comuna': 'La comuna indicada no es válida.'})
         attrs['_comuna_snapshot'] = snapshot
 
-        # SI ES INVITADO (No está autenticado)
-        if not user or user.is_anonymous:
-            if not attrs.get('guest_email') or not attrs.get('guest_name'):
-                raise serializers.ValidationError({
-                    "detail": "Para compras como invitado, el correo y el nombre son obligatorios."
-                })
-            if not attrs.get('guest_items'):
-                raise serializers.ValidationError({
-                    "guest_items": "Debes enviar la lista de productos del carrito local."
-                })
         return attrs
 
     def create(self, validated_data):
         user = self.context['request'].user
+
+        if not user or user.is_anonymous:
+            guest_items = validated_data.pop('guest_items')
+            confirmed_revision = validated_data.pop('confirmed_revision', None)
+            comuna_selector = validated_data.pop('_comuna_selector')
+            with transaction.atomic():
+                try:
+                    quote = calculate_guest_quote(
+                        guest_items, comuna_selector=comuna_selector, lock=True
+                    )
+                except GuestQuoteValidationError as error:
+                    raise serializers.ValidationError({
+                        'guest_items': 'Unable to resolve the confirmed quote.'
+                    }) from error
+                if not quote_revision_matches(confirmed_revision, quote):
+                    raise GuestQuoteRevisionStale(quote)
+
+                order = Order.objects.create(
+                    user=None,
+                    guest_email=validated_data.get('guest_email'),
+                    guest_name=validated_data.get('guest_name'),
+                    phone=validated_data['phone'],
+                    comuna_id=quote.comuna_id,
+                    shipping_address=validated_data['shipping_address'],
+                    apartment_office=validated_data.get('apartment_office', ''),
+                    payment_method=validated_data.get('payment_method', 'webpay'),
+                    subtotal=quote.subtotal,
+                    shipping_cost=quote.shipping_cost,
+                    total=quote.total,
+                )
+                order._guest_access_token = order.issue_guest_access()
+                OrderItem.objects.bulk_create([
+                    OrderItem(
+                        order=order,
+                        product_id=line.product_id,
+                        product_name=line.product_name,
+                        price=line.unit_price,
+                        quantity=line.quantity,
+                    )
+                    for line in quote.items
+                ])
+            return order
+
         comuna_id = validated_data.pop('comuna_id')
         comuna_snapshot = validated_data.pop('_comuna_snapshot')
         costo_envio_chile = comuna_snapshot.shipping_cost
@@ -260,10 +344,14 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     comuna_name = serializers.CharField(required=False)
     region_name = serializers.CharField(required=False)
     guest_items = GuestOrderItemSerializer(many=True, required=False, write_only=True, help_text='Lista de productos para invitados')
+    confirmed_revision = ConfirmedRevisionField(
+        required=False, allow_blank=True, allow_null=True, write_only=True,
+        help_text='Signed quote revision explicitly confirmed by a guest.',
+    )
     payment_method = serializers.ChoiceField(
         choices=Order.PAYMENT_METHOD_CHOICES, required=False
     )
 
     class Meta:
         model = Order
-        fields = ['phone', 'comuna', 'comuna_name', 'region_name', 'shipping_address', 'apartment_office', 'guest_email', 'guest_name', 'guest_items', 'payment_method']
+        fields = ['phone', 'comuna', 'comuna_name', 'region_name', 'shipping_address', 'apartment_office', 'guest_email', 'guest_name', 'guest_items', 'confirmed_revision', 'payment_method']
