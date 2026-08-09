@@ -6,7 +6,6 @@ type Cart = components['schemas']['Cart']
 type AddToCart = components['schemas']['AddToCart']
 
 const FREE_SHIPPING_THRESHOLD = 30000
-const FLAT_SHIPPING_RATE = 3000
 
 type MutableCart = {
   -readonly [K in keyof Cart]: K extends 'items'
@@ -29,31 +28,36 @@ const testProduct: components['schemas']['Product'] = {
   sku: '101',
   icon: '✦',
   gradient: 'from-violet-950 via-purple-900 to-violet-800',
-  experienceLevel: 'intermedio',
+  experience_level: 3,
   features: [],
   badge: null,
   created_at: '2026-07-09T00:00:00Z',
   updated_at: '2026-07-09T00:00:00Z',
-  category: '1',
+  category: 1,
   supplier: 1,
 }
 
-function calculateCartTotals(cart: MutableCart): void {
-  const subtotal = cart.items.reduce((sum, item) => sum + item.subtotal, 0)
-  const shippingCost =
-    subtotal === 0 ? 0 : subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : FLAT_SHIPPING_RATE
-  const total = subtotal + shippingCost
-  const progress =
-    FREE_SHIPPING_THRESHOLD > 0
-      ? Math.min((subtotal / FREE_SHIPPING_THRESHOLD) * 100, 100)
-      : 0
-
-  cart.monto_total_final = subtotal
-  cart.subtotal = subtotal
-  cart.shipping_cost = shippingCost
-  cart.total = total
-  cart.free_shipping_progress = progress
-  cart.free_shipping_threshold = FREE_SHIPPING_THRESHOLD
+function applyServerCartContract(cart: MutableCart): void {
+  Object.assign(
+    cart,
+    cart.items.length === 0
+      ? {
+          monto_total_final: 0,
+          subtotal: 0,
+          shipping_cost: 0,
+          total: 0,
+          free_shipping_progress: 0,
+          free_shipping_threshold: FREE_SHIPPING_THRESHOLD,
+        }
+      : {
+          monto_total_final: 29990,
+          subtotal: 29990,
+          shipping_cost: 0,
+          total: 29990,
+          free_shipping_progress: 99.97,
+          free_shipping_threshold: FREE_SHIPPING_THRESHOLD,
+        },
+  )
 }
 
 let serverCart: MutableCart = {
@@ -66,7 +70,7 @@ let serverCart: MutableCart = {
   shipping_cost: 0,
   total: 0,
   free_shipping_progress: 0,
-  free_shipping_threshold: FREE_SHIPPING_THRESHOLD,
+  free_shipping_threshold: 30000,
 }
 
 export function resetServerCart(): void {
@@ -85,12 +89,14 @@ export function resetServerCart(): void {
 }
 
 export const cartHandlers = [
-  http.get('http://localhost:8000/api/cart/me/', () => HttpResponse.json(serverCart)),
+  http.get('http://localhost:8000/api/cart/me/', () =>
+    HttpResponse.json(serverCart)
+  ),
 
   http.post('http://localhost:8000/api/cart/me/', async ({ request }) => {
     const body = (await request.json()) as AddToCart
     const index = serverCart.items.findIndex(
-      (item) => item.product.id === body.product_id,
+      (item) => item.product.id === body.product_id
     )
 
     if (index >= 0) {
@@ -99,25 +105,25 @@ export const cartHandlers = [
       serverCart.items[index] = {
         ...existing,
         quantity: newQuantity,
-        subtotal: testProduct.price * newQuantity,
+        subtotal: 29990,
       }
     } else {
       serverCart.items.push({
         cart: serverCart.id,
         product: testProduct,
         quantity: body.quantity,
-        subtotal: testProduct.price * body.quantity,
+        subtotal: 29990,
       })
     }
 
-    calculateCartTotals(serverCart)
+    applyServerCartContract(serverCart)
     return HttpResponse.json(serverCart, { status: 201 })
   }),
 
   http.delete('http://localhost:8000/api/cart/me/', async ({ request }) => {
     const body = (await request.json()) as AddToCart
     const index = serverCart.items.findIndex(
-      (item) => item.product.id === body.product_id,
+      (item) => item.product.id === body.product_id
     )
 
     if (index < 0) {
@@ -126,7 +132,7 @@ export const cartHandlers = [
           detail:
             'El producto seleccionado no se encuentra en tu carrito de compras.',
         },
-        { status: 400 },
+        { status: 400 }
       )
     }
 
@@ -134,18 +140,18 @@ export const cartHandlers = [
     const currentQty = existing.quantity ?? 1
     if (currentQty <= body.quantity) {
       serverCart.items = serverCart.items.filter(
-        (item) => item.product.id !== body.product_id,
+        (item) => item.product.id !== body.product_id
       )
     } else {
       const newQuantity = currentQty - body.quantity
       serverCart.items[index] = {
         ...existing,
         quantity: newQuantity,
-        subtotal: testProduct.price * newQuantity,
+        subtotal: 29990,
       }
     }
 
-    calculateCartTotals(serverCart)
+    applyServerCartContract(serverCart)
     return HttpResponse.json(serverCart)
   }),
 ]

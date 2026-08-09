@@ -45,6 +45,14 @@ def test_product_serializer_validation(product_factory, category_factory, suppli
     assert product.price == 15000
 
 
+def test_product_serializer_exposes_numeric_experience_level(product_factory):
+    product = product_factory(experience_level=4)
+
+    data = ProductSerializer(product).data
+
+    assert data["experience_level"] == 4 and "experienceLevel" not in data
+
+
 def test_category_serializer_nested(category_factory):
     """CategorySerializer anida subcategorías recursivamente."""
     root = category_factory(name="Adultos", parent=None)

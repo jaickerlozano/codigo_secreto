@@ -3,10 +3,11 @@ from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from .models import Order
-from .serializers import OrderSerializer
+from .serializers import OrderCreateSerializer, OrderSerializer
 from .services import GUEST_ACCESS_COOKIE_MAX_AGE, GUEST_ACCESS_COOKIE_NAME, authorize_order_access, issue_guest_access_cookie
 
 
@@ -46,20 +47,15 @@ class OrderViewSet(mixins.CreateModelMixin,
             return Order.objects.all()
         return Order.objects.filter(user=self.request.user)
 
+    @extend_schema(request=OrderCreateSerializer, responses={201: OrderSerializer})
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
     @staticmethod
     def _masked_not_found():
         return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     @extend_schema(
-        parameters=[
-            OpenApiParameter(
-                name='order_number',
-                location=OpenApiParameter.QUERY,
-                required=True,
-                type=str,
-                description='Número de pedido público (ej: CS-XXXXXXX).',
-            ),
-        ],
         responses={200: OrderSerializer},
     )
     @action(detail=False, methods=['get'], url_path='by-order-number/(?P<order_number>[^/.]+)')
@@ -78,6 +74,18 @@ class OrderViewSet(mixins.CreateModelMixin,
 
         return Response(self.get_serializer(order).data)
 
+    @extend_schema(
+        request=None,
+        parameters=[
+            OpenApiParameter(
+                name=CAPABILITY_HEADER,
+                location=OpenApiParameter.HEADER,
+                required=True,
+                type=OpenApiTypes.STR,
+            ),
+        ],
+        responses={204: None},
+    )
     @action(detail=False, methods=['post'], url_path='by-order-number/(?P<order_number>[^/.]+)/access')
     def access(self, request, order_number=None):
         raw_token = request.headers.get(CAPABILITY_HEADER)
