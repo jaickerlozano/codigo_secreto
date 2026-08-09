@@ -1,9 +1,11 @@
 import { http, HttpResponse } from 'msw'
 
-import type { components } from '@/api/schema.d.ts'
+import type { components, paths } from '@/api/schema.d.ts'
 
 type Order = components['schemas']['Order']
-type CreateOrderInput = components['schemas']['Order']
+type CreateOrderInput = NonNullable<
+  paths['/api/orders/']['post']['requestBody']
+>['content']['application/json']
 type OrderItem = components['schemas']['OrderItem']
 
 let nextOrderId = 100
@@ -13,7 +15,7 @@ const trackedOrders = new Map<string, Order>()
 function makeOrder(
   body: Partial<Order>,
   items: OrderItem[] = [],
-  orderNumber?: string,
+  orderNumber?: string
 ): Order {
   return {
     id: nextOrderId++,
@@ -26,6 +28,7 @@ function makeOrder(
     apartment_office: body.apartment_office ?? null,
     guest_email: body.guest_email ?? null,
     guest_name: body.guest_name ?? null,
+    guest_access: body.guest_access ?? null,
     comuna: body.comuna,
     comuna_name: body.comuna_name ?? 'Providencia',
     comuna_display: `${body.comuna_name ?? 'Providencia'}, ${body.region_name ?? 'Región Metropolitana'}`,
@@ -68,7 +71,7 @@ export const testOrder: Order = makeOrder(
       quantity: 1,
       subtotal: 29990,
     },
-  ],
+  ]
 )
 
 export const orderHandlers = [
@@ -88,10 +91,13 @@ export const orderHandlers = [
     return HttpResponse.json(order, { status: 201 })
   }),
 
-  http.get('http://localhost:8000/api/orders/by-order-number/:orderNumber/', ({ params }) => {
-    const orderNumber = params.orderNumber as string
-    return HttpResponse.json(trackedOrders.get(orderNumber) ?? testOrder)
-  }),
+  http.get(
+    'http://localhost:8000/api/orders/by-order-number/:orderNumber/',
+    ({ params }) => {
+      const orderNumber = params.orderNumber as string
+      return HttpResponse.json(trackedOrders.get(orderNumber) ?? testOrder)
+    }
+  ),
 
   http.get('http://localhost:8000/api/orders/track/', ({ request }) => {
     const url = new URL(request.url)
@@ -100,7 +106,7 @@ export const orderHandlers = [
     if (!orderNumber) {
       return HttpResponse.json(
         { detail: 'Debes indicar el número de pedido.' },
-        { status: 400 },
+        { status: 400 }
       )
     }
 

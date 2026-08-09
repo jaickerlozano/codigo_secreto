@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/auth/csrf/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Semilla de cookie CSRF
+         * @description Endpoint público que genera y establece la cookie CSRF para clientes de navegador.
+         */
+        get: operations["auth_csrf_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/login/": {
         parameters: {
             query?: never;
@@ -15,7 +35,7 @@ export interface paths {
         put?: never;
         /**
          * Iniciar sesión (Login)
-         * @description Recibe el correo electrónico y la contraseña. Devuelve un token de acceso y un token de refresco.
+         * @description Recibe el correo electrónico y la contraseña. Establece cookies HttpOnly de acceso y refresco, y devuelve un mensaje sin exponer tokens.
          */
         post: operations["auth_login_create"];
         delete?: never;
@@ -95,7 +115,7 @@ export interface paths {
         put?: never;
         /**
          * Refrescar token de acceso
-         * @description Recibe un token de refresco válido y entrega un nuevo token de acceso para mantener la sesión activa.
+         * @description Lee el token de refresco desde la cookie HttpOnly, requiere CSRF, y renueva la cookie de acceso sin devolver tokens en el body.
          */
         post: operations["auth_token_refresh_create"];
         delete?: never;
@@ -204,8 +224,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description Endpoint público para consultar una orden por order_number.
-         *     Permite que guests y usuarios autenticados consulten el estado de su orden.
+         * @description Endpoint seguro para consultar una orden por order_number.
+         *     Requiere propietario, staff o cookie de capacidad válida.
          */
         get: operations["orders_by_order_number_retrieve"];
         put?: never;
@@ -216,20 +236,16 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/orders/track/": {
+    "/api/orders/by-order-number/{order_number}/access/": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description Permite a cualquier usuario (incluidos invitados) consultar un pedido
-         *     únicamente por su número de orden público (order_number).
-         */
-        get: operations["orders_track_retrieve"];
+        get?: never;
         put?: never;
-        post?: never;
+        post: operations["orders_by_order_number_access_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -247,7 +263,7 @@ export interface paths {
         put?: never;
         /**
          * Iniciar proceso de pago
-         * @description Recibe el order_id, registra el intento de pago en el backend y devuelve la URL de redirección de la pasarela.
+         * @description Recibe el order_id, registra el intento mock y devuelve la URL de pago.
          */
         post: operations["payments_initiate_create"];
         delete?: never;
@@ -496,6 +512,15 @@ export interface components {
             /** @description Indica si realizamos envíos a esta comuna */
             is_active?: boolean;
         };
+        GuestAccess: {
+            token: string;
+            /** Format: date-time */
+            expires_at: string;
+        };
+        GuestOrderItem: {
+            product_id: number;
+            quantity: number;
+        };
         InitiatePayment: {
             order_id: number;
         };
@@ -526,8 +551,9 @@ export interface components {
             /** Nombre invitado */
             guest_name?: string | null;
             /** @description Lista de productos para invitados */
-            guest_items?: unknown;
+            guest_items?: components["schemas"]["GuestOrderItem"][];
             payment_method?: components["schemas"]["PaymentMethodEnum"];
+            readonly guest_access: components["schemas"]["GuestAccess"] | null;
             /** Subtotal productos */
             readonly subtotal: number;
             /** Costo de envío */
@@ -552,6 +578,27 @@ export interface components {
              */
             readonly tracking_number: string | null;
             readonly items: components["schemas"]["OrderItem"][];
+        };
+        OrderCreate: {
+            /** Teléfono de contacto */
+            phone: string;
+            comuna?: number;
+            comuna_name?: string;
+            region_name?: string;
+            /** Dirección de despacho */
+            shipping_address: string;
+            /** Depto / oficina */
+            apartment_office?: string | null;
+            /**
+             * Correo invitado
+             * Format: email
+             */
+            guest_email?: string | null;
+            /** Nombre invitado */
+            guest_name?: string | null;
+            /** @description Lista de productos para invitados */
+            guest_items?: components["schemas"]["GuestOrderItem"][];
+            payment_method?: components["schemas"]["PaymentMethodEnum"];
         };
         OrderItem: {
             readonly id: number;
@@ -704,9 +751,9 @@ export interface components {
             badge?: string | null;
             /** Características */
             features?: unknown;
-            readonly category?: string;
+            category?: number;
             readonly stock?: number;
-            readonly experienceLevel?: string;
+            readonly experience_level?: number;
             /** Format: int64 */
             current_stock?: number;
             /** Format: int64 */
@@ -766,9 +813,9 @@ export interface components {
             badge?: string | null;
             /** Características */
             features?: unknown;
-            readonly category: string;
+            category: number;
             readonly stock: number;
-            readonly experienceLevel: string;
+            readonly experience_level: number;
             /** Format: int64 */
             current_stock?: number;
             /** Format: int64 */
@@ -888,6 +935,24 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    auth_csrf_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_login_create: {
         parameters: {
             query?: never;
@@ -1245,9 +1310,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["Order"];
-                "application/x-www-form-urlencoded": components["schemas"]["Order"];
-                "multipart/form-data": components["schemas"]["Order"];
+                "application/json": components["schemas"]["OrderCreate"];
+                "application/x-www-form-urlencoded": components["schemas"]["OrderCreate"];
+                "multipart/form-data": components["schemas"]["OrderCreate"];
             };
         };
         responses: {
@@ -1304,25 +1369,25 @@ export interface operations {
             };
         };
     };
-    orders_track_retrieve: {
+    orders_by_order_number_access_create: {
         parameters: {
-            query: {
-                /** @description Número de pedido público (ej: CS-XXXXXXX). */
+            query?: never;
+            header: {
+                "X-Order-Capability": string;
+            };
+            path: {
                 order_number: string;
             };
-            header?: never;
-            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            200: {
+            /** @description No response body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["Order"];
-                };
+                content?: never;
             };
         };
     };

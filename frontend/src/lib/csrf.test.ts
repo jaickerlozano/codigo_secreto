@@ -1,7 +1,12 @@
 import type { MiddlewareCallbackParams } from 'openapi-fetch'
 import { describe, expect, it, vi } from 'vitest'
 
-import { csrfMiddleware, getCsrfToken, UNSAFE_METHODS } from './csrf'
+import {
+  csrfMiddleware,
+  getCookieValue,
+  getCsrfToken,
+  UNSAFE_METHODS,
+} from './csrf'
 
 function middlewareParams(request: Request): MiddlewareCallbackParams {
   return {
@@ -16,7 +21,9 @@ function middlewareParams(request: Request): MiddlewareCallbackParams {
 describe('csrf', () => {
   describe('UNSAFE_METHODS', () => {
     it('contains state-changing HTTP methods', () => {
-      expect(UNSAFE_METHODS).toEqual(new Set(['POST', 'PUT', 'PATCH', 'DELETE']))
+      expect(UNSAFE_METHODS).toEqual(
+        new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
+      )
     })
   })
 
@@ -30,7 +37,9 @@ describe('csrf', () => {
     })
 
     it('returns the decoded csrftoken cookie value', () => {
-      vi.stubGlobal('document', { cookie: 'csrftoken=abc%40123; sessionid=xyz' })
+      vi.stubGlobal('document', {
+        cookie: 'csrftoken=abc%40123; sessionid=xyz',
+      })
 
       expect(getCsrfToken()).toBe('abc@123')
 
@@ -38,7 +47,9 @@ describe('csrf', () => {
     })
 
     it('finds csrftoken when it appears between other cookies', () => {
-      vi.stubGlobal('document', { cookie: 'sessionid=xyz; csrftoken=tokenValue; path=/' })
+      vi.stubGlobal('document', {
+        cookie: 'sessionid=xyz; csrftoken=tokenValue; path=/',
+      })
 
       expect(getCsrfToken()).toBe('tokenValue')
 
@@ -46,10 +57,23 @@ describe('csrf', () => {
     })
   })
 
+  describe('getCookieValue', () => {
+    it('decodes the named cookie without matching similarly prefixed names', () => {
+      expect(
+        getCookieValue('csrf-token=wrong; csrftoken=abc%40123', 'csrftoken')
+      ).toBe('abc@123')
+      expect(
+        getCookieValue('csrftoken_extra=wrong', 'csrftoken')
+      ).toBeUndefined()
+    })
+  })
+
   describe('csrfMiddleware', () => {
     it('sets X-CSRFToken header on unsafe methods', async () => {
       vi.stubGlobal('document', { cookie: 'csrftoken=csrfValue' })
-      const request = new Request('http://localhost/api/auth/login/', { method: 'POST' })
+      const request = new Request('http://localhost/api/auth/login/', {
+        method: 'POST',
+      })
 
       const result = await csrfMiddleware.onRequest!(middlewareParams(request))
 
@@ -59,7 +83,9 @@ describe('csrf', () => {
 
     it('does not set X-CSRFToken header on safe methods', async () => {
       vi.stubGlobal('document', { cookie: 'csrftoken=csrfValue' })
-      const request = new Request('http://localhost/api/products/', { method: 'GET' })
+      const request = new Request('http://localhost/api/products/', {
+        method: 'GET',
+      })
 
       const result = await csrfMiddleware.onRequest!(middlewareParams(request))
 
@@ -69,7 +95,9 @@ describe('csrf', () => {
 
     it('does not set header when no csrftoken cookie exists', async () => {
       vi.stubGlobal('document', { cookie: 'sessionid=abc' })
-      const request = new Request('http://localhost/api/auth/login/', { method: 'POST' })
+      const request = new Request('http://localhost/api/auth/login/', {
+        method: 'POST',
+      })
 
       const result = await csrfMiddleware.onRequest!(middlewareParams(request))
 

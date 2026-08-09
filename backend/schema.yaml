@@ -5,11 +5,24 @@ info:
   description: API for managing products, suppliers, and categories in the Código
     Secreto inventory system.
 paths:
+  /api/auth/csrf/:
+    get:
+      operationId: auth_csrf_retrieve
+      description: Endpoint público que genera y establece la cookie CSRF para clientes
+        de navegador.
+      summary: Semilla de cookie CSRF
+      tags:
+      - Autenticación
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
   /api/auth/login/:
     post:
       operationId: auth_login_create
-      description: Recibe el correo electrónico y la contraseña. Devuelve un token
-        de acceso y un token de refresco.
+      description: Recibe el correo electrónico y la contraseña. Establece cookies
+        HttpOnly de acceso y refresco, y devuelve un mensaje sin exponer tokens.
       summary: Iniciar sesión (Login)
       tags:
       - Autenticación
@@ -98,8 +111,8 @@ paths:
   /api/auth/token/refresh/:
     post:
       operationId: auth_token_refresh_create
-      description: Recibe un token de refresco válido y entrega un nuevo token de
-        acceso para mantener la sesión activa.
+      description: Lee el token de refresco desde la cookie HttpOnly, requiere CSRF,
+        y renueva la cookie de acceso sin devolver tokens en el body.
       summary: Refrescar token de acceso
       tags:
       - Autenticación
@@ -344,13 +357,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Order'
+              $ref: '#/components/schemas/OrderCreate'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Order'
+              $ref: '#/components/schemas/OrderCreate'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Order'
+              $ref: '#/components/schemas/OrderCreate'
         required: true
       security:
       - {}
@@ -384,8 +397,8 @@ paths:
     get:
       operationId: orders_by_order_number_retrieve
       description: |-
-        Endpoint público para consultar una orden por order_number.
-        Permite que guests y usuarios autenticados consulten el estado de su orden.
+        Endpoint seguro para consultar una orden por order_number.
+        Requiere propietario, staff o cookie de capacidad válida.
       parameters:
       - in: path
         name: order_number
@@ -405,35 +418,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/Order'
           description: ''
-  /api/orders/track/:
-    get:
-      operationId: orders_track_retrieve
-      description: |-
-        Permite a cualquier usuario (incluidos invitados) consultar un pedido
-        únicamente por su número de orden público (order_number).
+  /api/orders/by-order-number/{order_number}/access/:
+    post:
+      operationId: orders_by_order_number_access_create
       parameters:
-      - in: query
+      - in: header
+        name: X-Order-Capability
+        schema:
+          type: string
+        required: true
+      - in: path
         name: order_number
         schema:
           type: string
-        description: 'Número de pedido público (ej: CS-XXXXXXX).'
+          title: Número de pedido
+          description: 'Identificador público del pedido (ej: CS-XXXXXXX).'
         required: true
       tags:
       - orders
       security:
       - {}
       responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Order'
-          description: ''
+        '204':
+          description: No response body
   /api/payments/initiate/:
     post:
       operationId: payments_initiate_create
-      description: Recibe el order_id, registra el intento de pago en el backend y
-        devuelve la URL de redirección de la pasarela.
+      description: Recibe el order_id, registra el intento mock y devuelve la URL
+        de pago.
       summary: Iniciar proceso de pago
       tags:
       - Pagos
@@ -461,11 +473,21 @@ paths:
       - in: query
         name: category
         schema:
-          type: integer
+          type: array
+          items:
+            type: integer
+        description: Múltiples valores separados por comas.
+        explode: false
+        style: form
       - in: query
         name: experience_level
         schema:
-          type: integer
+          type: array
+          items:
+            type: integer
+        description: Múltiples valores separados por comas.
+        explode: false
+        style: form
       - in: query
         name: experience_level__gte
         schema:
@@ -482,6 +504,12 @@ paths:
         name: min_price
         schema:
           type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Qué campo usar para ordenar los resultados.
+        schema:
+          type: string
       - name: page
         required: false
         in: query
@@ -492,6 +520,10 @@ paths:
         required: false
         in: query
         description: Un término de búsqueda.
+        schema:
+          type: string
+      - in: query
+        name: sku
         schema:
           type: string
       - in: query
@@ -1060,20 +1092,27 @@ components:
       required:
       - id
       - name
-    ExperienceLevelEnum:
-      enum:
-      - 1
-      - 2
-      - 3
-      - 4
-      - 5
-      type: integer
-      description: |-
-        * `1` - 1
-        * `2` - 2
-        * `3` - 3
-        * `4` - 4
-        * `5` - 5
+    GuestAccess:
+      type: object
+      properties:
+        token:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+      required:
+      - expires_at
+      - token
+    GuestOrderItem:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        quantity:
+          type: integer
+      required:
+      - product_id
+      - quantity
     InitiatePayment:
       type: object
       properties:
@@ -1132,10 +1171,18 @@ components:
           title: Nombre invitado
           maxLength: 255
         guest_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuestOrderItem'
           writeOnly: true
           description: Lista de productos para invitados
         payment_method:
           $ref: '#/components/schemas/PaymentMethodEnum'
+        guest_access:
+          allOf:
+          - $ref: '#/components/schemas/GuestAccess'
+          readOnly: true
+          nullable: true
         subtotal:
           type: integer
           readOnly: true
@@ -1178,6 +1225,7 @@ components:
       - carrier
       - comuna_display
       - created_at
+      - guest_access
       - id
       - items
       - order_number
@@ -1188,6 +1236,50 @@ components:
       - subtotal
       - total
       - tracking_number
+    OrderCreate:
+      type: object
+      properties:
+        phone:
+          type: string
+          title: Teléfono de contacto
+          maxLength: 20
+        comuna:
+          type: integer
+        comuna_name:
+          type: string
+        region_name:
+          type: string
+        shipping_address:
+          type: string
+          title: Dirección de despacho
+          maxLength: 255
+        apartment_office:
+          type: string
+          nullable: true
+          title: Depto / oficina
+          maxLength: 50
+        guest_email:
+          type: string
+          format: email
+          nullable: true
+          title: Correo invitado
+          maxLength: 254
+        guest_name:
+          type: string
+          nullable: true
+          title: Nombre invitado
+          maxLength: 255
+        guest_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuestOrderItem'
+          writeOnly: true
+          description: Lista de productos para invitados
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethodEnum'
+      required:
+      - phone
+      - shipping_address
     OrderItem:
       type: object
       properties:
@@ -1413,17 +1505,53 @@ components:
         id:
           type: integer
           readOnly: true
-        image:
-          type: string
-          readOnly: true
         name:
           type: string
           title: Nombre
           maxLength: 255
+        sku:
+          type: string
+          nullable: true
+          maxLength: 50
+        price:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
         description:
           type: string
           nullable: true
           title: Descripción
+        image:
+          type: string
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductImage'
+          readOnly: true
+        gradient:
+          type: string
+          title: Gradiente
+          maxLength: 200
+        icon:
+          type: string
+          title: Icono
+          maxLength: 100
+        badge:
+          type: string
+          nullable: true
+          maxLength: 50
+        features:
+          title: Características
+        category:
+          type: integer
+        stock:
+          type: integer
+          readOnly: true
+        experience_level:
+          type: integer
+          readOnly: true
         current_stock:
           type: integer
           maximum: 9223372036854775807
@@ -1434,35 +1562,9 @@ components:
           maximum: 9223372036854775807
           minimum: 0
           format: int64
-        price:
+        supplier:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-        sku:
-          type: string
-          nullable: true
-          maxLength: 50
-        icon:
-          type: string
-          title: Icono
-          maxLength: 100
-        gradient:
-          type: string
-          title: Gradiente
-          maxLength: 200
-        experience_level:
-          allOf:
-          - $ref: '#/components/schemas/ExperienceLevelEnum'
-          title: Nivel de experiencia
-          minimum: 0
-          maximum: 9223372036854775807
-        features:
-          title: Características
-        badge:
-          type: string
-          nullable: true
-          maxLength: 50
+          title: Proveedor
         created_at:
           type: string
           format: date-time
@@ -1473,12 +1575,6 @@ components:
           format: date-time
           readOnly: true
           title: Fecha de actualización
-        category:
-          type: integer
-          title: Categoría
-        supplier:
-          type: integer
-          title: Proveedor
     PatchedSupplier:
       type: object
       properties:
@@ -1523,17 +1619,53 @@ components:
         id:
           type: integer
           readOnly: true
-        image:
-          type: string
-          readOnly: true
         name:
           type: string
           title: Nombre
           maxLength: 255
+        sku:
+          type: string
+          nullable: true
+          maxLength: 50
+        price:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: -9223372036854775808
+          format: int64
         description:
           type: string
           nullable: true
           title: Descripción
+        image:
+          type: string
+          readOnly: true
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductImage'
+          readOnly: true
+        gradient:
+          type: string
+          title: Gradiente
+          maxLength: 200
+        icon:
+          type: string
+          title: Icono
+          maxLength: 100
+        badge:
+          type: string
+          nullable: true
+          maxLength: 50
+        features:
+          title: Características
+        category:
+          type: integer
+        stock:
+          type: integer
+          readOnly: true
+        experience_level:
+          type: integer
+          readOnly: true
         current_stock:
           type: integer
           maximum: 9223372036854775807
@@ -1544,35 +1676,9 @@ components:
           maximum: 9223372036854775807
           minimum: 0
           format: int64
-        price:
+        supplier:
           type: integer
-          maximum: 9223372036854775807
-          minimum: -9223372036854775808
-          format: int64
-        sku:
-          type: string
-          nullable: true
-          maxLength: 50
-        icon:
-          type: string
-          title: Icono
-          maxLength: 100
-        gradient:
-          type: string
-          title: Gradiente
-          maxLength: 200
-        experience_level:
-          allOf:
-          - $ref: '#/components/schemas/ExperienceLevelEnum'
-          title: Nivel de experiencia
-          minimum: 0
-          maximum: 9223372036854775807
-        features:
-          title: Características
-        badge:
-          type: string
-          nullable: true
-          maxLength: 50
+          title: Proveedor
         created_at:
           type: string
           format: date-time
@@ -1583,21 +1689,30 @@ components:
           format: date-time
           readOnly: true
           title: Fecha de actualización
-        category:
-          type: integer
-          title: Categoría
-        supplier:
-          type: integer
-          title: Proveedor
       required:
       - category
       - created_at
+      - experience_level
       - id
       - image
+      - images
       - name
       - price
+      - stock
       - supplier
       - updated_at
+    ProductImage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        image:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - image
     Region:
       type: object
       properties:
