@@ -42,6 +42,6 @@ def test_order_creation_schema_uses_typed_guest_items_request():
     assert guest_items['items'] == {'$ref': '#/components/schemas/GuestOrderItem'}
     assert guest_items['writeOnly'] is True
     assert schema['components']['schemas']['GuestOrderItem']['properties'] == {
-        'product_id': {'type': 'integer'},
-        'quantity': {'type': 'integer'},
+        'product_id': {'type': 'integer', 'minimum': 1},
+        'quantity': {'type': 'integer', 'minimum': 1},
     }

@@ -164,6 +164,7 @@ REST_FRAMEWORK = {
         "register": env("THROTTLE_REGISTER", default="3/hour"),
         "order_create": env("THROTTLE_ORDER_CREATE", default="10/hour"),
         "order_lookup": env("THROTTLE_ORDER_LOOKUP", default="30/min"),
+        "order_quote": env("THROTTLE_ORDER_QUOTE", default="30/min"),
         "payment_initiate": env("THROTTLE_PAYMENT_INITIATE", default="10/min"),
     },
 }
