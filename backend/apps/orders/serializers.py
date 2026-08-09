@@ -1,8 +1,11 @@
 from rest_framework import serializers
 from django.db import transaction
-from apps.products.models import Product
-from apps.shipping.models import Comuna
+from django.apps import apps
 from .models import Order, OrderItem
+
+
+Product = apps.get_model('products', 'Product')
+Comuna = apps.get_model('shipping', 'Comuna')
 
 class OrderItemSerializer(serializers.ModelSerializer):
     subtotal = serializers.IntegerField(read_only=True)
@@ -208,8 +211,6 @@ class OrderSerializer(serializers.ModelSerializer):
                 cart_items.delete()
 
         return order
-
-
 class OrderCreateSerializer(serializers.ModelSerializer):
     comuna = serializers.PrimaryKeyRelatedField(queryset=Comuna.objects.all(), required=False)
     comuna_name = serializers.CharField(required=False)
