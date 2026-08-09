@@ -12,11 +12,13 @@ from .serializers import (
     OrderCreateSerializer,
     OrderSerializer,
     QuoteErrorSerializer,
+    QuoteRevisionStaleSerializer,
     QuoteSerializer,
 )
 from .services import (
     GUEST_ACCESS_COOKIE_MAX_AGE,
     GUEST_ACCESS_COOKIE_NAME,
+    GuestQuoteRevisionStale,
     GuestQuoteValidationError,
     authorize_order_access,
     calculate_guest_quote,
@@ -62,9 +64,21 @@ class OrderViewSet(mixins.CreateModelMixin,
             return Order.objects.all()
         return Order.objects.filter(user=self.request.user)
 
-    @extend_schema(request=OrderCreateSerializer, responses={201: OrderSerializer})
+    @extend_schema(
+        request=OrderCreateSerializer,
+        responses={201: OrderSerializer, 400: QuoteRevisionStaleSerializer},
+    )
     def create(self, request, *args, **kwargs):
-        return super().create(request, *args, **kwargs)
+        try:
+            return super().create(request, *args, **kwargs)
+        except GuestQuoteRevisionStale as error:
+            return Response({
+                'code': 'quote_revision_stale',
+                'detail': str(error),
+                'refreshed_quote': GuestQuoteResponseSerializer(
+                    error.quote.as_dict()
+                ).data,
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
         request=QuoteSerializer,
