@@ -1,11 +1,8 @@
 from rest_framework import serializers
 from django.db import transaction
-from django.apps import apps
 from .models import Order, OrderItem
-
-
-Product = apps.get_model('products', 'Product')
-Comuna = apps.get_model('shipping', 'Comuna')
+from .services import GuestQuoteValidationError, calculate_guest_quote
+from apps.shipping.services import ShippingSnapshotResolutionError, resolve_comuna_shipping_snapshot
 
 class OrderItemSerializer(serializers.ModelSerializer):
     subtotal = serializers.IntegerField(read_only=True)
@@ -21,8 +18,51 @@ class GuestAccessSerializer(serializers.Serializer):
 
 
 class GuestOrderItemSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField(min_value=1)
+    quantity = serializers.IntegerField(min_value=1)
+
+    def to_internal_value(self, data):
+        if not isinstance(data, dict) or set(data) != {'product_id', 'quantity'}:
+            raise serializers.ValidationError('Only product_id and quantity are accepted.')
+        if any(isinstance(data[key], bool) or not isinstance(data[key], int) for key in data):
+            raise serializers.ValidationError('Product identifiers and quantities must be integers.')
+        return super().to_internal_value(data)
+
+
+class QuoteSerializer(serializers.Serializer):
+    items = GuestOrderItemSerializer(many=True, allow_empty=False)
+    comuna = serializers.IntegerField(min_value=1, required=False)
+
+    def to_internal_value(self, data):
+        if not isinstance(data, dict) or set(data) - {'items', 'comuna'}:
+            raise serializers.ValidationError('Only items and comuna are accepted.')
+        return super().to_internal_value(data)
+
+    def validate_items(self, value):
+        if len(value) > 50 or len({item['product_id'] for item in value}) != len(value):
+            raise serializers.ValidationError('Invalid quote items.')
+        return value
+
+
+class GuestQuoteLineSerializer(serializers.Serializer):
     product_id = serializers.IntegerField()
+    product_name = serializers.CharField()
     quantity = serializers.IntegerField()
+    unit_price = serializers.IntegerField()
+    line_total = serializers.IntegerField()
+
+
+class GuestQuoteResponseSerializer(serializers.Serializer):
+    items = GuestQuoteLineSerializer(many=True)
+    subtotal = serializers.IntegerField()
+    shipping_cost = serializers.IntegerField(required=False)
+    total = serializers.IntegerField(required=False)
+    revision = serializers.CharField()
+
+
+class QuoteErrorSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    detail = serializers.CharField()
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -39,7 +79,7 @@ class OrderSerializer(serializers.ModelSerializer):
     )
 
     # Permitimos resolver la comuna por ID (tests) o por nombre + región (frontend checkout)
-    comuna = serializers.PrimaryKeyRelatedField(queryset=Comuna.objects.all(), required=False)
+    comuna = serializers.IntegerField(source='comuna_id', required=False)
     comuna_name = serializers.CharField(required=False)
     region_name = serializers.CharField(required=False)
 
@@ -90,8 +130,8 @@ class OrderSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = self.context['request'].user
 
-        # Resolvemos la comuna: preferimos el ID, si no viene usamos nombre + región
-        if 'comuna' not in attrs:
+        # Resolve the shipping snapshot without importing the shipping model.
+        if 'comuna_id' not in attrs:
             comuna_name = attrs.pop('comuna_name', None)
             region_name = attrs.pop('region_name', None)
             if not comuna_name or not region_name:
@@ -99,17 +139,23 @@ class OrderSerializer(serializers.ModelSerializer):
                     'comuna': 'Debes indicar la comuna de entrega.'
                 })
             try:
-                attrs['comuna'] = Comuna.objects.get(
-                    name__iexact=comuna_name,
-                    region__name__iexact=region_name
+                snapshot = resolve_comuna_shipping_snapshot(
+                    comuna_name=comuna_name,
+                    region_name=region_name,
                 )
-            except Comuna.DoesNotExist:
+            except ShippingSnapshotResolutionError:
                 raise serializers.ValidationError({
                     'comuna': 'La comuna y región indicadas no son válidas.'
                 })
+            attrs['comuna_id'] = snapshot.id
         else:
             attrs.pop('comuna_name', None)
             attrs.pop('region_name', None)
+            try:
+                snapshot = resolve_comuna_shipping_snapshot(comuna_id=attrs['comuna_id'])
+            except ShippingSnapshotResolutionError:
+                raise serializers.ValidationError({'comuna': 'La comuna indicada no es válida.'})
+        attrs['_comuna_snapshot'] = snapshot
 
         # SI ES INVITADO (No está autenticado)
         if not user or user.is_anonymous:
@@ -125,8 +171,9 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = self.context['request'].user
-        comuna_seleccionada = validated_data['comuna']
-        costo_envio_chile = comuna_seleccionada.shipping_cost
+        comuna_id = validated_data.pop('comuna_id')
+        comuna_snapshot = validated_data.pop('_comuna_snapshot')
+        costo_envio_chile = comuna_snapshot.shipping_cost
         payment_method = validated_data.get('payment_method', 'webpay')
 
         # Inicializamos variables para el bucle de clonación
@@ -156,23 +203,20 @@ class OrderSerializer(serializers.ModelSerializer):
         # LÓGICA RUTA B: INVITADO ANÓNIMO (Lee la lista del LocalStorage que envía el Frontend)
         else:
             guest_items = validated_data.pop('guest_items')
-            for item in guest_items:
-                try:
-                    product = Product.objects.get(id=item['product_id'])
-                    quantity = int(item['quantity'])
-
-                    if quantity < 1:
-                        continue
-
-                    subtotal_productos += (product.price * quantity)
-                    productos_a_comprar.append({
-                        'product': product,
-                        'name': product.name,
-                        'price': product.price,
-                        'quantity': quantity
-                    })
-                except (Product.DoesNotExist, KeyError, ValueError):
-                    raise serializers.ValidationError({"guest_items": "Uno de los productos enviados no es válido."})
+            try:
+                quote = calculate_guest_quote(guest_items, comuna_selector=comuna_id)
+            except GuestQuoteValidationError as error:
+                raise serializers.ValidationError({'guest_items': str(error)}) from error
+            subtotal_productos = quote.subtotal
+            productos_a_comprar = [
+                {
+                    'product_id': line.product_id,
+                    'name': line.product_name,
+                    'price': line.unit_price,
+                    'quantity': line.quantity,
+                }
+                for line in quote.items
+            ]
 
         total_final = subtotal_productos + costo_envio_chile
 
@@ -184,7 +228,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 guest_email=validated_data.get('guest_email'),
                 guest_name=validated_data.get('guest_name'),
                 phone=validated_data['phone'],
-                comuna=comuna_seleccionada,
+                comuna_id=comuna_id,
                 shipping_address=validated_data['shipping_address'],
                 apartment_office=validated_data.get('apartment_office', ''),
                 payment_method=payment_method,
@@ -200,7 +244,7 @@ class OrderSerializer(serializers.ModelSerializer):
             for prod in productos_a_comprar:
                 OrderItem.objects.create(
                     order=order,
-                    product=prod['product'],
+                    product_id=prod.get('product_id') or prod['product'].id,
                     product_name=prod['name'],
                     price=prod['price'],
                     quantity=prod['quantity']
@@ -212,7 +256,7 @@ class OrderSerializer(serializers.ModelSerializer):
 
         return order
 class OrderCreateSerializer(serializers.ModelSerializer):
-    comuna = serializers.PrimaryKeyRelatedField(queryset=Comuna.objects.all(), required=False)
+    comuna = serializers.IntegerField(source='comuna_id', required=False)
     comuna_name = serializers.CharField(required=False)
     region_name = serializers.CharField(required=False)
     guest_items = GuestOrderItemSerializer(many=True, required=False, write_only=True, help_text='Lista de productos para invitados')
