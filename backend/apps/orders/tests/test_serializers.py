@@ -165,8 +165,8 @@ def test_guest_invalid_product(api_client, comuna_factory):
     assert "guest_items" in response.json()
 
 
-def test_guest_skips_zero_quantity(api_client, product_factory, comuna_factory):
-    """Ruta B: items with quantity < 1 are skipped."""
+def test_guest_rejects_zero_quantity(api_client, product_factory, comuna_factory):
+    """Guest creation rejects non-positive quantities atomically."""
     product = product_factory(price=5000)
     comuna = comuna_factory(shipping_cost=2000)
 
@@ -187,7 +187,5 @@ def test_guest_skips_zero_quantity(api_client, product_factory, comuna_factory):
         format="json",
     )
 
-    assert response.status_code == status.HTTP_201_CREATED
-    order = Order.objects.get(id=response.json()["id"])
-    assert order.items.count() == 1
-    assert order.items.first().quantity == 1
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert Order.objects.count() == 0

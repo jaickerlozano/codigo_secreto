@@ -7,3 +7,4 @@ def test_orders_modules_do_not_import_product_or_shipping_models_directly():
 
     assert all("from apps.products.models" not in source for source in sources)
     assert all("from apps.shipping.models" not in source for source in sources)
+    assert all("apps.get_model" not in source for source in sources)

@@ -7,8 +7,21 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from .models import Order
-from .serializers import OrderCreateSerializer, OrderSerializer
-from .services import GUEST_ACCESS_COOKIE_MAX_AGE, GUEST_ACCESS_COOKIE_NAME, authorize_order_access, issue_guest_access_cookie
+from .serializers import (
+    GuestQuoteResponseSerializer,
+    OrderCreateSerializer,
+    OrderSerializer,
+    QuoteErrorSerializer,
+    QuoteSerializer,
+)
+from .services import (
+    GUEST_ACCESS_COOKIE_MAX_AGE,
+    GUEST_ACCESS_COOKIE_NAME,
+    GuestQuoteValidationError,
+    authorize_order_access,
+    calculate_guest_quote,
+    issue_guest_access_cookie,
+)
 
 
 CAPABILITY_HEADER = "X-Order-Capability"
@@ -27,13 +40,15 @@ class OrderViewSet(mixins.CreateModelMixin,
         o consultar el estado de un pedido por su número de orden.
         Pero exige estar Autenticado para ver la lista de pedidos del historial.
         """
-        if self.action in ('create', 'by_order_number', 'access'):
+        if self.action in ('create', 'by_order_number', 'access', 'quote'):
             return [AllowAny()]
         return [IsAuthenticated()]
 
     def get_throttles(self):
         if self.action == 'create':
             self.throttle_scope = 'order_create'
+        elif self.action == 'quote':
+            self.throttle_scope = 'order_quote'
         elif self.action in ('by_order_number', 'access'):
             self.throttle_scope = 'order_lookup'
         else:
@@ -50,6 +65,23 @@ class OrderViewSet(mixins.CreateModelMixin,
     @extend_schema(request=OrderCreateSerializer, responses={201: OrderSerializer})
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)
+
+    @extend_schema(
+        request=QuoteSerializer,
+        responses={200: GuestQuoteResponseSerializer, 400: QuoteErrorSerializer, 429: QuoteErrorSerializer},
+    )
+    @action(detail=False, methods=['post'], url_path='quote')
+    def quote(self, request):
+        serializer = QuoteSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response({'code': 'invalid_quote', 'detail': 'Unable to create quote.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            quote = calculate_guest_quote(
+                serializer.validated_data['items'], serializer.validated_data.get('comuna')
+            )
+        except GuestQuoteValidationError:
+            return Response({'code': 'invalid_quote', 'detail': 'Unable to create quote.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(GuestQuoteResponseSerializer(quote.as_dict()).data)
 
     @staticmethod
     def _masked_not_found():
