@@ -12,12 +12,28 @@ class OrderItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'product_id', 'product_name', 'price', 'quantity', 'subtotal']
 
 
+class GuestAccessSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    expires_at = serializers.DateTimeField()
+
+
+class GuestOrderItemSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField()
+    quantity = serializers.IntegerField()
+
+
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     order_number = serializers.CharField(read_only=True)
+    guest_access = GuestAccessSerializer(read_only=True, required=False, allow_null=True)
 
     # NUEVO: El frontend debe enviar la lista de productos solo si compra como invitado
-    guest_items = serializers.JSONField(write_only=True, required=False, help_text="Lista de productos para invitados")
+    guest_items = GuestOrderItemSerializer(
+        many=True,
+        write_only=True,
+        required=False,
+        help_text="Lista de productos para invitados",
+    )
 
     # Permitimos resolver la comuna por ID (tests) o por nombre + región (frontend checkout)
     comuna = serializers.PrimaryKeyRelatedField(queryset=Comuna.objects.all(), required=False)
@@ -36,6 +52,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'id', 'order_number', 'phone', 'comuna', 'comuna_name', 'comuna_display', 'region_name',
             'shipping_address', 'apartment_office',
             'guest_email', 'guest_name', 'guest_items', 'payment_method',
+            'guest_access',
             'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
             'carrier', 'tracking_number', 'items'
         ]
@@ -57,6 +74,7 @@ class OrderSerializer(serializers.ModelSerializer):
             data['comuna_name'] = None
             data['region_name'] = None
 
+        data.setdefault('guest_access', None)
         raw_token = getattr(instance, '_guest_access_token', None)
         if raw_token:
             data['guest_access'] = {
@@ -190,3 +208,17 @@ class OrderSerializer(serializers.ModelSerializer):
                 cart_items.delete()
 
         return order
+
+
+class OrderCreateSerializer(serializers.ModelSerializer):
+    comuna = serializers.PrimaryKeyRelatedField(queryset=Comuna.objects.all(), required=False)
+    comuna_name = serializers.CharField(required=False)
+    region_name = serializers.CharField(required=False)
+    guest_items = GuestOrderItemSerializer(many=True, required=False, write_only=True, help_text='Lista de productos para invitados')
+    payment_method = serializers.ChoiceField(
+        choices=Order.PAYMENT_METHOD_CHOICES, required=False
+    )
+
+    class Meta:
+        model = Order
+        fields = ['phone', 'comuna', 'comuna_name', 'region_name', 'shipping_address', 'apartment_office', 'guest_email', 'guest_name', 'guest_items', 'payment_method']

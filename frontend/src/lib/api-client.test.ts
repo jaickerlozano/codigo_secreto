@@ -8,6 +8,25 @@ describe('apiClient', () => {
   it('is frozen to prevent accidental mutation', () => {
     expect(Object.isFrozen(apiClient)).toBe(true)
   })
+
+  it('attaches the readable CSRF cookie to unsafe generated-client requests', async () => {
+    vi.stubGlobal('document', { cookie: 'csrftoken=csrfValue' })
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }))
+
+    await apiClient.POST('/api/orders/by-order-number/{order_number}/access/', {
+      params: {
+        header: { 'X-Order-Capability': 'fragment-token' },
+        path: { order_number: 'CS-123456' },
+      },
+    })
+
+    const request = fetchSpy.mock.calls[0][0] as Request
+    expect(request.headers.get('X-CSRFToken')).toBe('csrfValue')
+    fetchSpy.mockRestore()
+    vi.unstubAllGlobals()
+  })
 })
 
 describe('queryClient', () => {
@@ -28,7 +47,12 @@ describe('errorMiddleware', () => {
     vi.spyOn(toast, 'error').mockImplementation(() => 'toast-id')
     Object.defineProperty(window, 'location', {
       configurable: true,
-      value: { ...originalLocation, pathname: '/checkout', search: '?page=2', assign },
+      value: {
+        ...originalLocation,
+        pathname: '/checkout',
+        search: '?page=2',
+        assign,
+      },
       writable: true,
     })
   })
@@ -46,10 +70,12 @@ describe('errorMiddleware', () => {
     await errorMiddleware.onResponse?.({
       request: new Request('http://localhost:8000/api/cart/'),
       response: new Response(null, { status: 401 }),
-    } as unknown as Parameters<NonNullable<typeof errorMiddleware.onResponse>>[0])
+    } as unknown as Parameters<
+      NonNullable<typeof errorMiddleware.onResponse>
+    >[0])
 
     expect(toast.error).toHaveBeenCalledWith(
-      'Tu sesión ha expirado. Por favor inicia sesión nuevamente.',
+      'Tu sesión ha expirado. Por favor inicia sesión nuevamente.'
     )
     expect(assign).not.toHaveBeenCalled()
   })
@@ -57,9 +83,13 @@ describe('errorMiddleware', () => {
   it('shows a toast on 403 without redirecting', async () => {
     await errorMiddleware.onResponse?.({
       response: new Response(null, { status: 403 }),
-    } as unknown as Parameters<NonNullable<typeof errorMiddleware.onResponse>>[0])
+    } as unknown as Parameters<
+      NonNullable<typeof errorMiddleware.onResponse>
+    >[0])
 
-    expect(toast.error).toHaveBeenCalledWith('No tienes permisos para esta acción.')
+    expect(toast.error).toHaveBeenCalledWith(
+      'No tienes permisos para esta acción.'
+    )
     expect(assign).not.toHaveBeenCalled()
   })
 
@@ -67,14 +97,18 @@ describe('errorMiddleware', () => {
     await expect(
       errorMiddleware.onResponse?.({
         response: new Response(null, { status: 500 }),
-      } as unknown as Parameters<NonNullable<typeof errorMiddleware.onResponse>>[0]),
+      } as unknown as Parameters<
+        NonNullable<typeof errorMiddleware.onResponse>
+      >[0])
     ).rejects.toThrow('Error del servidor. Intenta más tarde.')
   })
 
   it('does nothing on successful responses', async () => {
     await errorMiddleware.onResponse?.({
       response: new Response(null, { status: 200 }),
-    } as unknown as Parameters<NonNullable<typeof errorMiddleware.onResponse>>[0])
+    } as unknown as Parameters<
+      NonNullable<typeof errorMiddleware.onResponse>
+    >[0])
 
     expect(toast.error).not.toHaveBeenCalled()
     expect(assign).not.toHaveBeenCalled()
@@ -92,7 +126,9 @@ describe('errorMiddleware', () => {
       await errorMiddleware.onResponse?.({
         request: new Request(`http://localhost:8000${pathname}`),
         response: new Response(null, { status: 401 }),
-      } as unknown as Parameters<NonNullable<typeof errorMiddleware.onResponse>>[0])
+      } as unknown as Parameters<
+        NonNullable<typeof errorMiddleware.onResponse>
+      >[0])
     }
 
     expect(toast.error).not.toHaveBeenCalled()

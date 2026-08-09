@@ -40,7 +40,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     category = CategoryNameField(queryset=Category.objects.all())
     stock = serializers.IntegerField(source='current_stock', read_only=True)
-    experienceLevel = serializers.SerializerMethodField()
+    experience_level = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Product
@@ -49,7 +49,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'id', 'name', 'sku', 'price', 'description', 'image',
             'images',  # <--- Inyectamos el array aquí
             'gradient', 'icon', 'badge', 'features', 
-            'category', 'stock', 'experienceLevel',
+            'category', 'stock', 'experience_level',
             'current_stock', 'minimum_stock', 'supplier', 'created_at', 'updated_at'
         ]
 
@@ -69,15 +69,6 @@ class ProductSerializer(serializers.ModelSerializer):
                 url = f"{url}.webp"
             return url
         return url
-
-    def get_experienceLevel(self, obj):
-        mapping = {
-            1: "principiante",
-            2: "intermedio",
-            3: "avanzado"
-        }
-        return mapping.get(obj.experience_level, "principiante")
-
 
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
