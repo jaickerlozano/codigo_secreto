@@ -6,10 +6,6 @@ import uuid
 from django.db import models
 from django.utils import timezone
 
-from apps.authentication.models import User
-from apps.shipping.models import Comuna
-from apps.products.models import Product
-
 
 GUEST_ACCESS_TOKEN_BYTES = 32
 GUEST_ACCESS_VALIDITY_DAYS = 90
@@ -52,13 +48,13 @@ class Order(models.Model):
     )
 
     # 1. Datos del Comprador (Permitimos null=True para soportar "Invitados")
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders', verbose_name='usuario')
+    user = models.ForeignKey('authentication.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders', verbose_name='usuario')
     guest_email = models.EmailField(null=True, blank=True, verbose_name='correo invitado')
     guest_name = models.CharField(max_length=255, null=True, blank=True, verbose_name='nombre invitado')
     phone = models.CharField(max_length=20, verbose_name='teléfono de contacto')
 
     # 2. Datos de Despacho en Chile
-    comuna = models.ForeignKey(Comuna, on_delete=models.PROTECT, related_name='orders', verbose_name='comuna de entrega')
+    comuna = models.ForeignKey('shipping.Comuna', on_delete=models.PROTECT, related_name='orders', verbose_name='comuna de entrega')
     shipping_address = models.CharField(max_length=255, verbose_name='dirección de despacho')
     apartment_office = models.CharField(max_length=50, null=True, blank=True, verbose_name='depto / oficina')
 
@@ -163,7 +159,7 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items', verbose_name='pedido')
     
     # Clave foránea al producto vivo (para estadísticas, pero permitimos SET_NULL por si el producto se borra del catálogo en el futuro)
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, related_name='order_items', verbose_name='producto')
+    product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, null=True, related_name='order_items', verbose_name='producto')
     
     # REGLA DE ORO: Congelamos los datos comerciales en texto/números planos
     product_name = models.CharField(max_length=255, verbose_name='nombre del producto congelado')
