@@ -23,6 +23,14 @@ class GuestQuoteValidationError(ValueError):
     """Raised when guest quote input cannot be priced authoritatively."""
 
 
+class GuestQuoteRevisionStale(ValueError):
+    """Raised when a guest confirms anything other than the current quote."""
+
+    def __init__(self, quote):
+        super().__init__("The confirmed quote is no longer current.")
+        self.quote = quote
+
+
 @dataclass(frozen=True, slots=True)
 class GuestQuoteLine:
     product_id: int; product_name: str; quantity: int; unit_price: int; line_total: int
