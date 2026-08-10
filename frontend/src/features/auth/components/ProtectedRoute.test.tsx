@@ -86,4 +86,6 @@ describe('ProtectedRoute', () => {
       expect(screen.getByTestId('login-page')).toBeDefined()
     })
   })
+
+  it('shows operational auth failures instead of redirecting', async () => { server.use(http.get('http://localhost:8000/api/auth/me/', () => HttpResponse.json({ detail: 'Servidor no disponible' }, { status: 500 }))); const router = createMemoryRouter([{ path: '/checkout', element: <ProtectedRoute><div>Checkout</div></ProtectedRoute> }, { path: '/login', element: <div data-testid="login-page">Iniciar sesión</div> }], { initialEntries: ['/checkout'] }); render(<RouterProvider router={router} />, { wrapper: Wrapper }); const alert = await screen.findByRole('alert'); expect(alert.textContent).toContain('Error del servidor. Intenta más tarde.'); expect(screen.queryByTestId('login-page')).toBeNull() })
 })

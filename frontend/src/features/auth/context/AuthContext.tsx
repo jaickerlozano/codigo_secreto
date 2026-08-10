@@ -10,6 +10,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { useCartStore } from '@/features/cart'
 import { mergeOnLogin } from '@/features/cart/lib/mergeOnLogin'
+import { SESSION_EXPIRED_EVENT } from '@/lib/api-client'
 
 import { login as loginApi, logoutUser } from '../api/auth.api'
 import type { LoginInput, UserMe } from '../types'
@@ -19,6 +20,7 @@ interface AuthContextValue {
   user: UserMe | null
   isAuthenticated: boolean
   isLoading: boolean
+  authError: Error | null; retryAuth: () => Promise<void>
   isLoggingIn: boolean
   loginError: Error | null
   login: (credentials: LoginInput) => Promise<void>
@@ -29,12 +31,21 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
-  const { data: user, isLoading } = useMe()
+  const { data: user, error: authError, isLoading, refetch } = useMe()
   const setCartMode = useCartStore((state) => state.setMode)
 
   useEffect(() => {
-    setCartMode(user ? 'authenticated' : 'guest')
-  }, [user, setCartMode])
+    if (!authError) setCartMode(user ? 'authenticated' : 'guest')
+    const handleSessionExpired = () => {
+      queryClient.setQueryData(['me'], null)
+      queryClient.removeQueries({ queryKey: ['cart'] })
+    }
+
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+    return () => {
+      window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
+    }
+  }, [authError, queryClient, setCartMode, user])
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: LoginInput) => {
@@ -78,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: user ?? null,
       isAuthenticated: !!user,
       isLoading,
+      authError: authError ?? null, retryAuth: async () => { await refetch() },
       isLoggingIn: loginMutation.isPending,
       loginError: loginMutation.error ?? null,
       login,
@@ -86,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       user,
       isLoading,
+      authError, refetch,
       loginMutation.isPending,
       loginMutation.error,
       login,
