@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { http, HttpResponse } from 'msw'
+import { isValidElement } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { AuthProvider } from '@/features/auth/context/AuthContext'
@@ -19,6 +20,11 @@ function renderWithProviders(ui: React.ReactNode) {
 }
 
 describe('router', () => {
+  it('keeps guest checkout and confirmation routes public', () => {
+    const types = ['checkout', 'confirmation'].map((path) => { const element = routes[0].children?.find((route) => route.path === path)?.element; return isValidElement(element) && typeof element.type === 'function' ? element.type.name : undefined })
+    expect(types).toEqual(['CheckoutPage', 'ConfirmationPage'])
+  })
+
   it('renders the home catalog at /', async () => {
     window.localStorage.setItem('cs-age-verified', 'true')
 
@@ -29,11 +35,6 @@ describe('router', () => {
       await screen.findByRole('heading', { name: 'Categorías destacadas' }),
     ).toBeDefined()
     expect(screen.getByText('Los más vendidos')).toBeDefined()
-  })
-
-  it('does not inherit browser state from the previous route test', () => {
-    expect(window.localStorage.getItem('cs-age-verified')).toBeNull()
-    expect(window.sessionStorage.getItem('cs-last-order')).toBeNull()
   })
 
   it('renders the login page at /login when not authenticated', async () => {

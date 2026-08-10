@@ -16,6 +16,8 @@ export interface UseCartResult {
   mode: 'guest' | 'authenticated'
   items: CartItem[]
   isLoading: boolean
+  error: Error | null
+  retry: () => Promise<void>
   addItem: (product: Product) => void
   addItemWithQuantity: (product: Product, quantity: number) => void
   removeItem: (productId: number) => void
@@ -50,9 +52,12 @@ export function useCart(
   const guestClearCart = useCartStore((state) => state.clearCart)
   const quoteInput = useMemo(() => ({ items: guestItems.map(({ product, quantity }) => ({ product_id: product.id, quantity })), ...(options.comunaId ? { comuna: options.comunaId } : {}) }), [guestItems, options.comunaId])
 
-  const { data: cartData, isLoading: isCartLoading } = useCartItems({
-    enabled: mode === 'authenticated',
-  })
+  const {
+    data: cartData,
+    error: cartError,
+    isLoading: isCartLoading,
+    refetch: refetchCart,
+  } = useCartItems({ enabled: mode === 'authenticated' })
   const guestQuote = useGuestQuote(mode === 'guest' ? quoteInput : { items: [] })
   const addToCartMutation = useAddToCart()
   const removeFromCartMutation = useRemoveFromCart()
@@ -149,6 +154,10 @@ export function useCart(
     mode,
     items,
     isLoading: isAuthenticated ? isCartLoading : guestQuote.isLoading || guestQuote.isFetching,
+    error: isAuthenticated ? cartError : null,
+    retry: async () => {
+      if (isAuthenticated) await refetchCart()
+    },
     addItem,
     addItemWithQuantity,
     removeItem,

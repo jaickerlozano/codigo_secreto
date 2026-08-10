@@ -67,7 +67,7 @@ export const testOrder: Order = makeOrder(
       id: 1,
       product_id: 1,
       product_name: 'Vibrador de prueba',
-      price: 1234,
+      price: 10000,
       quantity: 1,
       subtotal: 29990,
     },

@@ -54,4 +54,6 @@ describe('AuthProvider', () => {
     )
     expect(screen.getByTestId('auth-status').textContent).toBe('guest')
   })
+
+  it('exposes operational auth failures', async () => { server.use(http.get('http://localhost:8000/api/auth/me/', () => HttpResponse.json({ detail: 'Servidor no disponible' }, { status: 500 }))); function Consumer() { const { authError } = useAuth(); return <span data-testid="auth-error">{authError?.message ?? 'none'}</span> }; render(<Wrapper><Consumer /></Wrapper>); await waitFor(() => expect(screen.getByTestId('auth-error').textContent).toBe('Error del servidor. Intenta más tarde.')) })
 })
