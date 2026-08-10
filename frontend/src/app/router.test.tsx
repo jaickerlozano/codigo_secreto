@@ -31,6 +31,11 @@ describe('router', () => {
     expect(screen.getByText('Los más vendidos')).toBeDefined()
   })
 
+  it('does not inherit browser state from the previous route test', () => {
+    expect(window.localStorage.getItem('cs-age-verified')).toBeNull()
+    expect(window.sessionStorage.getItem('cs-last-order')).toBeNull()
+  })
+
   it('renders the login page at /login when not authenticated', async () => {
     server.use(
        http.get('http://localhost:8000/api/auth/me/', () =>

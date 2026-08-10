@@ -29,10 +29,13 @@ export function CartDrawer() {
     totalItems,
     freeShippingProgress,
     freeShippingThreshold,
+    quoteIsError,
+    quoteError,
+    retryQuote,
   } = useCart()
 
-  const progress = freeShippingProgress
-  const remaining = Math.max(freeShippingThreshold - subtotal, 0)
+  const progress = freeShippingProgress ?? 0
+  const quotePlaceholder = quoteIsError ? 'No disponible' : 'Cotizando…'
   const prefersReduced = useReducedMotion()
   const panelRef = useRef<HTMLDivElement>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
@@ -212,7 +215,7 @@ export function CartDrawer() {
                           </button>
                         </div>
                         <span className="text-[13px] font-bold text-foreground">
-                          {formatCLP(item.subtotal)}
+                          {item.subtotal === undefined ? quotePlaceholder : formatCLP(item.subtotal)}
                         </span>
                       </div>
                       <button
@@ -231,14 +234,13 @@ export function CartDrawer() {
 
             {cartItems.length > 0 && (
               <div className="border-t border-white/[0.06] px-6 py-5">
-                {freeShippingThreshold > 0 && subtotal < freeShippingThreshold && (
+                {quoteIsError && <div role="alert" className="mb-4 rounded-xl bg-destructive/10 p-3"><p className="mb-2 text-[11px] text-destructive">{quoteError?.message ?? 'No pudimos calcular el total. Inténtalo de nuevo.'}</p><button type="button" onClick={retryQuote} className="rounded text-[11px] font-bold text-neon-magenta underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Reintentar cotización</button></div>}
+                {freeShippingThreshold > 0 && subtotal! < freeShippingThreshold && (
                   <div className="mb-4 rounded-xl bg-secondary p-3">
                     <p className="text-[11px] text-muted-foreground">
-                      Agrega{' '}
                       <span className="font-bold text-neon-lime">
-                        {formatCLP(remaining)}
-                      </span>{' '}
-                      más para envío gratis
+                        Alcanza el mínimo para obtener envío gratis
+                      </span>
                     </p>
                     <motion.div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
                       <motion.div
@@ -247,7 +249,7 @@ export function CartDrawer() {
                         animate={{ width: `${progress}%` }}
                         transition={prefersReduced ? { duration: 0 } : { duration: 0.5 }}
                         role="progressbar"
-                        aria-valuenow={subtotal}
+                        aria-valuenow={subtotal!}
                         aria-valuemin={0}
                         aria-valuemax={freeShippingThreshold}
                         aria-label="Progreso envío gratis"
@@ -256,7 +258,7 @@ export function CartDrawer() {
                   </div>
                 )}
 
-                {freeShippingThreshold > 0 && subtotal >= freeShippingThreshold && (
+                {freeShippingThreshold > 0 && subtotal! >= freeShippingThreshold && (
                   <div className="mb-4 flex items-center gap-2 rounded-xl bg-neon-lime/10 p-3 text-neon-lime">
                     <span className="text-[11px] font-bold">
                       ¡Envío gratis! Has alcanzado el mínimo de compra.
@@ -268,7 +270,7 @@ export function CartDrawer() {
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
                     <span className="text-foreground">
-                      {formatCLP(subtotal)}
+                      {subtotal === null ? quotePlaceholder : formatCLP(subtotal)}
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -282,12 +284,12 @@ export function CartDrawer() {
                           : 'text-foreground'
                       }
                     >
-                      {shippingCost === 0 ? 'Gratis' : formatCLP(shippingCost)}
+                      {shippingCost === null ? 'Selecciona una comuna' : shippingCost === 0 ? 'Gratis' : formatCLP(shippingCost)}
                     </span>
                   </div>
                   <div className="flex justify-between border-t border-white/[0.06] pt-2.5 text-[15px] font-extrabold">
                     <span className="text-foreground">Total</span>
-                    <span className="text-foreground">{formatCLP(total)}</span>
+                    <span className="text-foreground">{total === null ? quotePlaceholder : formatCLP(total)}</span>
                   </div>
                 </div>
 

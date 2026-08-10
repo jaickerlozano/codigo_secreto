@@ -76,15 +76,13 @@ export const useCartStore = create<CartState>()(
           const quantity = existing.quantity + 1
           set({
             items: items.map((item) =>
-              item.product.id === product.id
-                ? { ...item, quantity, subtotal: product.price * quantity }
-                : item,
+              item.product.id === product.id ? { ...item, quantity } : item,
             ),
             isOpen: true,
           })
         } else {
           set({
-            items: [...items, { product, quantity: 1, subtotal: product.price }],
+            items: [...items, { product, quantity: 1 }],
             isOpen: true,
           })
         }
@@ -104,7 +102,6 @@ export const useCartStore = create<CartState>()(
                 ? {
                     ...item,
                     quantity: newQuantity,
-                    subtotal: product.price * newQuantity,
                   }
                 : item,
             ),
@@ -112,7 +109,7 @@ export const useCartStore = create<CartState>()(
           })
         } else {
           set({
-            items: [...items, { product, quantity, subtotal: product.price * quantity }],
+            items: [...items, { product, quantity }],
             isOpen: true,
           })
         }
@@ -133,9 +130,7 @@ export const useCartStore = create<CartState>()(
         }
         set({
           items: get().items.map((item) =>
-            item.product.id === productId
-              ? { ...item, quantity, subtotal: item.product.price * quantity }
-              : item,
+            item.product.id === productId ? { ...item, quantity } : item,
           ),
         })
       },

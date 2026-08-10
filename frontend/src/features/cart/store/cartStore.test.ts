@@ -30,6 +30,7 @@ describe('cartStore', () => {
 
     expect(useCartStore.getState().items).toHaveLength(1)
     expect(useCartStore.getState().items[0].quantity).toBe(1)
+    expect(useCartStore.getState().items[0]).not.toHaveProperty('subtotal')
   })
 
   it('switches mode with setMode', () => {

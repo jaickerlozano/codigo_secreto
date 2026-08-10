@@ -32,6 +32,8 @@ afterEach(() => {
   server.resetHandlers()
   resetServerCart()
   useCartStore.setState({ items: [], isOpen: false, mode: 'guest' })
+  window.localStorage.clear()
+  window.sessionStorage.clear()
 })
 
 afterAll(() => server.close())

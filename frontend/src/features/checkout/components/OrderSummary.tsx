@@ -3,10 +3,16 @@ import { useState } from 'react'
 
 import { formatCLP } from '@/lib/format'
 
-import { useCart } from '@/features/cart'
+import type { UseCartResult } from '@/features/cart/hooks/useCart'
 
-export function OrderSummary() {
-  const { items, subtotal, shippingCost, total } = useCart()
+type OrderSummaryCart = Pick<UseCartResult, 'items' | 'mode' | 'subtotal' | 'shippingCost' | 'total' | 'quoteIsLoading' | 'quoteIsError' | 'quoteError' | 'retryQuote'>
+
+interface OrderSummaryProps { cart: OrderSummaryCart }
+
+function quoteAmount(value: number | null, empty = 'Cotizando…') { return value === null ? empty : formatCLP(value) }
+
+export function OrderSummary({ cart }: OrderSummaryProps) {
+  const { items, mode, subtotal, shippingCost, total, quoteIsLoading, quoteIsError, quoteError, retryQuote } = cart
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -25,7 +31,7 @@ export function OrderSummary() {
         </span>
         <span className="flex items-center gap-2">
           <span className="text-sm font-bold text-foreground">
-            {formatCLP(total)}
+            {quoteAmount(total)}
           </span>
           <ChevronDown
             size={16}
@@ -62,13 +68,7 @@ export function OrderSummary() {
                   <p className="truncate text-xs font-semibold text-foreground">
                     {item.product.name}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {formatCLP(item.product.price)} c/u
-                  </p>
                 </div>
-                <span className="text-xs font-bold text-foreground">
-                  {formatCLP(item.subtotal)}
-                </span>
               </div>
             ))
           )}
@@ -77,7 +77,7 @@ export function OrderSummary() {
         <div className="border-t border-white/[0.06] pt-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Subtotal</span>
-            <span className="text-foreground">{formatCLP(subtotal)}</span>
+            <span className="text-foreground">{quoteAmount(subtotal)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Envío</span>
@@ -86,14 +86,17 @@ export function OrderSummary() {
                 shippingCost === 0 ? 'text-neon-lime' : 'text-foreground'
               }
             >
-              {shippingCost === 0 ? 'Gratis' : formatCLP(shippingCost)}
+              {shippingCost === 0 ? 'Gratis' : quoteAmount(shippingCost, 'Selecciona una comuna')}
             </span>
           </div>
           <div className="flex justify-between border-t border-white/[0.06] pt-2.5 text-[15px] font-extrabold">
             <span className="text-foreground">Total</span>
-            <span className="text-foreground">{formatCLP(total)}</span>
+            <span className="text-foreground">{quoteAmount(total)}</span>
           </div>
         </div>
+
+        {mode === 'guest' && quoteIsLoading && <p className="mt-4 text-center text-xs text-muted-foreground" role="status">Calculando el total seguro…</p>}
+        {mode === 'guest' && quoteIsError && <div className="mt-4 space-y-2" role="alert"><p className="text-xs text-destructive">{quoteError?.message ?? 'No se pudo calcular el total.'}</p><button type="button" onClick={retryQuote} className="min-h-12 w-full rounded-xl border border-neon-cyan/60 px-4 text-xs font-bold uppercase text-neon-cyan focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Reintentar cálculo</button></div>}
 
         <div className="mt-4 space-y-2">
           {[

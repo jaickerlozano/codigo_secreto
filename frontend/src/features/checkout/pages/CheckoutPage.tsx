@@ -1,11 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { SEO } from '@/components/SEO'
 import { useCart } from '@/features/cart'
+import { OrderCreationError, type CreateOrderInput } from '@/features/orders/api/orders.api'
 import { useCreateOrder } from '@/features/orders/hooks/useCreateOrder'
+import { guestQuoteQueryKey } from '@/features/cart/api/quote.api'
 import { addGuestOrder } from '@/features/orders/lib/guestOrders'
 
 import { useInitiatePayment } from '../hooks/useInitiatePayment'
@@ -18,14 +20,9 @@ import { StepReview } from '../components/steps/StepReview'
 import { StepShipping } from '../components/steps/StepShipping'
 import { useCheckout } from '../hooks/useCheckout'
 
-const ORDER_STORAGE_KEY = 'cs-last-order'
-
 export function CheckoutPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { items, clearCart, subtotal, shippingCost, total, mode, isLoading } = useCart()
-  const createOrder = useCreateOrder()
-  const initiatePayment = useInitiatePayment()
   const {
     currentStep,
     data,
@@ -38,6 +35,16 @@ export function CheckoutPage() {
     prevStep,
     goToStep,
   } = useCheckout()
+  const cart = useCart({ comunaId: data.address.comunaId || null })
+  const { items, clearCart, subtotal, shippingCost, total, mode, isLoading, quote, quoteInput, quoteIsLoading, quoteIsError, quoteIsStale } = cart
+  const createOrder = useCreateOrder()
+  const initiatePayment = useInitiatePayment()
+  const [confirmedRevision, setConfirmedRevision] = useState<string | null>(null)
+  const quoteIdentity = useMemo(() => JSON.stringify(quoteInput), [quoteInput])
+  const quoteCurrent = quote?.total !== undefined && !quoteIsLoading && !quoteIsError && !quoteIsStale
+  const quoteReady = mode === 'authenticated' || Boolean(quoteCurrent && (confirmedRevision === null || confirmedRevision === quote.revision))
+
+  useEffect(() => { setConfirmedRevision(null) }, [quoteIdentity, quote?.revision])
 
   useEffect(() => {
     if (!isLoading && items.length === 0) {
@@ -50,6 +57,8 @@ export function CheckoutPage() {
   }
 
   const handleConfirm = () => {
+    if (mode === 'guest' && !quoteReady) return
+
     const payload = {
       phone: data.contact.phone,
       shipping_address: data.address.address,
@@ -65,13 +74,16 @@ export function CheckoutPage() {
           product_id: item.product.id,
           quantity: item.quantity,
         })),
+        confirmed_revision: quote?.revision ?? '',
       }),
+    } satisfies CreateOrderInput
+
+    if (mode === 'guest' && quote) {
+      setConfirmedRevision(quote.revision)
     }
 
     createOrder.mutate(payload, {
       onSuccess: (order) => {
-        sessionStorage.setItem(ORDER_STORAGE_KEY, order.order_number)
-
         if (mode === 'guest') {
           addGuestOrder(order.order_number)
         }
@@ -86,7 +98,7 @@ export function CheckoutPage() {
                 clearCart()
               }
 
-              navigate('/confirmation', { replace: true })
+              navigate('/confirmation', { replace: true, state: { orderNumber: order.order_number } })
             },
             onError: (error) => {
               toast.error(error.message)
@@ -95,6 +107,14 @@ export function CheckoutPage() {
         )
       },
       onError: (error) => {
+        if (mode === 'guest' && error instanceof OrderCreationError && error.refreshedQuote) {
+          const key = guestQuoteQueryKey(quoteInput)
+          queryClient.setQueryData(key, error.refreshedQuote)
+          setConfirmedRevision(null)
+          void queryClient.invalidateQueries({ queryKey: key, exact: true })
+          toast.error('El total cambió. Revisa y confirma nuevamente.')
+          return
+        }
         toast.error(error.message)
       },
     })
@@ -155,6 +175,7 @@ export function CheckoutPage() {
                     subtotal={subtotal}
                     shippingCost={shippingCost}
                     total={total}
+                    quoteReady={quoteReady}
                     onEditStep={goToStep}
                     onTermsChange={setTermsAccepted}
                     onBack={prevStep}
@@ -167,7 +188,7 @@ export function CheckoutPage() {
               </div>
             </div>
 
-            <OrderSummary />
+            <OrderSummary cart={cart} />
           </div>
         </div>
       </main>
