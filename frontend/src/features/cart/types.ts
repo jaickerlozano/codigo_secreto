@@ -5,5 +5,5 @@ export type CartMode = 'guest' | 'authenticated'
 export interface CartItem {
   product: Product
   quantity: number
-  subtotal: number
+  subtotal?: number
 }

@@ -2,7 +2,11 @@ import { apiClient } from '@/lib/api-client'
 import type { components, paths } from '@/api/schema.d.ts'
 
 export type Order = components['schemas']['Order']
+export type GuestQuote = components['schemas']['GuestQuoteResponse']
+type QuoteRevisionStale = components['schemas']['QuoteRevisionStale']
 export type CreateOrderInput = NonNullable<paths['/api/orders/']['post']['requestBody']>['content']['application/json']
+
+export class OrderCreationError extends Error { readonly status?: number; readonly refreshedQuote?: GuestQuote; constructor(message: string, status?: number, refreshedQuote?: GuestQuote) { super(message); this.name = 'OrderCreationError'; this.status = status; this.refreshedQuote = refreshedQuote } }
 
 type AccessLocation = Pick<Location, 'hash' | 'pathname' | 'search'>
 type HistoryWriter = Pick<History, 'replaceState'>
@@ -73,16 +77,19 @@ export function extractErrorMessage(
 }
 
 export async function createOrder(input: CreateOrderInput): Promise<Order> {
-  const { data, error } = await apiClient.POST('/api/orders/', {
+  const { data, error, response } = await apiClient.POST('/api/orders/', {
     body: input,
   })
 
   if (error || !data) {
-    throw new Error(extractErrorMessage(error))
+    const stale = response?.status === 400 && isQuoteRevisionStale(error) ? error : undefined
+    throw new OrderCreationError(extractErrorMessage(error), response?.status, stale?.refreshed_quote)
   }
 
   return data
 }
+
+function isQuoteRevisionStale(error: unknown): error is QuoteRevisionStale { return typeof error === 'object' && error !== null && 'code' in error && error.code === 'quote_revision_stale' && 'refreshed_quote' in error }
 
 export async function getOrderByNumber(orderNumber: string): Promise<Order> {
   const { data, error } = await apiClient.GET(

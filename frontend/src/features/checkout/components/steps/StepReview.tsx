@@ -7,9 +7,10 @@ import type { CheckoutData, CheckoutStep } from '../../types'
 
 interface StepReviewProps {
   data: CheckoutData
-  subtotal: number
-  shippingCost: number
-  total: number
+  subtotal: number | null
+  shippingCost: number | null
+  total: number | null
+  quoteReady: boolean
   onEditStep: (step: CheckoutStep) => void
   onTermsChange: (accepted: boolean) => void
   onBack: () => void
@@ -17,11 +18,14 @@ interface StepReviewProps {
   isSubmitting?: boolean
 }
 
+function quoteAmount(value: number | null, empty = 'Calculando…') { return value === null ? empty : formatCLP(value) }
+
 export function StepReview({
   data,
   subtotal,
   shippingCost,
   total,
+  quoteReady,
   onEditStep,
   onTermsChange,
   onBack,
@@ -87,7 +91,7 @@ export function StepReview({
       <div className="mb-6 rounded-2xl bg-secondary p-4">
         <div className="mb-2 flex justify-between text-sm">
           <span className="text-muted-foreground">Subtotal</span>
-          <span className="text-foreground">{formatCLP(subtotal)}</span>
+          <span className="text-foreground">{quoteAmount(subtotal)}</span>
         </div>
         <div className="mb-2 flex justify-between text-sm">
           <span className="text-muted-foreground">Envío</span>
@@ -96,12 +100,12 @@ export function StepReview({
               shippingCost === 0 ? 'text-neon-lime' : 'text-foreground'
             }
           >
-            {shippingCost === 0 ? 'Gratis' : formatCLP(shippingCost)}
+            {shippingCost === 0 ? 'Gratis' : quoteAmount(shippingCost, 'Selecciona una comuna')}
           </span>
         </div>
         <div className="flex justify-between border-t border-white/[0.06] pt-3 text-[17px] font-extrabold">
           <span className="text-foreground">Total</span>
-          <span className="text-foreground">{formatCLP(total)}</span>
+          <span className="text-foreground">{quoteAmount(total)}</span>
         </div>
       </div>
 
@@ -165,7 +169,7 @@ export function StepReview({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={!data.termsAccepted || isSubmitting}
+          disabled={!data.termsAccepted || !quoteReady || isSubmitting}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-40"
           style={{ background: 'var(--gradient-brand)' }}
         >

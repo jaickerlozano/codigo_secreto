@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 
 import type { Product } from '@/features/catalog/types'
 
+import { useGuestQuote } from './useGuestQuote'
 import { mapApiCartItem } from '../lib/mappers'
 import { useCartStore } from '../store'
 import type { CartItem } from '../types'
@@ -21,14 +22,23 @@ export interface UseCartResult {
   updateQuantity: (productId: number, quantity: number) => void
   clearCart: () => void
   totalItems: number
-  subtotal: number
-  shippingCost: number
-  total: number
+  subtotal: number | null
+  shippingCost: number | null
+  total: number | null
   freeShippingProgress: number
   freeShippingThreshold: number
+  quote: ReturnType<typeof useGuestQuote>['data'] | null
+  quoteInput: Parameters<typeof useGuestQuote>[0]
+  quoteIsLoading: boolean
+  quoteIsError: boolean
+  quoteError: Error | null
+  quoteIsStale: boolean
+  retryQuote: () => void
 }
 
-export function useCart(): UseCartResult {
+export function useCart(
+  options: { comunaId?: number | null } = {},
+): UseCartResult {
   const mode = useCartStore((state) => state.mode)
   const guestItems = useCartStore((state) => state.items)
   const guestAddItem = useCartStore((state) => state.addItem)
@@ -38,10 +48,12 @@ export function useCart(): UseCartResult {
   const guestRemoveItem = useCartStore((state) => state.removeItem)
   const guestUpdateQuantity = useCartStore((state) => state.updateQuantity)
   const guestClearCart = useCartStore((state) => state.clearCart)
+  const quoteInput = useMemo(() => ({ items: guestItems.map(({ product, quantity }) => ({ product_id: product.id, quantity })), ...(options.comunaId ? { comuna: options.comunaId } : {}) }), [guestItems, options.comunaId])
 
   const { data: cartData, isLoading: isCartLoading } = useCartItems({
     enabled: mode === 'authenticated',
   })
+  const guestQuote = useGuestQuote(mode === 'guest' ? quoteInput : { items: [] })
   const addToCartMutation = useAddToCart()
   const removeFromCartMutation = useRemoveFromCart()
   const updateCartItemMutation = useUpdateCartItem()
@@ -58,18 +70,11 @@ export function useCart(): UseCartResult {
     [items],
   )
 
-  // Para invitados solo sumamos el subtotal de los ítems; envío y total
-  // avanzado solo los calcula el backend en modo autenticado.
-  const guestSubtotal = useMemo(
-    () => items.reduce((sum, item) => sum + item.subtotal, 0),
-    [items],
-  )
-
   const isAuthenticated = mode === 'authenticated'
 
-  const subtotal = isAuthenticated ? (cartData?.subtotal ?? 0) : guestSubtotal
-  const shippingCost = isAuthenticated ? (cartData?.shipping_cost ?? 0) : 0
-  const total = isAuthenticated ? (cartData?.total ?? 0) : guestSubtotal
+  const subtotal = isAuthenticated ? (cartData?.subtotal ?? 0) : (guestQuote.data?.subtotal ?? null)
+  const shippingCost = isAuthenticated ? (cartData?.shipping_cost ?? 0) : (guestQuote.data?.shipping_cost ?? null)
+  const total = isAuthenticated ? (cartData?.total ?? 0) : (guestQuote.data?.total ?? null)
   const freeShippingProgress = isAuthenticated
     ? (cartData?.free_shipping_progress ?? 0)
     : 0
@@ -143,7 +148,7 @@ export function useCart(): UseCartResult {
   return {
     mode,
     items,
-    isLoading: isAuthenticated ? isCartLoading : false,
+    isLoading: isAuthenticated ? isCartLoading : guestQuote.isLoading || guestQuote.isFetching,
     addItem,
     addItemWithQuantity,
     removeItem,
@@ -155,5 +160,12 @@ export function useCart(): UseCartResult {
     total,
     freeShippingProgress,
     freeShippingThreshold,
+    quote: isAuthenticated ? null : (guestQuote.data ?? null),
+    quoteInput,
+    quoteIsLoading: isAuthenticated ? false : guestQuote.isLoading || guestQuote.isFetching,
+    quoteIsError: isAuthenticated ? false : guestQuote.isError,
+    quoteError: isAuthenticated ? null : guestQuote.error,
+    quoteIsStale: isAuthenticated ? false : guestQuote.isStale,
+    retryQuote: () => { if (!isAuthenticated) void guestQuote.refetch() },
   }
 }

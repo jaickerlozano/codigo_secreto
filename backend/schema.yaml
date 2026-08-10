@@ -374,6 +374,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Order'
           description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteRevisionStale'
+          description: ''
   /api/orders/{id}/:
     get:
       operationId: orders_retrieve
@@ -441,6 +447,44 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/orders/quote/:
+    post:
+      operationId: orders_quote_create
+      tags:
+      - orders
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Quote'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Quote'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Quote'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestQuoteResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteError'
+          description: ''
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteError'
+          description: ''
   /api/payments/initiate/:
     post:
       operationId: payments_initiate_create
@@ -1108,11 +1152,51 @@ components:
       properties:
         product_id:
           type: integer
+          minimum: 1
         quantity:
           type: integer
+          minimum: 1
       required:
       - product_id
       - quantity
+    GuestQuoteLine:
+      type: object
+      properties:
+        product_id:
+          type: integer
+        product_name:
+          type: string
+        quantity:
+          type: integer
+        unit_price:
+          type: integer
+        line_total:
+          type: integer
+      required:
+      - line_total
+      - product_id
+      - product_name
+      - quantity
+      - unit_price
+    GuestQuoteResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuestQuoteLine'
+        subtotal:
+          type: integer
+        shipping_cost:
+          type: integer
+        total:
+          type: integer
+        revision:
+          type: string
+      required:
+      - items
+      - revision
+      - subtotal
     InitiatePayment:
       type: object
       properties:
@@ -1176,6 +1260,11 @@ components:
             $ref: '#/components/schemas/GuestOrderItem'
           writeOnly: true
           description: Lista de productos para invitados
+        confirmed_revision:
+          type: string
+          writeOnly: true
+          nullable: true
+          description: Signed quote revision explicitly confirmed by a guest.
         payment_method:
           $ref: '#/components/schemas/PaymentMethodEnum'
         guest_access:
@@ -1275,6 +1364,11 @@ components:
             $ref: '#/components/schemas/GuestOrderItem'
           writeOnly: true
           description: Lista de productos para invitados
+        confirmed_revision:
+          type: string
+          writeOnly: true
+          nullable: true
+          description: Signed quote revision explicitly confirmed by a guest.
         payment_method:
           $ref: '#/components/schemas/PaymentMethodEnum'
       required:
@@ -1713,6 +1807,41 @@ components:
       required:
       - id
       - image
+    Quote:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/GuestOrderItem'
+        comuna:
+          type: integer
+          minimum: 1
+      required:
+      - items
+    QuoteError:
+      type: object
+      properties:
+        code:
+          type: string
+        detail:
+          type: string
+      required:
+      - code
+      - detail
+    QuoteRevisionStale:
+      type: object
+      properties:
+        code:
+          type: string
+        detail:
+          type: string
+        refreshed_quote:
+          $ref: '#/components/schemas/GuestQuoteResponse'
+      required:
+      - code
+      - detail
+      - refreshed_quote
     Region:
       type: object
       properties:
