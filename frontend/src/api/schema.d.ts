@@ -252,6 +252,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/orders/quote/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["orders_quote_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/payments/initiate/": {
         parameters: {
             query?: never;
@@ -521,6 +537,20 @@ export interface components {
             product_id: number;
             quantity: number;
         };
+        GuestQuoteLine: {
+            product_id: number;
+            product_name: string;
+            quantity: number;
+            unit_price: number;
+            line_total: number;
+        };
+        GuestQuoteResponse: {
+            items: components["schemas"]["GuestQuoteLine"][];
+            subtotal: number;
+            shipping_cost?: number;
+            total?: number;
+            revision: string;
+        };
         InitiatePayment: {
             order_id: number;
         };
@@ -552,6 +582,8 @@ export interface components {
             guest_name?: string | null;
             /** @description Lista de productos para invitados */
             guest_items?: components["schemas"]["GuestOrderItem"][];
+            /** @description Signed quote revision explicitly confirmed by a guest. */
+            confirmed_revision?: string | null;
             payment_method?: components["schemas"]["PaymentMethodEnum"];
             readonly guest_access: components["schemas"]["GuestAccess"] | null;
             /** Subtotal productos */
@@ -598,6 +630,8 @@ export interface components {
             guest_name?: string | null;
             /** @description Lista de productos para invitados */
             guest_items?: components["schemas"]["GuestOrderItem"][];
+            /** @description Signed quote revision explicitly confirmed by a guest. */
+            confirmed_revision?: string | null;
             payment_method?: components["schemas"]["PaymentMethodEnum"];
         };
         OrderItem: {
@@ -836,6 +870,19 @@ export interface components {
         ProductImage: {
             readonly id: number;
             readonly image: string;
+        };
+        Quote: {
+            items: components["schemas"]["GuestOrderItem"][];
+            comuna?: number;
+        };
+        QuoteError: {
+            code: string;
+            detail: string;
+        };
+        QuoteRevisionStale: {
+            code: string;
+            detail: string;
+            refreshed_quote: components["schemas"]["GuestQuoteResponse"];
         };
         Region: {
             readonly id: number;
@@ -1324,6 +1371,14 @@ export interface operations {
                     "application/json": components["schemas"]["Order"];
                 };
             };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteRevisionStale"];
+                };
+            };
         };
     };
     orders_retrieve: {
@@ -1388,6 +1443,47 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    orders_quote_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Quote"];
+                "application/x-www-form-urlencoded": components["schemas"]["Quote"];
+                "multipart/form-data": components["schemas"]["Quote"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GuestQuoteResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteError"];
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteError"];
+                };
             };
         };
     };

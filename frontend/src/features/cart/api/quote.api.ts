@@ -1,0 +1,8 @@
+import type { components, paths } from '@/api/schema.d.ts'; import { apiClient } from '@/lib/api-client'
+export type GuestQuote = components['schemas']['GuestQuoteResponse']
+export type GuestQuoteInput = NonNullable<paths['/api/orders/quote/']['post']['requestBody']>['content']['application/json']
+export class GuestQuoteError extends Error { readonly status?: number; constructor(message: string, status?: number) { super(message); this.name = 'GuestQuoteError'; this.status = status } }
+function errorMessage(error: unknown): string { return typeof error === 'object' && error !== null && 'detail' in error && typeof error.detail === 'string' ? error.detail : 'No se pudo calcular el total. Inténtalo de nuevo.' }
+export function guestQuoteQueryKey(input: GuestQuoteInput) { const items = input.items.map(({ product_id, quantity }) => [product_id, quantity] as const).sort(([left], [right]) => left - right); return ['guest-quote', items, input.comuna ?? null] as const }
+export function shouldRetryGuestQuote(failureCount: number, error: unknown) { if (failureCount >= 1) return false; const status = error instanceof GuestQuoteError ? error.status : typeof error === 'object' && error !== null && 'status' in error && typeof error.status === 'number' ? error.status : undefined; return status === undefined || (status >= 500 && status < 600) }
+export async function getGuestQuote(input: GuestQuoteInput, signal?: AbortSignal): Promise<GuestQuote> { const { data, error, response } = await apiClient.POST('/api/orders/quote/', { body: input, signal }); if (error || !data) throw new GuestQuoteError(errorMessage(error), response?.status); return data }

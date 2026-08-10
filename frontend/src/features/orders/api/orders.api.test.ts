@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { server } from '@/test/setup'
 
-import { exchangeOrderAccessFromLocation, getOrderByNumber } from './orders.api'
+import { createOrder, exchangeOrderAccessFromLocation, getOrderByNumber } from './orders.api'
 
 describe('order access routing', () => {
   const route = (hash = '', search = '') => ({
@@ -78,5 +78,12 @@ describe('order access routing', () => {
     )
     expect(lookupRequest?.url).not.toContain('access=')
     expect(lookupRequest?.headers.get('X-Order-Capability')).toBeNull()
+  })
+})
+
+describe('guest quote drift response', () => {
+  it('surfaces the refreshed generated quote without retrying creation', async () => {
+    server.use(http.post('http://localhost:8000/api/orders/', () => HttpResponse.json({ code: 'quote_revision_stale', detail: 'stale', refreshed_quote: { items: [], subtotal: 1, shipping_cost: 2, total: 3, revision: 'gq1.new' } }, { status: 400 })))
+    await expect(createOrder({ phone: '+56', shipping_address: 'Address', guest_items: [], confirmed_revision: 'gq1.old' })).rejects.toMatchObject({ status: 400, refreshedQuote: { revision: 'gq1.new' } })
   })
 })

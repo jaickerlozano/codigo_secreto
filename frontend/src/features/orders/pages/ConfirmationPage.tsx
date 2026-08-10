@@ -9,7 +9,7 @@ import {
   Truck,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -17,8 +17,6 @@ import { formatCLP } from '@/lib/format'
 import type { components } from '@/api/schema.d.ts'
 
 import { useOrder } from '../hooks/useOrder'
-
-const ORDER_STORAGE_KEY = 'cs-last-order'
 
 type OrderStatus = components['schemas']['StatusEnum']
 type PaymentMethod = components['schemas']['Order']['payment_method']
@@ -40,19 +38,21 @@ const PAYMENT_METHOD_LABELS: Record<NonNullable<PaymentMethod>, string> = {
 
 export function ConfirmationPage() {
   const navigate = useNavigate()
-  const [orderNumber, setOrderNumber] = useState<string | null>(null)
+  const location = useLocation()
+  const orderNumber =
+    typeof location.state === 'object' &&
+    location.state !== null &&
+    'orderNumber' in location.state &&
+    typeof location.state.orderNumber === 'string'
+      ? location.state.orderNumber
+      : null
   const [copied, setCopied] = useState(false)
   const prefersReduced = useReducedMotion()
   const { data: order, isLoading, error } = useOrder(orderNumber ?? undefined)
 
   useEffect(() => {
-    const stored = sessionStorage.getItem(ORDER_STORAGE_KEY)
-    if (!stored) {
-      navigate('/', { replace: true })
-      return
-    }
-    setOrderNumber(stored)
-  }, [navigate])
+    if (!orderNumber) navigate('/', { replace: true })
+  }, [navigate, orderNumber])
 
   const handleCopy = () => {
     if (!orderNumber) return
@@ -240,7 +240,7 @@ export function ConfirmationPage() {
                   </p>
                 </div>
                 <span className="font-semibold text-foreground">
-                  {formatCLP(item.price * item.quantity)}
+                  {formatCLP(item.subtotal)}
                 </span>
               </li>
             ))}
