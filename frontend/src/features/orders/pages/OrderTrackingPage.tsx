@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useParams } from 'react-router'
 import { motion } from 'motion/react'
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowLeft,
   Box,
@@ -11,17 +11,13 @@ import {
   Phone,
 } from 'lucide-react'
 
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { useAuth } from '@/features/auth'
 import { formatCLP } from '@/lib/format'
 import { SUPPORT_PHONE } from '@/lib/config'
 import type { components } from '@/api/schema.d.ts'
 
 import { useOrder } from '../hooks/useOrder'
 import { OrderTimeline, type TimelineStep } from '../components/OrderTimeline'
-import { addGuestOrder, isGuestOrderAllowed } from '../lib/guestOrders'
-
-const ORDER_STORAGE_KEY = 'cs-last-order'
+import { exchangeOrderAccessFromLocation } from '../api/orders.api'
 
 type OrderStatus = components['schemas']['StatusEnum']
 type PaymentMethod = components['schemas']['Order']['payment_method']
@@ -101,25 +97,21 @@ function buildTimeline(
 
 export function OrderTrackingPage() {
   const { orderId: paramOrderId } = useParams<{ orderId: string }>()
-  const { isAuthenticated, isLoading: isAuthLoading } = useAuth()
-  const [fallbackNumber, setFallbackNumber] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!paramOrderId) {
-      setFallbackNumber(sessionStorage.getItem(ORDER_STORAGE_KEY))
-    }
-  }, [paramOrderId])
-
-  const orderNumber = paramOrderId || fallbackNumber || undefined
-  const { data: order, isLoading: isOrderLoading, error } = useOrder(orderNumber)
-
-  useEffect(() => {
-    if (orderNumber && !isAuthenticated) {
-      addGuestOrder(orderNumber)
-    }
-  }, [orderNumber, isAuthenticated])
-
-  const canView = isAuthenticated || (orderNumber ? isGuestOrderAllowed(orderNumber) : false)
+  const location = useLocation()
+  const orderNumber = paramOrderId || undefined
+  const accessQuery = useQuery({
+    queryKey: ['order-access', orderNumber, location.hash],
+    queryFn: () =>
+      exchangeOrderAccessFromLocation(
+        orderNumber!,
+        location,
+        globalThis.history,
+      ),
+    enabled: Boolean(orderNumber && location.hash),
+    retry: false,
+  })
+  const accessReady = !location.hash || accessQuery.isSuccess
+  const { data: order, isLoading: isOrderLoading, error } = useOrder(accessReady ? orderNumber : undefined)
 
   const handleContactSupport = () => {
     if (!order) return
@@ -128,7 +120,7 @@ export function OrderTrackingPage() {
     window.open(href, '_blank', 'noopener,noreferrer')
   }
 
-  if (!orderNumber) {
+  if (!orderNumber || accessQuery.isError) {
     return (
       <main
         id="main-content"
@@ -143,7 +135,7 @@ export function OrderTrackingPage() {
         </p>
         <Link
           to="/"
-          className="rounded-xl px-6 py-3 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-12 items-center justify-center rounded-xl px-6 py-3 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           style={{ background: 'var(--gradient-brand)' }}
         >
           Volver al inicio
@@ -152,38 +144,10 @@ export function OrderTrackingPage() {
     )
   }
 
-  if (!isAuthLoading && !canView) {
+  if ((location.hash && accessQuery.isPending) || isOrderLoading) {
     return (
-      <main
-        id="main-content"
-        className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
-      >
-        <PackageX size={48} className="mb-4 text-muted-foreground" />
-        <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">
-          No tienes permiso
-        </h1>
-        <p className="mb-6 max-w-xs text-sm text-muted-foreground">
-          No puedes ver el pedido {orderNumber}. Inicia sesión o usa el enlace
-          que te enviamos.
-        </p>
-        <Link
-          to={`/login?next=${encodeURIComponent(`/order/${orderNumber}`)}`}
-          className="rounded-xl px-6 py-3 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          style={{ background: 'var(--gradient-brand)' }}
-        >
-          Iniciar sesión
-        </Link>
-      </main>
-    )
-  }
-
-  if (isOrderLoading) {
-    return (
-      <main
-        id="main-content"
-        className="flex min-h-[60vh] items-center justify-center px-4 py-20"
-      >
-        <LoadingSpinner />
+      <main id="main-content" className="min-h-[60vh] px-4 py-20">
+        <TrackingSkeleton />
       </main>
     )
   }
@@ -193,6 +157,7 @@ export function OrderTrackingPage() {
       <main
         id="main-content"
         className="flex min-h-[60vh] flex-col items-center justify-center px-4 py-20 text-center"
+        role="alert"
       >
         <PackageX size={48} className="mb-4 text-muted-foreground" />
         <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">
@@ -204,7 +169,7 @@ export function OrderTrackingPage() {
         </p>
         <Link
           to="/"
-          className="rounded-xl px-6 py-3 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex min-h-12 items-center justify-center rounded-xl px-6 py-3 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           style={{ background: 'var(--gradient-brand)' }}
         >
           Volver al inicio
@@ -231,7 +196,7 @@ export function OrderTrackingPage() {
         >
           <Link
             to="/"
-            className="mb-4 inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-neon-magenta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="mb-4 inline-flex min-h-12 items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-neon-magenta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <ArrowLeft size={14} /> Volver al inicio
           </Link>
@@ -364,7 +329,7 @@ export function OrderTrackingPage() {
               transition={{ duration: 0.4, delay: 0.4 }}
               type="button"
               onClick={handleContactSupport}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-neon-lime/30 bg-neon-lime/10 py-3.5 text-sm font-bold uppercase tracking-wide text-neon-lime transition-all hover:bg-neon-lime/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-lime/30 bg-neon-lime/10 py-3.5 text-sm font-bold uppercase tracking-wide text-neon-lime transition-all hover:bg-neon-lime/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime"
             >
               <MessageCircle size={16} />
               Contactar soporte
@@ -374,4 +339,7 @@ export function OrderTrackingPage() {
       </div>
     </main>
   )
+}
+function TrackingSkeleton() {
+  return <div role="status" aria-label="Cargando seguimiento del pedido" className="mx-auto max-w-5xl animate-pulse"><div className="mb-6 h-8 w-64 rounded bg-muted" aria-hidden="true" /><div className="h-72 rounded-2xl border border-border bg-card" /></div>
 }

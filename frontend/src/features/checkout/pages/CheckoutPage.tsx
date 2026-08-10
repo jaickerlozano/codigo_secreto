@@ -4,11 +4,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { SEO } from '@/components/SEO'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useCart } from '@/features/cart'
-import { OrderCreationError, type CreateOrderInput } from '@/features/orders/api/orders.api'
+import { exchangeOrderAccess, OrderCreationError, type CreateOrderInput } from '@/features/orders/api/orders.api'
 import { useCreateOrder } from '@/features/orders/hooks/useCreateOrder'
 import { guestQuoteQueryKey } from '@/features/cart/api/quote.api'
-import { addGuestOrder } from '@/features/orders/lib/guestOrders'
 
 import { useInitiatePayment } from '../hooks/useInitiatePayment'
 import { CheckoutProgress } from '../components/CheckoutProgress'
@@ -36,7 +36,7 @@ export function CheckoutPage() {
     goToStep,
   } = useCheckout()
   const cart = useCart({ comunaId: data.address.comunaId || null })
-  const { items, clearCart, subtotal, shippingCost, total, mode, isLoading, quote, quoteInput, quoteIsLoading, quoteIsError, quoteIsStale } = cart
+  const { items, clearCart, subtotal, shippingCost, total, mode, isLoading, error: cartError, retry: retryCart, quote, quoteInput, quoteIsLoading, quoteIsError, quoteIsStale } = cart
   const createOrder = useCreateOrder()
   const initiatePayment = useInitiatePayment()
   const [confirmedRevision, setConfirmedRevision] = useState<string | null>(null)
@@ -47,12 +47,15 @@ export function CheckoutPage() {
   useEffect(() => { setConfirmedRevision(null) }, [quoteIdentity, quote?.revision])
 
   useEffect(() => {
-    if (!isLoading && items.length === 0) {
+    if (!isLoading && !cartError && items.length === 0) {
       navigate('/', { replace: true })
     }
-  }, [items.length, isLoading, navigate])
+  }, [cartError, items.length, isLoading, navigate])
+
+  if (cartError) return <main id="main-content" className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center" role="alert"><h1 className="text-xl font-semibold text-error-500">No pudimos cargar tu carrito</h1><p className="text-base-200">{cartError.message}</p><button type="button" onClick={() => void retryCart()} className="min-h-12 rounded-lg bg-neon-cyan-500 px-6 py-3 font-semibold text-base-900">Reintentar carrito</button></main>
 
   if (items.length === 0) {
+    if (isLoading) return <CheckoutLoadingState />
     return null
   }
 
@@ -83,12 +86,10 @@ export function CheckoutPage() {
     }
 
     createOrder.mutate(payload, {
-      onSuccess: (order) => {
-        if (mode === 'guest') {
-          addGuestOrder(order.order_number)
-        }
-
-        initiatePayment.mutate(
+      onSuccess: async (order) => {
+        try {
+          if (mode === 'guest' && order.guest_access) await exchangeOrderAccess(order.order_number, order.guest_access.token)
+          initiatePayment.mutate(
           { order_id: order.id },
           {
             onSuccess: () => {
@@ -104,7 +105,10 @@ export function CheckoutPage() {
               toast.error(error.message)
             },
           },
-        )
+          )
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'No se pudo validar el acceso al pedido.')
+        }
       },
       onError: (error) => {
         if (mode === 'guest' && error instanceof OrderCreationError && error.refreshedQuote) {
@@ -194,4 +198,8 @@ export function CheckoutPage() {
       </main>
     </>
   )
+}
+
+export function CheckoutLoadingState() {
+  return <main id="main-content" className="min-h-screen px-4 py-8" role="status" aria-label="Cargando checkout" aria-live="polite"><div aria-hidden="true"><Skeleton className="h-8 w-48" /><Skeleton className="h-64 w-full rounded-2xl" /></div><span className="sr-only">Cargando checkout...</span></main>
 }
