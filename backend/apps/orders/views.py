@@ -18,6 +18,7 @@ from .serializers import (
 from .services import (
     GUEST_ACCESS_COOKIE_MAX_AGE,
     GUEST_ACCESS_COOKIE_NAME,
+    CheckoutKeyConflictError,
     GuestQuoteRevisionStale,
     GuestQuoteValidationError,
     authorize_order_access,
@@ -66,7 +67,7 @@ class OrderViewSet(mixins.CreateModelMixin,
 
     @extend_schema(
         request=OrderCreateSerializer,
-        responses={201: OrderSerializer, 400: QuoteRevisionStaleSerializer},
+        responses={201: OrderSerializer, 400: QuoteRevisionStaleSerializer, 409: QuoteErrorSerializer},
     )
     def create(self, request, *args, **kwargs):
         try:
@@ -79,6 +80,11 @@ class OrderViewSet(mixins.CreateModelMixin,
                     error.quote.as_dict()
                 ).data,
             }, status=status.HTTP_400_BAD_REQUEST)
+        except CheckoutKeyConflictError:
+            return Response({
+                'code': 'checkout_key_conflict',
+                'detail': 'The checkout key cannot be reused for a different purchase.',
+            }, status=status.HTTP_409_CONFLICT)
 
     @extend_schema(
         request=QuoteSerializer,

@@ -2,10 +2,10 @@ from rest_framework import serializers
 from django.db import transaction
 from .models import Order, OrderItem
 from .services import (
-    GuestQuoteRevisionStale,
     GuestQuoteValidationError,
-    calculate_guest_quote,
-    quote_revision_matches,
+    InvalidCheckoutKeyError,
+    create_order,
+    normalize_checkout_key,
 )
 from apps.shipping.services import ShippingSnapshotResolutionError, resolve_comuna_shipping_snapshot
 
@@ -212,48 +212,34 @@ class OrderSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         user = self.context['request'].user
+        try:
+            checkout_key = normalize_checkout_key(
+                self.context['request'].headers.get('Idempotency-Key')
+            )
+        except InvalidCheckoutKeyError:
+            raise serializers.ValidationError({'detail': 'Invalid idempotency key.'})
 
         if not user or user.is_anonymous:
             guest_items = validated_data.pop('guest_items')
             confirmed_revision = validated_data.pop('confirmed_revision', None)
             comuna_selector = validated_data.pop('_comuna_selector')
-            with transaction.atomic():
-                try:
-                    quote = calculate_guest_quote(
-                        guest_items, comuna_selector=comuna_selector, lock=True
-                    )
-                except GuestQuoteValidationError as error:
-                    raise serializers.ValidationError({
-                        'guest_items': 'Unable to resolve the confirmed quote.'
-                    }) from error
-                if not quote_revision_matches(confirmed_revision, quote):
-                    raise GuestQuoteRevisionStale(quote)
-
-                order = Order.objects.create(
-                    user=None,
+            try:
+                return create_order(
+                    checkout_key=checkout_key,
                     guest_email=validated_data.get('guest_email'),
                     guest_name=validated_data.get('guest_name'),
                     phone=validated_data['phone'],
-                    comuna_id=quote.comuna_id,
                     shipping_address=validated_data['shipping_address'],
                     apartment_office=validated_data.get('apartment_office', ''),
                     payment_method=validated_data.get('payment_method', 'webpay'),
-                    subtotal=quote.subtotal,
-                    shipping_cost=quote.shipping_cost,
-                    total=quote.total,
+                    guest_items=guest_items,
+                    confirmed_revision=confirmed_revision,
+                    comuna_selector=comuna_selector,
                 )
-                order._guest_access_token = order.issue_guest_access()
-                OrderItem.objects.bulk_create([
-                    OrderItem(
-                        order=order,
-                        product_id=line.product_id,
-                        product_name=line.product_name,
-                        price=line.unit_price,
-                        quantity=line.quantity,
-                    )
-                    for line in quote.items
-                ])
-            return order
+            except GuestQuoteValidationError as error:
+                raise serializers.ValidationError({
+                    'guest_items': 'Unable to resolve the confirmed quote.'
+                }) from error
 
         comuna_id = validated_data.pop('comuna_id')
         comuna_snapshot = validated_data.pop('_comuna_snapshot')
