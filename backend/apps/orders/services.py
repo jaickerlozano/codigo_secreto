@@ -3,9 +3,10 @@ import json
 from dataclasses import dataclass
 
 from django.core import signing
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.orders.models import Order
+from apps.orders.models import Order, OrderItem
 from apps.products.services import ProductSnapshotResolutionError, resolve_product_price_snapshot
 from apps.shipping.services import ShippingSnapshotResolutionError, resolve_comuna_shipping_snapshot
 
@@ -175,3 +176,94 @@ def authorize_order_access(order_number=None, *, order_id=None, user=None, capab
     if access_cookie and order.user is None and _verify_cookie(order, access_cookie):
         return order
     return None
+
+
+# --- Idempotent guest checkout (Idempotency-Key header, stored as Order.checkout_key) ---
+
+CHECKOUT_KEY_MAX_LENGTH = 64  # mirrors Order.checkout_key max_length
+
+
+class InvalidCheckoutKeyError(ValueError): """The Idempotency-Key header cannot be used safely."""
+class CheckoutKeyConflictError(ValueError): """A checkout key was reused for a different purchase intent."""
+
+
+def normalize_checkout_key(raw):
+    """Normalize an Idempotency-Key header value; None when absent or blank."""
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if not isinstance(raw, str) or len(raw.strip()) > CHECKOUT_KEY_MAX_LENGTH:
+        raise InvalidCheckoutKeyError("Invalid checkout key.")
+    return raw.strip()
+
+
+def _canonical_items(items):
+    return tuple(sorted((item.product_id, item.quantity) for item in items))
+
+
+def _guest_intent(quote, guest_email):
+    return ((guest_email or "").casefold(), quote.comuna_id, _canonical_items(quote.items))
+
+
+def _ensure_guest_replay(existing, quote, guest_email):
+    frozen = ((existing.guest_email or "").casefold(), existing.comuna_id,
+              _canonical_items(existing.items.all()))
+    if existing.user is not None or frozen != _guest_intent(quote, guest_email):
+        raise CheckoutKeyConflictError()
+
+
+def _race_replay(checkout_key, quote, guest_email):
+    """Resolve a same-key IntegrityError (concurrent double-submit) to a replay."""
+    existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().get()
+    _ensure_guest_replay(existing, quote, guest_email)
+    existing._guest_access_token = existing.rotate_guest_access()
+    return existing
+
+
+def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shipping_address,
+                        apartment_office, payment_method, guest_items, confirmed_revision,
+                        comuna_selector):
+    with transaction.atomic():
+        quote = calculate_guest_quote(guest_items, comuna_selector=comuna_selector, lock=True)
+        if checkout_key:
+            existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().first()
+            if existing is not None:
+                _ensure_guest_replay(existing, quote, guest_email)
+                existing._guest_access_token = existing.rotate_guest_access()
+                return existing
+        if not quote_revision_matches(confirmed_revision, quote):
+            raise GuestQuoteRevisionStale(quote)
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(
+                    user=None, guest_email=guest_email, guest_name=guest_name, phone=phone,
+                    comuna_id=quote.comuna_id, shipping_address=shipping_address,
+                    apartment_office=apartment_office, payment_method=payment_method,
+                    checkout_key=checkout_key, subtotal=quote.subtotal,
+                    shipping_cost=quote.shipping_cost, total=quote.total,
+                )
+                OrderItem.objects.bulk_create([
+                    OrderItem(order=order, product_id=line.product_id,
+                              product_name=line.product_name, price=line.unit_price,
+                              quantity=line.quantity)
+                    for line in quote.items
+                ])
+        except IntegrityError:
+            if not checkout_key:
+                raise
+            return _race_replay(checkout_key, quote, guest_email)
+        order._guest_access_token = order.issue_guest_access()
+        return order
+
+
+def create_order(*, checkout_key=None, guest_email=None, guest_name=None, phone=None,
+                 shipping_address=None, apartment_office="", payment_method="webpay",
+                 guest_items=None, confirmed_revision=None, comuna_selector=None):
+    """Create a guest order or replay it by ``checkout_key`` (replay rotates the
+    raw capability; conflicting reuse fails). Totals are backend-computed and
+    frozen; the guest cart is the client-side list, never cleared server-side."""
+    return _create_guest_order(
+        checkout_key=checkout_key, guest_email=guest_email, guest_name=guest_name,
+        phone=phone, shipping_address=shipping_address, apartment_office=apartment_office,
+        payment_method=payment_method, guest_items=guest_items,
+        confirmed_revision=confirmed_revision, comuna_selector=comuna_selector,
+    )
