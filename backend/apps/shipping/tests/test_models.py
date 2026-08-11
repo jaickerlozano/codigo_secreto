@@ -1,7 +1,7 @@
 import pytest
 from django.db import IntegrityError
 
-from apps.shipping.models import Comuna, Region
+from apps.shipping.models import Comuna, Region, RegionalShippingOption
 
 
 pytestmark = pytest.mark.django_db
@@ -50,3 +50,23 @@ def test_comuna_ordering_by_name(comuna_factory, region_factory):
 
     assert comunas[0] == comuna_a
     assert comunas[1] == comuna_z
+
+
+def test_regional_option_singleton_key_is_unique(regional_option_factory):
+    regional_option_factory(key="regional")
+
+    with pytest.raises(IntegrityError):
+        RegionalShippingOption.objects.create(
+            key="regional", carrier="Duplicate Carrier", tariff=5000,
+            min_lead_days=2, max_lead_days=5,
+        )
+
+
+def test_regional_option_defaults_and_str(regional_option_factory):
+    option = regional_option_factory(
+        carrier="CS Logistics", tariff=4000, min_lead_days=2, max_lead_days=5)
+
+    assert option.is_active is True
+    assert option.tariff == 4000
+    assert (option.min_lead_days, option.max_lead_days) == (2, 5)
+    assert str(option) == "CS Logistics"

@@ -1,7 +1,7 @@
 import factory
 from faker import Faker
 
-from apps.shipping.models import Comuna, Region
+from apps.shipping.models import Comuna, Region, RegionalShippingOption
 
 faker = Faker("es_CL")
 
@@ -38,4 +38,18 @@ class ComunaFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f"Comuna {n}")
     region = factory.SubFactory(RegionFactory)
     shipping_cost = factory.LazyFunction(lambda: faker.random_int(min=1000, max=10000))
+    is_active = True
+
+
+class RegionalShippingOptionFactory(factory.django.DjangoModelFactory):
+    """Factory for the single regional shipping configuration (key unique)."""
+
+    class Meta:
+        model = RegionalShippingOption
+
+    key = "regional"
+    carrier = factory.Sequence(lambda n: f"Carrier {n}")
+    tariff = factory.LazyFunction(lambda: faker.random_int(min=1000, max=10000))
+    min_lead_days = 2
+    max_lead_days = 5
     is_active = True

@@ -37,4 +37,24 @@ class Comuna(models.Model):
         unique_together = ('name', 'region')
 
 
-    
+class RegionalShippingOption(models.Model):
+    # Configuración única de transporte regional (fuera de Santiago).
+    key = models.CharField(max_length=50, unique=True, default='regional',
+        verbose_name='clave', help_text='Clave única del singleton regional.')
+    carrier = models.CharField(max_length=100, verbose_name='transportista')
+    tariff = models.PositiveIntegerField(verbose_name='tarifa CLP',
+        help_text='Tarifa de envío en CLP para la opción regional.')
+    min_lead_days = models.PositiveIntegerField(verbose_name='plazo mínimo (días)',
+        help_text='Plazo mínimo de entrega en días para la opción regional.')
+    max_lead_days = models.PositiveIntegerField(verbose_name='plazo máximo (días)',
+        help_text='Plazo máximo de entrega en días para la opción regional.')
+    is_active = models.BooleanField(default=True, verbose_name='activa',
+        help_text='Indica si la opción regional está disponible para nuevos despachos.')
+
+    def __str__(self):
+        return self.carrier
+
+    class Meta:
+        ordering = ['key']
+        verbose_name = 'Opción de Envío Regional'
+        verbose_name_plural = 'Opciones de Envío Regional'
