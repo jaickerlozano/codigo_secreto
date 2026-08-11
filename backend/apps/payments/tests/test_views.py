@@ -1,4 +1,5 @@
 import pytest
+from django.test import override_settings
 from rest_framework import status
 
 from apps.payments.models import Transaction
@@ -8,7 +9,7 @@ from apps.payments.models import Transaction
 class TestInitiatePaymentView:
     """Integration tests for the payment initiation endpoint."""
 
-    def test_initiate_payment_success(self, authenticated_client, order_factory, user):
+    def test_initiate_payment_success(self, authenticated_client, order_factory, user, mock_payment_enabled):
         """An authorized owner still receives the existing mock payment response."""
         order = order_factory(user=user, status="PENDING", total=30000)
 
@@ -36,7 +37,7 @@ class TestInitiatePaymentView:
         assert response.json() == {"detail": "Not found."}
         assert not Transaction.objects.filter(order=order).exists()
 
-    def test_validate_paid_order(self, authenticated_client, order_factory, user):
+    def test_validate_paid_order(self, authenticated_client, order_factory, user, mock_payment_enabled):
         """Payment initiation fails when the order is not in PENDING status."""
         order = order_factory(user=user, status="PAID")
 
@@ -52,7 +53,7 @@ class TestInitiatePaymentView:
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert response.json() == {"detail": "Not found."}
 
-    def test_initiate_payment_already_paid(self, authenticated_client, order_factory, transaction_factory, user):
+    def test_initiate_payment_already_paid(self, authenticated_client, order_factory, transaction_factory, user, mock_payment_enabled):
         """Payment initiation fails when the order already has an APPROVED transaction."""
         order = order_factory(user=user, status="PENDING", total=15000)
         transaction_factory(order=order, status="APPROVED")
@@ -62,7 +63,72 @@ class TestInitiatePaymentView:
         assert response.status_code == 400
         assert "ya fue pagado" in str(response.json()).lower()
 
-    def test_guest_capability_cookie_authorizes_payment(self, api_client, order_factory):
+    @pytest.mark.parametrize("debug,provider", [(False, "mock"), (True, None), (True, "stripe")])
+    def test_initiation_denied_when_mock_not_explicitly_enabled(self, authenticated_client, order_factory, user, debug, provider):
+        """Production, absent and unknown providers fail closed with a masked 503."""
+        order = order_factory(user=user, status="PENDING", total=30000)
+        with override_settings(DEBUG=debug, PAYMENT_PROVIDER=provider):
+            response = authenticated_client.post("/api/payments/initiate/", {"order_id": order.id})
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        assert response.json() == {"detail": "Payment service unavailable."}
+        assert not Transaction.objects.filter(order=order).exists()
+
+    def test_idempotent_replay_returns_same_attempt(self, authenticated_client, order_factory, user, mock_payment_enabled):
+        """The same owned order and key replay the one pending attempt."""
+        order = order_factory(user=user, status="PENDING", total=30000)
+
+        def post(key):
+            return authenticated_client.post(
+                "/api/payments/initiate/", {"order_id": order.id}, HTTP_IDEMPOTENCY_KEY=key
+            )
+
+        first, second = post("pay-key-1"), post("pay-key-1")
+
+        assert first.status_code == second.status_code == 200
+        assert first.json()["transaction_id"] == second.json()["transaction_id"]
+        assert first.json()["payment_url"] == second.json()["payment_url"]
+        assert Transaction.objects.filter(order=order).count() == 1
+
+    def test_conflicting_key_reuse_is_masked_409(self, authenticated_client, order_factory, user, mock_payment_enabled):
+        """Reusing a key for another order fails masked and creates nothing."""
+        order = order_factory(user=user, status="PENDING", total=15000)
+        other = order_factory(user=user, status="PENDING", total=20000)
+        assert authenticated_client.post(
+            "/api/payments/initiate/", {"order_id": order.id}, HTTP_IDEMPOTENCY_KEY="pay-key-2"
+        ).status_code == 200
+
+        response = authenticated_client.post(
+            "/api/payments/initiate/", {"order_id": other.id}, HTTP_IDEMPOTENCY_KEY="pay-key-2"
+        )
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        assert set(response.json()) == {"code", "detail"}
+        assert not Transaction.objects.filter(order=other).exists()
+
+    def test_unsupported_payment_method_rejected(self, authenticated_client, order_factory, user, mock_payment_enabled):
+        """An order with a non-approved method cannot initiate payment."""
+        order = order_factory(user=user, status="PENDING", payment_method="crypto")
+
+        response = authenticated_client.post("/api/payments/initiate/", {"order_id": order.id})
+
+        assert response.status_code == 400
+        assert "no está disponible" in str(response.json()).lower()
+        assert not Transaction.objects.filter(order=order).exists()
+
+    def test_invalid_idempotency_key_rejected(self, authenticated_client, order_factory, user, mock_payment_enabled):
+        """An unusable key fails closed instead of silently disabling idempotency."""
+        order = order_factory(user=user, status="PENDING", total=30000)
+
+        response = authenticated_client.post(
+            "/api/payments/initiate/", {"order_id": order.id}, HTTP_IDEMPOTENCY_KEY="k" * 65
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "idempotency" in str(response.json()["detail"]).lower()
+        assert not Transaction.objects.filter(order=order).exists()
+
+    def test_guest_capability_cookie_authorizes_payment(self, api_client, order_factory, mock_payment_enabled):
         """A guest with a valid exchanged cookie can initiate payment."""
         order = order_factory(user=None, status="PENDING")
         raw_token = order.issue_guest_access()

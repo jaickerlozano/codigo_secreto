@@ -21,6 +21,9 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 
+# Payment provider; only "mock" is selectable, and only when DEBUG=True
+PAYMENT_PROVIDER = env("PAYMENT_PROVIDER", default=None)
+
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 
