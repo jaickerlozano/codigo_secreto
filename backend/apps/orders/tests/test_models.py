@@ -1,7 +1,9 @@
 import hashlib
 import secrets
+from datetime import date
 
 import pytest
+from django.db import IntegrityError
 from django.db.models import ProtectedError
 from django.utils import timezone
 
@@ -138,3 +140,62 @@ def test_guest_access_rotation_bumps_version(order_factory):
     assert order.guest_access_version == 2
     assert order.verify_guest_access(old_raw) is False
     assert order.verify_guest_access(new_raw) is True
+
+
+def test_order_checkout_key_unique(order_factory):
+    """Two orders with the same checkout_key are rejected."""
+    order_factory(checkout_key="checkout-1")
+
+    with pytest.raises(IntegrityError):
+        order_factory(checkout_key="checkout-1")
+
+
+def test_order_checkout_key_may_be_null_or_distinct(order_factory):
+    """Orders without a checkout_key or with distinct keys are allowed."""
+    first = order_factory(checkout_key=None)
+    second = order_factory(checkout_key=None)
+    third = order_factory(checkout_key="checkout-2")
+
+    ids = {first.id, second.id, third.id}
+    assert Order.objects.filter(id__in=ids).count() == 3
+    assert first.checkout_key is None
+    assert third.checkout_key == "checkout-2"
+
+
+def test_order_delivery_fields_defaults(order_factory):
+    """New orders default to standard delivery with no dispatch data."""
+    order = order_factory()
+    order.refresh_from_db()
+
+    assert order.delivery_kind == "standard"
+    assert order.requested_dispatch_date is None
+    assert order.special_delivery_agreed_at is None
+    assert order.estimated_delivery_date is None
+    assert order.dispatched_at is None
+
+
+def test_order_special_delivery_fields_roundtrip(order_factory):
+    """Special delivery request date and agreement timestamp persist."""
+    order = order_factory(
+        delivery_kind="special",
+        requested_dispatch_date=date(2026, 8, 25),
+        special_delivery_agreed_at=timezone.now(),
+    )
+    order.refresh_from_db()
+
+    assert order.delivery_kind == "special"
+    assert order.requested_dispatch_date == date(2026, 8, 25)
+    assert order.special_delivery_agreed_at is not None
+
+
+def test_order_dispatch_fields_roundtrip(order_factory):
+    """Dispatch record fields persist for staff fulfillment."""
+    dispatch_time = timezone.now()
+    order = order_factory(
+        estimated_delivery_date=date(2026, 8, 28),
+        dispatched_at=dispatch_time,
+    )
+    order.refresh_from_db()
+
+    assert order.estimated_delivery_date == date(2026, 8, 28)
+    assert order.dispatched_at == dispatch_time
