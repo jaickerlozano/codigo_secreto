@@ -178,7 +178,7 @@ def authorize_order_access(order_number=None, *, order_id=None, user=None, capab
     return None
 
 
-# --- Idempotent guest checkout (Idempotency-Key header, stored as Order.checkout_key) ---
+# --- Idempotent checkout (Idempotency-Key header, stored as Order.checkout_key) ---
 
 CHECKOUT_KEY_MAX_LENGTH = 64  # mirrors Order.checkout_key max_length
 
@@ -219,6 +219,85 @@ def _race_replay(checkout_key, quote, guest_email):
     return existing
 
 
+class EmptyCartError(ValueError): """The authenticated cart cannot produce an order."""
+
+
+def _auth_intent(user_id, comuna_id, cart_items):
+    return (user_id, comuna_id, _canonical_items(cart_items))
+
+
+def _ensure_auth_replay(existing, user_id, comuna_id, cart_items):
+    frozen = (existing.user_id, existing.comuna_id,
+              _canonical_items(existing.items.all()))
+    if frozen != _auth_intent(user_id, comuna_id, cart_items):
+        raise CheckoutKeyConflictError()
+
+
+def _race_replay_auth(checkout_key, user_id, comuna_id, cart_items):
+    """Resolve a same-key IntegrityError to a verified replay or a masked conflict."""
+    existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().get()
+    _ensure_auth_replay(existing, user_id, comuna_id, cart_items)
+    return existing
+
+
+def _create_authenticated_order(*, user, checkout_key, phone, shipping_address,
+                                apartment_office, payment_method, comuna_id, shipping_cost):
+    """Create an authenticated order from the server-side cart or replay it by
+    ``checkout_key``. The cart is preserved until payment approval; totals are
+    backend-computed from live product rows and frozen into the order."""
+    with transaction.atomic():
+        cart_items = list(user.cart.items.select_for_update().all())
+        if checkout_key:
+            existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().first()
+            if existing is not None:
+                _ensure_auth_replay(existing, user.id, comuna_id, cart_items)
+                return existing
+        if not cart_items:
+            raise EmptyCartError()
+        subtotal = sum(item.subtotal for item in cart_items)
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(
+                    user=user, comuna_id=comuna_id, phone=phone,
+                    shipping_address=shipping_address, apartment_office=apartment_office,
+                    payment_method=payment_method, checkout_key=checkout_key,
+                    subtotal=subtotal, shipping_cost=shipping_cost, total=subtotal + shipping_cost,
+                )
+                OrderItem.objects.bulk_create([
+                    OrderItem(order=order, product_id=item.product_id,
+                              product_name=item.product.name, price=item.product.price,
+                              quantity=item.quantity)
+                    for item in cart_items
+                ])
+        except IntegrityError:
+            if not checkout_key:
+                raise
+            return _race_replay_auth(checkout_key, user.id, comuna_id, cart_items)
+        return order
+
+
+def create_order(*, user=None, checkout_key=None, guest_email=None, guest_name=None, phone=None,
+                 shipping_address=None, apartment_office="", payment_method="webpay",
+                 guest_items=None, confirmed_revision=None, comuna_selector=None,
+                 comuna_id=None, shipping_cost=None):
+    """Create an order or replay it by ``checkout_key``. Authenticated orders
+    use the server-side cart (never cleared here); guest orders use the
+    client-side list and rotate their raw capability on replay. Totals are
+    backend-computed and frozen; conflicting reuse fails."""
+    if user is not None and user.is_authenticated:
+        return _create_authenticated_order(
+            user=user, checkout_key=checkout_key, phone=phone,
+            shipping_address=shipping_address, apartment_office=apartment_office,
+            payment_method=payment_method, comuna_id=comuna_id, shipping_cost=shipping_cost,
+        )
+    return _create_guest_order(
+        checkout_key=checkout_key, guest_email=guest_email, guest_name=guest_name,
+        phone=phone, shipping_address=shipping_address, apartment_office=apartment_office,
+        payment_method=payment_method, guest_items=guest_items,
+        confirmed_revision=confirmed_revision, comuna_selector=comuna_selector,
+    )
+
+
 def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shipping_address,
                         apartment_office, payment_method, guest_items, confirmed_revision,
                         comuna_selector):
@@ -253,17 +332,3 @@ def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shippin
             return _race_replay(checkout_key, quote, guest_email)
         order._guest_access_token = order.issue_guest_access()
         return order
-
-
-def create_order(*, checkout_key=None, guest_email=None, guest_name=None, phone=None,
-                 shipping_address=None, apartment_office="", payment_method="webpay",
-                 guest_items=None, confirmed_revision=None, comuna_selector=None):
-    """Create a guest order or replay it by ``checkout_key`` (replay rotates the
-    raw capability; conflicting reuse fails). Totals are backend-computed and
-    frozen; the guest cart is the client-side list, never cleared server-side."""
-    return _create_guest_order(
-        checkout_key=checkout_key, guest_email=guest_email, guest_name=guest_name,
-        phone=phone, shipping_address=shipping_address, apartment_office=apartment_office,
-        payment_method=payment_method, guest_items=guest_items,
-        confirmed_revision=confirmed_revision, comuna_selector=comuna_selector,
-    )

@@ -160,8 +160,8 @@ def test_order_calculates_totals(authenticated_client, cart_factory, cart_item_f
     assert data["payment_method"] == "webpay"
 
 
-def test_order_clears_cart_after_creation(authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory):
-    """Authenticated checkout deletes all cart items after order creation."""
+def test_order_preserves_cart_until_payment_approval(authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory):
+    """Authenticated checkout preserves cart items; payment approval clears them later."""
     cart = cart_factory(user=user)
     product = product_factory(price=5000)
     cart_item_factory(cart=cart, product=product, quantity=3)
@@ -171,7 +171,7 @@ def test_order_clears_cart_after_creation(authenticated_client, cart_factory, ca
 
     assert response.status_code == status.HTTP_201_CREATED
     cart.refresh_from_db()
-    assert cart.items.count() == 0
+    assert cart.items.count() == 1
 
 
 def test_order_readonly_fields_ignored(authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory):

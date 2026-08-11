@@ -21,7 +21,7 @@ def _order_payload(comuna, **overrides):
 
 
 def test_create_order_authenticated(authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory):
-    """Ruta A: authenticated order created from cart clears the cart."""
+    """Ruta A: authenticated order created from cart preserves the cart until payment."""
     cart = cart_factory(user=user)
     product = product_factory(price=1000, current_stock=10)
     cart_item_factory(cart=cart, product=product, quantity=2)
@@ -31,7 +31,7 @@ def test_create_order_authenticated(authenticated_client, cart_factory, cart_ite
 
     assert response.status_code == status.HTTP_201_CREATED
     cart.refresh_from_db()
-    assert cart.items.count() == 0
+    assert cart.items.count() == 1
 
     order = Order.objects.get(id=response.json()["id"])
     assert order.items.count() == 1

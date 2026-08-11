@@ -1,7 +1,7 @@
 from rest_framework import serializers
-from django.db import transaction
 from .models import Order, OrderItem
 from .services import (
+    EmptyCartError,
     GuestQuoteValidationError,
     InvalidCheckoutKeyError,
     create_order,
@@ -243,88 +243,21 @@ class OrderSerializer(serializers.ModelSerializer):
 
         comuna_id = validated_data.pop('comuna_id')
         comuna_snapshot = validated_data.pop('_comuna_snapshot')
-        costo_envio_chile = comuna_snapshot.shipping_cost
-        payment_method = validated_data.get('payment_method', 'webpay')
-
-        # Inicializamos variables para el bucle de clonación
-        productos_a_comprar = []
-        subtotal_productos = 0
-
-        # LÓGICA RUTA A: USUARIO REGISTRADO (Usa el carro de la Base de Datos)
-        if user and user.is_authenticated:
-            # Los datos de invitado no aplican para usuarios autenticados
-            validated_data.pop('guest_items', None)
-            cart = user.cart
-            cart_items = cart.items.all()
-
-            if not cart_items.exists():
-                raise serializers.ValidationError({"detail": "No puedes crear un pedido con el carrito vacío."})
-
-            subtotal_productos = sum(item.subtotal for item in cart_items)
-
-            for item in cart_items:
-                productos_a_comprar.append({
-                    'product': item.product,
-                    'name': item.product.name,
-                    'price': item.product.price,
-                    'quantity': item.quantity
-                })
-
-        # LÓGICA RUTA B: INVITADO ANÓNIMO (Lee la lista del LocalStorage que envía el Frontend)
-        else:
-            guest_items = validated_data.pop('guest_items')
-            try:
-                quote = calculate_guest_quote(guest_items, comuna_selector=comuna_id)
-            except GuestQuoteValidationError as error:
-                raise serializers.ValidationError({'guest_items': str(error)}) from error
-            subtotal_productos = quote.subtotal
-            productos_a_comprar = [
-                {
-                    'product_id': line.product_id,
-                    'name': line.product_name,
-                    'price': line.unit_price,
-                    'quantity': line.quantity,
-                }
-                for line in quote.items
-            ]
-
-        total_final = subtotal_productos + costo_envio_chile
-
-        # PROCESO DE GUARDADO ATÓMICO (Sirve para ambos casos)
-        with transaction.atomic():
-            order = Order.objects.create(
-                # Evaluamos de forma segura si el usuario está autenticado
-                user=user if user.is_authenticated else None,
-                guest_email=validated_data.get('guest_email'),
-                guest_name=validated_data.get('guest_name'),
+        try:
+            return create_order(
+                user=user,
+                checkout_key=checkout_key,
                 phone=validated_data['phone'],
-                comuna_id=comuna_id,
                 shipping_address=validated_data['shipping_address'],
                 apartment_office=validated_data.get('apartment_office', ''),
-                payment_method=payment_method,
-                subtotal=subtotal_productos,
-                shipping_cost=costo_envio_chile,
-                total=total_final
+                payment_method=validated_data.get('payment_method', 'webpay'),
+                comuna_id=comuna_id,
+                shipping_cost=comuna_snapshot.shipping_cost,
             )
-
-            if not user.is_authenticated:
-                order._guest_access_token = order.issue_guest_access()
-
-            # Clonamos y congelamos los productos recolectados
-            for prod in productos_a_comprar:
-                OrderItem.objects.create(
-                    order=order,
-                    product_id=prod.get('product_id') or prod['product'].id,
-                    product_name=prod['name'],
-                    price=prod['price'],
-                    quantity=prod['quantity']
-                )
-
-            # Si era un usuario registrado, limpiamos su carro de la BD
-            if user and user.is_authenticated:
-                cart_items.delete()
-
-        return order
+        except EmptyCartError:
+            raise serializers.ValidationError({
+                "detail": "No puedes crear un pedido con el carrito vacío."
+            })
 class OrderCreateSerializer(serializers.ModelSerializer):
     comuna = serializers.IntegerField(source='comuna_id', required=False)
     comuna_name = serializers.CharField(required=False)

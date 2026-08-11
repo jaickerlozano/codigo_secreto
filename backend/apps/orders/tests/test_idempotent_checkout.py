@@ -3,9 +3,11 @@ import hashlib
 import pytest
 from django.core.cache import cache
 from rest_framework import status
+from rest_framework.test import APIClient
 
-from apps.orders.models import Order
-from apps.orders.services import calculate_guest_quote
+from apps.authentication.tests.factories import UserFactory
+from apps.orders.models import Order, OrderItem
+from apps.orders.services import CheckoutKeyConflictError, _race_replay_auth, calculate_guest_quote
 
 
 pytestmark = pytest.mark.django_db
@@ -33,6 +35,102 @@ def _guest_payload(product, comuna, quantity=2):
             "confirmed_revision": calculate_guest_quote(
                 [{"product_id": product.id, "quantity": quantity}], comuna_selector=comuna.id
             ).revision}
+
+
+def _auth_payload(comuna):
+    return {"phone": "+56912345678", "comuna": comuna.id,
+            "shipping_address": "Calle 123", "shipping_cost": comuna.shipping_cost}
+
+
+def test_auth_replay_returns_same_order_and_preserves_cart(
+        authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory):
+    """An authenticated retry with the same key and cart intent returns the existing order."""
+    cart = cart_factory(user=user)
+    product = product_factory(price=1000, current_stock=10)
+    cart_item_factory(cart=cart, product=product, quantity=2)
+    comuna = comuna_factory(shipping_cost=3000)
+    payload = _auth_payload(comuna)
+
+    first, second = _post(authenticated_client, payload, KEY), _post(authenticated_client, payload, KEY)
+
+    assert first.status_code == second.status_code == status.HTTP_201_CREATED
+    assert first.json()["id"] == second.json()["id"]
+    order = Order.objects.get(id=first.json()["id"])
+    assert order.checkout_key == KEY and order.user == user
+    assert Order.objects.count() == 1 and order.items.count() == 1 and order.items.get().quantity == 2
+    assert (order.subtotal, order.shipping_cost, order.total) == (2000, 3000, 5000)
+    cart.refresh_from_db()
+    assert cart.items.count() == 1
+    assert second.json()["guest_access"] is None
+
+
+def test_auth_replay_returns_frozen_totals(
+        authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory):
+    """A replay never re-prices: the frozen order wins over a live price change."""
+    cart = cart_factory(user=user)
+    product = product_factory(price=1000, current_stock=10)
+    cart_item_factory(cart=cart, product=product, quantity=2)
+    comuna = comuna_factory(shipping_cost=3000)
+    payload = _auth_payload(comuna)
+
+    first = _post(authenticated_client, payload, KEY)
+    assert first.status_code == status.HTTP_201_CREATED
+
+    product.price = 2500
+    product.save(update_fields=["price"])
+    retry = _post(authenticated_client, payload, KEY)
+
+    assert retry.status_code == status.HTTP_201_CREATED
+    assert retry.json()["id"] == first.json()["id"]
+    order = Order.objects.get(id=first.json()["id"])
+    assert (order.subtotal, order.shipping_cost, order.total) == (2000, 3000, 5000)
+    assert Order.objects.count() == 1
+
+
+@pytest.mark.parametrize("conflict", ["other_owner", "changed_cart"])
+def test_auth_conflicting_key_reuse_fails_safely(
+        authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory, conflict):
+    """Same key with another owner or a different cart intent fails without duplicates or leaks."""
+    cart = cart_factory(user=user)
+    product = product_factory(price=1000, current_stock=10)
+    cart_item_factory(cart=cart, product=product, quantity=2)
+    comuna = comuna_factory(shipping_cost=3000)
+    payload = _auth_payload(comuna)
+
+    first = _post(authenticated_client, payload, KEY)
+    assert first.status_code == status.HTTP_201_CREATED
+
+    if conflict == "other_owner":
+        other_client = APIClient()
+        other_client.force_authenticate(user=UserFactory.create())
+        response = _post(other_client, payload, KEY)
+    else:
+        cart_item_factory(cart=cart, product=product_factory(price=500), quantity=1)
+        response = _post(authenticated_client, payload, KEY)
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert set(response.json()) == {"code", "detail"}
+    assert Order.objects.count() == 1
+    assert Order.objects.get(id=first.json()["id"]).items.get().quantity == 2
+
+
+def test_auth_race_replay_resolves_or_conflicts(
+        user, cart_factory, cart_item_factory, product_factory, comuna_factory):
+    """The IntegrityError fallback re-fetches the winner and verifies owner and intent."""
+    cart = cart_factory(user=user)
+    product = product_factory(price=1000, current_stock=10)
+    cart_item_factory(cart=cart, product=product, quantity=2)
+    comuna = comuna_factory(shipping_cost=3000)
+    winner = Order.objects.create(user=user, checkout_key=KEY, comuna_id=comuna.id,
+                                  phone="+56912345678", shipping_address="Calle 123",
+                                  subtotal=2000, shipping_cost=3000, total=5000)
+    OrderItem.objects.create(order=winner, product_id=product.id, product_name=product.name,
+                             price=1000, quantity=2)
+
+    assert _race_replay_auth(KEY, user.id, comuna.id, cart.items.all()).id == winner.id
+    with pytest.raises(CheckoutKeyConflictError):
+        _race_replay_auth(KEY, UserFactory.create().id, comuna.id, cart.items.all())
+    assert Order.objects.count() == 1
 
 
 def test_guest_replay_returns_same_order_and_rotates_capability(api_client, product_factory, comuna_factory):
