@@ -1,15 +1,22 @@
 import pytest
 
-from apps.shipping.tests.factories import ComunaFactory, RegionFactory
+from apps.shipping.tests.factories import (
+    ComunaFactory,
+    RegionFactory,
+    RegionalShippingOptionFactory,
+)
 
 
 @pytest.fixture
 def region_factory():
-    """Return the RegionFactory class."""
     return RegionFactory
 
 
 @pytest.fixture
 def comuna_factory():
-    """Return the ComunaFactory class."""
     return ComunaFactory
+
+
+@pytest.fixture
+def regional_option_factory():
+    return RegionalShippingOptionFactory
