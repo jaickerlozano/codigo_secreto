@@ -47,6 +47,16 @@ class Order(models.Model):
         help_text='Identificador público del pedido (ej: CS-XXXXXXX).',
     )
 
+    # Clave idempotente del checkout: evita pedidos duplicados al reintentar el envío
+    checkout_key = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        verbose_name='clave de checkout',
+        help_text='Clave idempotente del checkout; el reintento con la misma clave devuelve el mismo pedido.',
+    )
+
     # 1. Datos del Comprador (Permitimos null=True para soportar "Invitados")
     user = models.ForeignKey('authentication.User', on_delete=models.SET_NULL, null=True, blank=True, related_name='orders', verbose_name='usuario')
     guest_email = models.EmailField(null=True, blank=True, verbose_name='correo invitado')
@@ -84,6 +94,50 @@ class Order(models.Model):
         blank=True,
         verbose_name='número de seguimiento',
         help_text='Código de rastreo proporcionado por el transportista.',
+    )
+
+    # 4. Tipo de entrega: estándar (fechas regulares) o especial (acuerdo previo por WhatsApp)
+    DELIVERY_KIND_CHOICES = (
+        ('standard', 'Entrega Estándar'),
+        ('special', 'Entrega Especial'),
+    )
+
+    delivery_kind = models.CharField(
+        max_length=20,
+        choices=DELIVERY_KIND_CHOICES,
+        default='standard',
+        verbose_name='tipo de entrega',
+        help_text='standard: fechas regulares de despacho; special: requiere acuerdo previo por WhatsApp.',
+    )
+
+    # Fecha especial de despacho solicitada por el cliente (solo para delivery_kind=special)
+    requested_dispatch_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name='fecha de despacho solicitada',
+        help_text='Fecha especial de despacho solicitada por el cliente.',
+    )
+
+    # Momento en que el staff confirmó el acuerdo especial; habilita el pago
+    special_delivery_agreed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='acuerdo de entrega especial',
+        help_text='Momento en que el staff confirmó el acuerdo especial; sin esto el pago permanece bloqueado.',
+    )
+
+    # Registro de despacho: fecha real de despacho y fecha estimada de entrega (staff)
+    dispatched_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='fecha de despacho',
+        help_text='Momento en que el pedido fue despachado.',
+    )
+    estimated_delivery_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name='fecha estimada de entrega',
+        help_text='Fecha estimada de entrega registrada por el staff al despachar.',
     )
 
     # 4. Control de Estado y Fechas

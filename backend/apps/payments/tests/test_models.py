@@ -1,4 +1,5 @@
 import pytest
+from django.db import IntegrityError
 
 from apps.payments.models import Transaction
 
@@ -57,3 +58,38 @@ class TestTransactionModel:
 
         assert transactions[0] == second
         assert transactions[1] == first
+
+    def test_transaction_idempotency_key_unique_per_order(self, transaction_factory, order_factory):
+        """Two attempts for the same order with the same idempotency key are rejected."""
+        order = order_factory()
+        transaction_factory(order=order, idempotency_key="attempt-1")
+
+        with pytest.raises(IntegrityError):
+            transaction_factory(order=order, idempotency_key="attempt-1")
+
+    def test_transaction_same_idempotency_key_allowed_across_orders(self, transaction_factory, order_factory):
+        """The same idempotency key is allowed for different orders."""
+        order_a = order_factory()
+        order_b = order_factory()
+
+        transaction_factory(order=order_a, idempotency_key="shared-key")
+        transaction = transaction_factory(order=order_b, idempotency_key="shared-key")
+
+        assert transaction.idempotency_key == "shared-key"
+
+    def test_transaction_new_idempotency_key_allows_retry(self, transaction_factory, order_factory):
+        """An order may retry with a NEW idempotency key without duplicates."""
+        order = order_factory()
+        transaction_factory(order=order, idempotency_key="attempt-1")
+        transaction_factory(order=order, idempotency_key="attempt-2")
+
+        assert Transaction.objects.filter(order=order).count() == 2
+
+    def test_transaction_provider_and_method_are_persisted(self, transaction_factory, order_factory):
+        """Provider and payment method are stored on the attempt."""
+        order = order_factory()
+        transaction = transaction_factory(order=order, provider="mock", payment_method="webpay")
+        transaction.refresh_from_db()
+
+        assert transaction.provider == "mock"
+        assert transaction.payment_method == "webpay"

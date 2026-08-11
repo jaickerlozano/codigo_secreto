@@ -23,6 +23,24 @@ class Transaction(models.Model):
     # Guardamos el método utilizado si la pasarela nos lo informa (Ej: "Webpay_Débito", "Webpay_Crédito", "OneClick")
     payment_method = models.CharField(max_length=50, null=True, blank=True, verbose_name='método de pago')
 
+    # Idempotencia: la misma clave por pedido permite reintentos sin duplicar intentos
+    idempotency_key = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name='clave de idempotencia',
+        help_text='Clave única por pedido que hace idempotentes los reintentos de pago.',
+    )
+
+    # Proveedor de pago que gestiona el intento (p. ej. "mock" en desarrollo)
+    provider = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        verbose_name='proveedor de pago',
+        help_text='Identificador del proveedor de pago que gestiona el intento.',
+    )
+
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de intento')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='fecha de respuesta')
 
@@ -33,3 +51,9 @@ class Transaction(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Transacción de Pago'
         verbose_name_plural = 'Transacciones de Pagos'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['order', 'idempotency_key'],
+                name='unique_transaction_order_idempotency_key',
+            ),
+        ]
