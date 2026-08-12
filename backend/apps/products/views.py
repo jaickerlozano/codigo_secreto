@@ -86,12 +86,21 @@ class FavoritesView(APIView):
     """Favoritos privados del cliente autenticado (lectura y merge de invitado)."""
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Listar favoritos del usuario autenticado", tags=["Favoritos"])
+    @extend_schema(
+        summary="Listar favoritos del usuario autenticado",
+        responses={200: FavoriteSerializer(many=True)},
+        tags=["Favoritos"],
+    )
     def get(self, request):
         favorites = Favorite.objects.filter(user=request.user)
         return Response(FavoriteSerializer(favorites, many=True).data)
 
-    @extend_schema(summary="Fusionar favoritos de invitado (sin duplicados)", request=FavoriteMergeSerializer, tags=["Favoritos"])
+    @extend_schema(
+        summary="Fusionar favoritos de invitado (sin duplicados)",
+        request=FavoriteMergeSerializer,
+        responses={200: FavoriteSerializer(many=True)},
+        tags=["Favoritos"],
+    )
     def post(self, request):
         serializer = FavoriteMergeSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -104,7 +113,11 @@ class FavoriteDeleteView(APIView):
     """Elimina un favorito del cliente autenticado."""
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(summary="Eliminar un favorito por producto", tags=["Favoritos"])
+    @extend_schema(
+        summary="Eliminar un favorito por producto",
+        responses={204: None},
+        tags=["Favoritos"],
+    )
     def delete(self, request, product_id):
         deleted_count, _ = Favorite.objects.filter(user=request.user, product_id=product_id).delete()
         if not deleted_count:

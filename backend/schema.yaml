@@ -330,6 +330,95 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/contact/:
+    post:
+      operationId: contact_create
+      description: Endpoint público para enviar mensajes de contacto.
+      summary: Enviar mensaje de contacto
+      tags:
+      - Contacto
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactMessage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContactMessage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContactMessage'
+        required: true
+      security:
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactMessageResponse'
+          description: ''
+  /api/favorites/:
+    get:
+      operationId: favorites_list
+      description: Favoritos privados del cliente autenticado (lectura y merge de
+        invitado).
+      summary: Listar favoritos del usuario autenticado
+      tags:
+      - Favoritos
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Favorite'
+          description: ''
+    post:
+      operationId: favorites_create
+      description: Favoritos privados del cliente autenticado (lectura y merge de
+        invitado).
+      summary: Fusionar favoritos de invitado (sin duplicados)
+      tags:
+      - Favoritos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FavoriteMerge'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FavoriteMerge'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FavoriteMerge'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Favorite'
+          description: ''
+  /api/favorites/{product_id}/:
+    delete:
+      operationId: favorites_destroy
+      description: Elimina un favorito del cliente autenticado.
+      summary: Eliminar un favorito por producto
+      parameters:
+      - in: path
+        name: product_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Favoritos
+      responses:
+        '204':
+          description: No response body
   /api/orders/:
     get:
       operationId: orders_list
@@ -351,6 +440,12 @@ paths:
           description: ''
     post:
       operationId: orders_create
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        description: Clave de idempotencia del checkout (máx. 64 caracteres).
       tags:
       - orders
       requestBody:
@@ -379,6 +474,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QuoteRevisionStale'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteError'
           description: ''
   /api/orders/{id}/:
     get:
@@ -485,12 +586,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuoteError'
           description: ''
+  /api/payments/{transaction_id}/mock-approve/:
+    post:
+      operationId: payments_mock_approve_create
+      description: Aprueba la transacción mock pendiente y marca el pedido como pagado.
+      summary: Aprobar pago mock (solo desarrollo)
+      parameters:
+      - in: path
+        name: transaction_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pagos
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MockApproveResponse'
+          description: ''
   /api/payments/initiate/:
     post:
       operationId: payments_initiate_create
       description: Recibe el order_id, registra el intento mock y devuelve la URL
         de pago.
       summary: Iniciar proceso de pago
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+        description: Clave de idempotencia del intento de pago (máx. 64 caracteres).
       tags:
       - Pagos
       requestBody:
@@ -509,7 +638,11 @@ paths:
       - {}
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitiatePaymentResponse'
+          description: ''
   /api/products/:
     get:
       operationId: products_list
@@ -1136,6 +1269,103 @@ components:
       required:
       - id
       - name
+    ContactMessage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          title: Nombre
+          maxLength: 120
+        email:
+          type: string
+          format: email
+          title: Correo electrónico
+          maxLength: 254
+        subject:
+          type: string
+          title: Asunto
+          maxLength: 200
+        body:
+          type: string
+          title: Mensaje
+        status:
+          allOf:
+          - $ref: '#/components/schemas/ContactMessageStatusEnum'
+          readOnly: true
+          title: Estado
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de envío
+      required:
+      - body
+      - created_at
+      - email
+      - id
+      - name
+      - status
+      - subject
+    ContactMessageResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+      required:
+      - id
+      - status
+    ContactMessageStatusEnum:
+      enum:
+      - NEW
+      - READ
+      - RESOLVED
+      type: string
+      description: |-
+        * `NEW` - Nuevo
+        * `READ` - Leído
+        * `RESOLVED` - Resuelto
+    DeliveryKindEnum:
+      enum:
+      - standard
+      - special
+      type: string
+      description: |-
+        * `standard` - Entrega Estándar
+        * `special` - Entrega Especial
+    Favorite:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        product:
+          type: integer
+          readOnly: true
+          title: Producto
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          title: Fecha de creación
+      required:
+      - created_at
+      - id
+      - product
+    FavoriteMerge:
+      type: object
+      properties:
+        product_ids:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+      required:
+      - product_ids
     GuestAccess:
       type: object
       properties:
@@ -1204,6 +1434,41 @@ components:
           type: integer
       required:
       - order_id
+    InitiatePaymentResponse:
+      type: object
+      properties:
+        transaction_id:
+          type: integer
+        order_id:
+          type: integer
+        amount:
+          type: integer
+        payment_url:
+          type: string
+        gateway_reference:
+          type: string
+      required:
+      - amount
+      - gateway_reference
+      - order_id
+      - payment_url
+      - transaction_id
+    MockApproveResponse:
+      type: object
+      properties:
+        transaction_id:
+          type: integer
+        order_id:
+          type: integer
+        status:
+          type: string
+        order_status:
+          type: string
+      required:
+      - order_id
+      - order_status
+      - status
+      - transaction_id
     MovementTypeEnum:
       enum:
       - IN
@@ -1286,7 +1551,7 @@ components:
           title: Total final
         status:
           allOf:
-          - $ref: '#/components/schemas/StatusEnum'
+          - $ref: '#/components/schemas/OrderStatusEnum'
           readOnly: true
           title: Estado del pedido
         created_at:
@@ -1310,17 +1575,61 @@ components:
           items:
             $ref: '#/components/schemas/OrderItem'
           readOnly: true
+        delivery_kind:
+          allOf:
+          - $ref: '#/components/schemas/DeliveryKindEnum'
+          readOnly: true
+          title: Tipo de entrega
+          description: |-
+            standard: fechas regulares de despacho; special: requiere acuerdo previo por WhatsApp.
+
+            * `standard` - Entrega Estándar
+            * `special` - Entrega Especial
+        requested_dispatch_date:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+          title: Fecha de despacho solicitada
+          description: Fecha especial de despacho solicitada por el cliente.
+        special_delivery_agreed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Acuerdo de entrega especial
+          description: Momento en que el staff confirmó el acuerdo especial; sin esto
+            el pago permanece bloqueado.
+        estimated_delivery_date:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+          title: Fecha estimada de entrega
+          description: Fecha estimada de entrega registrada por el staff al despachar.
+        dispatched_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          title: Fecha de despacho
+          description: Momento en que el pedido fue despachado.
       required:
       - carrier
       - comuna_display
       - created_at
+      - delivery_kind
+      - dispatched_at
+      - estimated_delivery_date
       - guest_access
       - id
       - items
       - order_number
       - phone
+      - requested_dispatch_date
       - shipping_address
       - shipping_cost
+      - special_delivery_agreed_at
       - status
       - subtotal
       - total
@@ -1411,6 +1720,20 @@ components:
       - product_name
       - quantity
       - subtotal
+    OrderStatusEnum:
+      enum:
+      - PENDING
+      - PAID
+      - SHIPPED
+      - DELIVERED
+      - CANCELLED
+      type: string
+      description: |-
+        * `PENDING` - Pendiente de Pago
+        * `PAID` - Pagado / Listo para Despacho
+        * `SHIPPED` - Enviado a Destino
+        * `DELIVERED` - Entregado al Cliente
+        * `CANCELLED` - Cancelado / Anulado
     PaginatedCategoryList:
       type: object
       required:
@@ -1900,20 +2223,6 @@ components:
       - email
       - password
       - password_confirm
-    StatusEnum:
-      enum:
-      - PENDING
-      - PAID
-      - SHIPPED
-      - DELIVERED
-      - CANCELLED
-      type: string
-      description: |-
-        * `PENDING` - Pendiente de Pago
-        * `PAID` - Pagado / Listo para Despacho
-        * `SHIPPED` - Enviado a Destino
-        * `DELIVERED` - Entregado al Cliente
-        * `CANCELLED` - Cancelado / Anulado
     StockMovement:
       type: object
       properties:

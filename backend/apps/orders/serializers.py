@@ -121,11 +121,15 @@ class OrderSerializer(serializers.ModelSerializer):
             'guest_email', 'guest_name', 'guest_items', 'confirmed_revision', 'payment_method',
             'guest_access',
             'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
-            'carrier', 'tracking_number', 'items'
+            'carrier', 'tracking_number', 'items',
+            'delivery_kind', 'requested_dispatch_date', 'special_delivery_agreed_at',
+            'estimated_delivery_date', 'dispatched_at',
         ]
         read_only_fields = [
             'order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
-            'comuna_display', 'carrier', 'tracking_number'
+            'comuna_display', 'carrier', 'tracking_number',
+            'delivery_kind', 'requested_dispatch_date', 'special_delivery_agreed_at',
+            'estimated_delivery_date', 'dispatched_at',
         ]
 
     def get_comuna_display(self, obj):
