@@ -1,6 +1,6 @@
 # backend/apps/products/admin.py
 from django.contrib import admin
-from .models import Product, Supplier, Category, StockMovement, ProductImage # 💡 Agregamos ProductImage
+from .models import Product, Supplier, Category, StockMovement, ProductImage, Favorite # 💡 Agregamos ProductImage
 from django.utils.html import format_html
 
 # 💡 ESTA ES LA CLAVE: Define las casillas de carga masiva en línea para la galería
@@ -85,3 +85,10 @@ class StockMovementAdmin(admin.ModelAdmin):
             return format_html('<span style="background: #d4edda; color: #155724; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "ENTRADA")
         return format_html('<span style="background: #f8d7da; color: #721c24; padding: 3px 8px; border-radius: 4px; font-weight: bold;">{0}</span>', "SALIDA")
     get_type_badge.short_description = "Tipo"
+
+
+@admin.register(Favorite)
+class FavoriteAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'product', 'created_at')
+    search_fields = ('user__email', 'product__name')
+    readonly_fields = ('created_at',)

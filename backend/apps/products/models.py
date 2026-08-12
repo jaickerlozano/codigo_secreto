@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models, transaction
 from django.core.exceptions import ValidationError 
 
@@ -150,3 +151,19 @@ class ProductImage(models.Model):
         ordering = ['created_at']
         verbose_name = 'Imagen de Galería'
         verbose_name_plural = 'Imágenes de Galería'
+
+
+class Favorite(models.Model):
+    """Favorito privado de un cliente autenticado."""
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='favorites', verbose_name='usuario')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='favorites', verbose_name='producto')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')
+
+    def __str__(self):
+        return f"{self.user.email} → {self.product.name}"
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'product'], name='unique_user_product_favorite')]
+        ordering = ['-created_at']
+        verbose_name = 'Favorito'
+        verbose_name_plural = 'Favoritos'

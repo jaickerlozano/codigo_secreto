@@ -1,8 +1,12 @@
 from django.db import transaction
 from rest_framework import viewsets, serializers, mixins, status, filters
+from rest_framework.views import APIView
 from rest_framework.response import Response
-from .serializers import ProductSerializer, SupplierSerializer, CategorySerializer, StockMovementSerializer
-from .models import Product, Supplier, Category, StockMovement
+from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema
+from .serializers import ProductSerializer, SupplierSerializer, CategorySerializer, StockMovementSerializer, FavoriteSerializer, FavoriteMergeSerializer
+from .models import Product, Supplier, Category, StockMovement, Favorite
+from .services import merge_favorites
 from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
 from .filters import ProductFilter
@@ -76,3 +80,33 @@ class StockMovementViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, m
         self.perform_create(serializer)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class FavoritesView(APIView):
+    """Favoritos privados del cliente autenticado (lectura y merge de invitado)."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary="Listar favoritos del usuario autenticado", tags=["Favoritos"])
+    def get(self, request):
+        favorites = Favorite.objects.filter(user=request.user)
+        return Response(FavoriteSerializer(favorites, many=True).data)
+
+    @extend_schema(summary="Fusionar favoritos de invitado (sin duplicados)", request=FavoriteMergeSerializer, tags=["Favoritos"])
+    def post(self, request):
+        serializer = FavoriteMergeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        merge_favorites(user=request.user, product_ids=serializer.validated_data['product_ids'])
+        favorites = Favorite.objects.filter(user=request.user)
+        return Response(FavoriteSerializer(favorites, many=True).data)
+
+
+class FavoriteDeleteView(APIView):
+    """Elimina un favorito del cliente autenticado."""
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary="Eliminar un favorito por producto", tags=["Favoritos"])
+    def delete(self, request, product_id):
+        deleted_count, _ = Favorite.objects.filter(user=request.user, product_id=product_id).delete()
+        if not deleted_count:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from django.db import connection
 
-from .models import Product
+from .models import Favorite, Product
 
 
 class ProductSnapshotResolutionError(LookupError):
@@ -55,3 +55,11 @@ def resolve_product_price_snapshot(
         )
 
     return snapshots
+
+
+def merge_favorites(*, user, product_ids):
+    """Merge guest ids into private favorites, deduplicating and ignoring deleted products."""
+    known = set(Product.objects.filter(id__in=set(product_ids)).values_list('id', flat=True))
+    existing = set(Favorite.objects.filter(user=user, product_id__in=known).values_list('product_id', flat=True))
+    Favorite.objects.bulk_create(
+        [Favorite(user=user, product_id=product_id) for product_id in known - existing])

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Product, Supplier, Category, StockMovement, ProductImage
+from .models import Product, Supplier, Category, StockMovement, ProductImage, Favorite
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 #   NUEVO SERIALIZADOR: Formatea de forma individual las fotos secundarias de la galería
@@ -101,3 +101,14 @@ class StockMovementSerializer(serializers.ModelSerializer):
             return super().create(validated_data)
         except DjangoValidationError as e:
             raise serializers.ValidationError(e.message_dict)
+
+
+class FavoriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Favorite
+        fields = ['id', 'product', 'created_at']
+        read_only_fields = fields
+
+
+class FavoriteMergeSerializer(serializers.Serializer):
+    product_ids = serializers.ListField(child=serializers.IntegerField(min_value=1), allow_empty=True)
