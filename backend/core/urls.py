@@ -16,7 +16,7 @@ from apps.authentication.views import (
 from apps.shipping.views import RegionViewSet, ComunaViewSet
 from apps.carts.views import MyCartView 
 from apps.orders.views import OrderViewSet
-from apps.payments.views import InitiatePaymentView
+from apps.payments.views import ApproveMockPaymentView, InitiatePaymentView
 
 admin.site.site_header = "Administración de Código Secreto"
 admin.site.site_title = "Portal de Código Secreto"
@@ -49,6 +49,8 @@ urlpatterns = [
 
     # Ruta manual para la APIView del inicio de pago
     path('api/payments/initiate/', InitiatePaymentView.as_view(), name='payment_initiate'),
+    # Ruta manual para la aprobación mock (solo desarrollo)
+    path('api/payments/<int:transaction_id>/mock-approve/', ApproveMockPaymentView.as_view(), name='payment_mock_approve'),
     
     # Swagger / OpenAPI schema endpoints
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
