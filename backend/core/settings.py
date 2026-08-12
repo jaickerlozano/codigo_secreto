@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     'apps.carts',
     'apps.orders',
     'apps.payments',
+    'apps.contact',
 ]
 
 MIDDLEWARE = [
@@ -179,6 +180,7 @@ REST_FRAMEWORK = {
         "order_quote": env("THROTTLE_ORDER_QUOTE", default="30/min"),
         "payment_initiate": env("THROTTLE_PAYMENT_INITIATE", default="10/min"),
         "payment_approve": env("THROTTLE_PAYMENT_APPROVE", default="10/min"),
+        "contact_message": env("THROTTLE_CONTACT_MESSAGE", default="5/hour"),
     },
 }
 

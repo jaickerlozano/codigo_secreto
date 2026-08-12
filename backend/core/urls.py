@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
-from apps.products.views import ProductViewSet, SupplierViewSet, CategoryViewSet, StockMovementViewSet
+from apps.products.views import ProductViewSet, SupplierViewSet, CategoryViewSet, StockMovementViewSet, FavoritesView, FavoriteDeleteView
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
 from apps.authentication.views import (
     CustomTokenObtainPairView,
@@ -17,6 +17,7 @@ from apps.shipping.views import RegionViewSet, ComunaViewSet
 from apps.carts.views import MyCartView 
 from apps.orders.views import OrderViewSet
 from apps.payments.views import ApproveMockPaymentView, InitiatePaymentView
+from apps.contact.views import ContactMessageView
 
 admin.site.site_header = "Administración de Código Secreto"
 admin.site.site_title = "Portal de Código Secreto"
@@ -51,6 +52,13 @@ urlpatterns = [
     path('api/payments/initiate/', InitiatePaymentView.as_view(), name='payment_initiate'),
     # Ruta manual para la aprobación mock (solo desarrollo)
     path('api/payments/<int:transaction_id>/mock-approve/', ApproveMockPaymentView.as_view(), name='payment_mock_approve'),
+
+    # Favoritos privados del cliente autenticado (merge de favoritos de invitado)
+    path('api/favorites/', FavoritesView.as_view(), name='favorites'),
+    path('api/favorites/<int:product_id>/', FavoriteDeleteView.as_view(), name='favorite_delete'),
+
+    # Formulario de contacto público
+    path('api/contact/', ContactMessageView.as_view(), name='contact'),
     
     # Swagger / OpenAPI schema endpoints
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
