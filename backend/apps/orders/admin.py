@@ -1,7 +1,9 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.utils import timezone
 
-from .models import Order, OrderItem
+from .models import NotificationDelivery, Order, OrderItem
+from .notifications import retry_delivery
+from .services import InvalidFulfillmentError, fulfill_dispatch
 
 
 class OrderItemInline(admin.TabularInline):
@@ -23,8 +25,10 @@ class OrderAdmin(admin.ModelAdmin):
         'subtotal', 'shipping_cost', 'total', 'created_at', 'updated_at',
         'guest_access_digest', 'guest_access_issued_at', 'guest_access_expires_at',
         'guest_access_revoked_at', 'guest_access_version',
+        # Campos de ciclo de vida: solo cambian mediante la acción de despacho
+        'status', 'dispatched_at',
     )
-    actions = ('revoke_guest_access', 'rotate_guest_access')
+    actions = ('revoke_guest_access', 'rotate_guest_access', 'dispatch_orders')
 
     def guest_access_status(self, obj):
         if obj.guest_access_revoked_at:
@@ -69,3 +73,32 @@ class OrderAdmin(admin.ModelAdmin):
     def total_clp(self, obj):
         return f"${obj.total:,}".replace(",", ".")
     total_clp.short_description = "Total"
+
+    @admin.action(description="Despachar pedidos seleccionados")
+    def dispatch_orders(self, request, queryset):
+        """Dispatch each selected PAID order with its recorded carrier/date."""
+        dispatched = 0
+        for order in queryset:
+            try:
+                fulfill_dispatch(order=order, carrier=order.carrier, estimated_delivery_date=order.estimated_delivery_date, tracking_number=order.tracking_number)
+                dispatched += 1
+            except InvalidFulfillmentError as error:
+                self.message_user(request, f"No se pudo despachar {order.order_number}: {error}",
+                                  level=messages.ERROR)
+        if dispatched:
+            self.message_user(request, f"{dispatched} pedido(s) despachado(s) correctamente.")
+
+
+@admin.register(NotificationDelivery)
+class NotificationDeliveryAdmin(admin.ModelAdmin):
+    list_display = ('order', 'event', 'status', 'attempts', 'next_retry_at', 'sent_at')
+    list_filter = ('status', 'event')
+    readonly_fields = ('order', 'event', 'status', 'attempts', 'last_error', 'next_retry_at', 'sent_at', 'created_at', 'updated_at')
+    actions = ('retry_failed',)
+
+    @admin.action(description="Reintentar notificaciones fallidas")
+    def retry_failed(self, request, queryset):
+        failed = list(queryset.filter(status="FAILED"))
+        for delivery in failed:
+            retry_delivery(delivery.id)
+        self.message_user(request, f"{len(failed)} notificación(es) reintentada(s).")

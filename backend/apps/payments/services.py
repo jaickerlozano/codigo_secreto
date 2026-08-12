@@ -7,6 +7,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 
 from apps.orders.models import Order
+from apps.orders.notifications import schedule_delivery
 
 from .models import Transaction
 from .providers import MOCK_PROVIDER_ID, SUPPORTED_PAYMENT_METHODS, MockPaymentProvider
@@ -136,4 +137,5 @@ def approve_payment(*, order, transaction_id):
         order.status = "PAID"
         order.save(update_fields=["status", "updated_at"])
         _clear_purchased_cart_quantities(order)
+        schedule_delivery(order, "payment_confirmation")
         return attempt, order
