@@ -7,6 +7,7 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.orders.models import Order, OrderItem
+from apps.orders.notifications import schedule_delivery
 from apps.products.services import ProductSnapshotResolutionError, resolve_product_price_snapshot
 from apps.shipping.services import ShippingSnapshotResolutionError, resolve_comuna_shipping_snapshot
 
@@ -331,4 +332,31 @@ def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shippin
                 raise
             return _race_replay(checkout_key, quote, guest_email)
         order._guest_access_token = order.issue_guest_access()
+        return order
+
+
+# --- Fulfillment (staff-controlled dispatch lifecycle) ---
+
+class InvalidFulfillmentError(ValueError): """The order cannot be dispatched in its current state."""
+
+
+def fulfill_dispatch(*, order, carrier=None, estimated_delivery_date=None, tracking_number=None):
+    """Transition an approved PAID order to SHIPPED with truthful fields: carrier
+    and estimated date required (tracking optional), validation failures leave
+    the order untouched, success schedules the dispatch email after commit."""
+    with transaction.atomic():
+        order = Order.objects.select_for_update().get(id=order.id)
+        if order.status != "PAID":
+            raise InvalidFulfillmentError("El pedido no está listo para despacho.")
+        if not isinstance(carrier, str) or not carrier.strip():
+            raise InvalidFulfillmentError("El transportista es obligatorio.")
+        if estimated_delivery_date is None:
+            raise InvalidFulfillmentError("La fecha estimada de entrega es obligatoria.")
+        order.carrier = carrier.strip()
+        order.tracking_number = tracking_number.strip() if isinstance(tracking_number, str) and tracking_number.strip() else None
+        order.estimated_delivery_date = estimated_delivery_date
+        order.dispatched_at = timezone.now()
+        order.status = "SHIPPED"
+        order.save(update_fields=["carrier", "tracking_number", "estimated_delivery_date", "dispatched_at", "status", "updated_at"])
+        schedule_delivery(order, "dispatch")
         return order

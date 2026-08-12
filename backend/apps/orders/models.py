@@ -208,6 +208,40 @@ class Order(models.Model):
         verbose_name_plural = 'Pedidos'
 
 
+class NotificationDelivery(models.Model):
+    """Registro durable de cada correo transaccional (pago/despacho); el envío
+    se agenda con ``transaction.on_commit`` y un fallo nunca revierte el estado."""
+
+    EVENT_CHOICES = (
+        ('payment_confirmation', 'Confirmación de Pago'),
+        ('dispatch', 'Despacho del Pedido'),
+    )
+    STATUS_CHOICES = (
+        ('PENDING', 'Pendiente'),
+        ('SENT', 'Enviado'),
+        ('FAILED', 'Fallido'),
+    )
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='notifications', verbose_name='pedido')
+    event = models.CharField(max_length=30, choices=EVENT_CHOICES, verbose_name='evento')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='PENDING', verbose_name='estado')
+    attempts = models.PositiveIntegerField(default=0, verbose_name='intentos')
+    last_error = models.TextField(null=True, blank=True, verbose_name='último error')
+    next_retry_at = models.DateTimeField(null=True, blank=True, verbose_name='próximo reintento')
+    sent_at = models.DateTimeField(null=True, blank=True, verbose_name='fecha de envío')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='fecha de actualización')
+
+    class Meta:
+        unique_together = ('order', 'event')
+        ordering = ['-created_at']
+        verbose_name = 'Notificación'
+        verbose_name_plural = 'Notificaciones'
+
+    def __str__(self):
+        return f"{self.get_event_display()} — {self.get_status_display()} ({self.order.order_number})"
+
+
 class OrderItem(models.Model):
     # Relación jerárquica con la orden de compra principal
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items', verbose_name='pedido')

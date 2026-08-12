@@ -6,6 +6,7 @@ cart clearing. HTTP-level acceptance lives here (real URL wiring); the
 service keeps the state machine.
 """
 import pytest
+from django.core import mail
 from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -71,6 +72,25 @@ class TestApprovePaymentService:
         assert (second[0].status, second[1].status) == ("APPROVED", "PAID")
         cart.refresh_from_db()
         assert cart.items.count() == 0
+
+    def test_approval_schedules_payment_confirmation_email_after_commit(self, user, order_factory, transaction_factory, mock_payment_enabled):
+        from django.test import TestCase
+
+        from apps.orders.models import NotificationDelivery
+        order = order_factory(user=user, status="PENDING", total=30000)
+        attempt = transaction_factory(order=order)
+        mail.outbox.clear()
+
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            approve_payment(order=order, transaction_id=attempt.id)
+        approve_payment(order=order, transaction_id=attempt.id)  # replay: no duplicate
+
+        delivery = NotificationDelivery.objects.get(order=order, event="payment_confirmation")
+        assert delivery.status == "SENT"
+        assert NotificationDelivery.objects.filter(order=order).count() == 1
+        assert len(mail.outbox) == 1
+        assert order.order_number in mail.outbox[0].subject
+        assert "$30.000" in mail.outbox[0].body
 
 
 class TestMockApproveView:
