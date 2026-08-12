@@ -6,13 +6,16 @@ from drf_spectacular.utils import extend_schema
 
 from apps.orders.services import GUEST_ACCESS_COOKIE_NAME, authorize_order_access
 
+from .models import Transaction
 from .serializers import InitiatePaymentSerializer
 from .services import (
     PaymentAlreadyPaidError,
+    PaymentApprovalError,
     PaymentIdempotencyConflictError,
     PaymentMethodUnsupportedError,
     PaymentProviderUnavailableError,
     PaymentStateError,
+    approve_payment,
     initiate_payment,
 )
 
@@ -71,4 +74,49 @@ class InitiatePaymentView(APIView):
             "amount": attempt.amount,
             "payment_url": payment_url,
             "gateway_reference": attempt.gateway_reference
+        }, status=status.HTTP_200_OK)
+
+
+class ApproveMockPaymentView(APIView):
+    """Endpoint para aprobar (solo desarrollo) el pago mock de un pedido autorizado."""
+    permission_classes = [AllowAny]
+    throttle_scope = 'payment_approve'
+
+    @extend_schema(
+        summary="Aprobar pago mock (solo desarrollo)",
+        description="Aprueba la transacción mock pendiente y marca el pedido como pagado.",
+        tags=["Pagos"],
+    )
+    def post(self, request, transaction_id):
+        attempt = Transaction.objects.filter(id=transaction_id).first()
+        if attempt is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        order = authorize_order_access(
+            order_id=attempt.order_id,
+            user=request.user,
+            capability=request.headers.get(CAPABILITY_HEADER),
+            access_cookie=request.COOKIES.get(GUEST_ACCESS_COOKIE_NAME),
+        )
+        if order is None:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            attempt, order = approve_payment(order=order, transaction_id=transaction_id)
+        except PaymentProviderUnavailableError:
+            return Response({'detail': 'Payment service unavailable.'},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except PaymentStateError as error:
+            return Response(
+                {'order_id': [f"Este pedido no se puede pagar porque su estado es: {error.args[0]}."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except PaymentApprovalError:
+            return Response({'transaction_id': ['Esta transacción no puede ser aprobada.']},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            "transaction_id": attempt.id,
+            "order_id": order.id,
+            "status": attempt.status,
+            "order_status": order.status,
         }, status=status.HTTP_200_OK)

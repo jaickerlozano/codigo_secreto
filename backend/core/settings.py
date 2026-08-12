@@ -169,6 +169,7 @@ REST_FRAMEWORK = {
         "order_lookup": env("THROTTLE_ORDER_LOOKUP", default="30/min"),
         "order_quote": env("THROTTLE_ORDER_QUOTE", default="30/min"),
         "payment_initiate": env("THROTTLE_PAYMENT_INITIATE", default="10/min"),
+        "payment_approve": env("THROTTLE_PAYMENT_APPROVE", default="10/min"),
     },
 }
 

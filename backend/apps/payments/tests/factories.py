@@ -24,3 +24,4 @@ class TransactionFactory(factory.django.DjangoModelFactory):
         lambda o: f"token_simulado_cl_f_{o.order.id}x99"
     )
     payment_method = "MÉTODO SIMULADO"
+    provider = "mock"
