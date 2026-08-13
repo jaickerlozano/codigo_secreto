@@ -2,12 +2,17 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.orders.services import GUEST_ACCESS_COOKIE_NAME, authorize_order_access
 
 from .models import Transaction
-from .serializers import InitiatePaymentSerializer
+from .serializers import (
+    InitiatePaymentResponseSerializer,
+    InitiatePaymentSerializer,
+    MockApproveResponseSerializer,
+)
 from .services import (
     PaymentAlreadyPaidError,
     PaymentApprovalError,
@@ -31,7 +36,17 @@ class InitiatePaymentView(APIView):
         summary="Iniciar proceso de pago",
         description="Recibe el order_id, registra el intento mock y devuelve la URL de pago.",
         tags=["Pagos"],
-        request=InitiatePaymentSerializer
+        request=InitiatePaymentSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="Idempotency-Key",
+                location=OpenApiParameter.HEADER,
+                required=False,
+                type=OpenApiTypes.STR,
+                description="Clave de idempotencia del intento de pago (máx. 64 caracteres).",
+            ),
+        ],
+        responses={200: InitiatePaymentResponseSerializer},
     )
     def post(self, request):
         serializer = InitiatePaymentSerializer(data=request.data, context={'request': request})
@@ -86,6 +101,8 @@ class ApproveMockPaymentView(APIView):
         summary="Aprobar pago mock (solo desarrollo)",
         description="Aprueba la transacción mock pendiente y marca el pedido como pagado.",
         tags=["Pagos"],
+        request=None,
+        responses={200: MockApproveResponseSerializer},
     )
     def post(self, request, transaction_id):
         attempt = Transaction.objects.filter(id=transaction_id).first()

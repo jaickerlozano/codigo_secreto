@@ -19,7 +19,7 @@ import { useOrder } from '../hooks/useOrder'
 import { OrderTimeline, type TimelineStep } from '../components/OrderTimeline'
 import { exchangeOrderAccessFromLocation } from '../api/orders.api'
 
-type OrderStatus = components['schemas']['StatusEnum']
+type OrderStatus = components['schemas']['OrderStatusEnum']
 type PaymentMethod = components['schemas']['Order']['payment_method']
 
 const STATUS_LABELS: Record<OrderStatus, string> = {

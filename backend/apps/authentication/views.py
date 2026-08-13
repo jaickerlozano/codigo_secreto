@@ -168,6 +168,7 @@ class LogoutView(CookieCSRFMixin, APIView):
         summary="Cerrar sesión (Logout)",
         description="Elimina las cookies HttpOnly del token de acceso y refresco.",
         tags=["Autenticación"],
+        request=None,
         responses={200: {"type": "object", "properties": {"message": {"type": "string"}}}}
     )
     def post(self, request):

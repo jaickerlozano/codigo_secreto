@@ -41,6 +41,11 @@ function makeOrder(
     created_at: new Date().toISOString(),
     carrier: 'Chilexpress',
     tracking_number: 'CHX-9988776655',
+    delivery_kind: body.delivery_kind ?? 'standard',
+    requested_dispatch_date: body.requested_dispatch_date ?? null,
+    special_delivery_agreed_at: body.special_delivery_agreed_at ?? null,
+    estimated_delivery_date: body.estimated_delivery_date ?? null,
+    dispatched_at: body.dispatched_at ?? null,
     items,
   }
 }

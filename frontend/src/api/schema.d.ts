@@ -184,6 +184,70 @@ export interface paths {
         patch: operations["categories_partial_update"];
         trace?: never;
     };
+    "/api/contact/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enviar mensaje de contacto
+         * @description Endpoint público para enviar mensajes de contacto.
+         */
+        post: operations["contact_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/favorites/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar favoritos del usuario autenticado
+         * @description Favoritos privados del cliente autenticado (lectura y merge de invitado).
+         */
+        get: operations["favorites_list"];
+        put?: never;
+        /**
+         * Fusionar favoritos de invitado (sin duplicados)
+         * @description Favoritos privados del cliente autenticado (lectura y merge de invitado).
+         */
+        post: operations["favorites_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/favorites/{product_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Eliminar un favorito por producto
+         * @description Elimina un favorito del cliente autenticado.
+         */
+        delete: operations["favorites_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/orders/": {
         parameters: {
             query?: never;
@@ -262,6 +326,26 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["orders_quote_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/{transaction_id}/mock-approve/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Aprobar pago mock (solo desarrollo)
+         * @description Aprueba la transacción mock pendiente y marca el pedido como pagado.
+         */
+        post: operations["payments_mock_approve_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -528,6 +612,57 @@ export interface components {
             /** @description Indica si realizamos envíos a esta comuna */
             is_active?: boolean;
         };
+        ContactMessage: {
+            readonly id: number;
+            /** Nombre */
+            name: string;
+            /**
+             * Correo electrónico
+             * Format: email
+             */
+            email: string;
+            /** Asunto */
+            subject: string;
+            /** Mensaje */
+            body: string;
+            /** Estado */
+            readonly status: components["schemas"]["ContactMessageStatusEnum"];
+            /**
+             * Fecha de envío
+             * Format: date-time
+             */
+            readonly created_at: string;
+        };
+        ContactMessageResponse: {
+            id: number;
+            status: string;
+        };
+        /**
+         * @description * `NEW` - Nuevo
+         *     * `READ` - Leído
+         *     * `RESOLVED` - Resuelto
+         * @enum {string}
+         */
+        ContactMessageStatusEnum: "NEW" | "READ" | "RESOLVED";
+        /**
+         * @description * `standard` - Entrega Estándar
+         *     * `special` - Entrega Especial
+         * @enum {string}
+         */
+        DeliveryKindEnum: "standard" | "special";
+        Favorite: {
+            readonly id: number;
+            /** Producto */
+            readonly product: number;
+            /**
+             * Fecha de creación
+             * Format: date-time
+             */
+            readonly created_at: string;
+        };
+        FavoriteMerge: {
+            product_ids: number[];
+        };
         GuestAccess: {
             token: string;
             /** Format: date-time */
@@ -553,6 +688,19 @@ export interface components {
         };
         InitiatePayment: {
             order_id: number;
+        };
+        InitiatePaymentResponse: {
+            transaction_id: number;
+            order_id: number;
+            amount: number;
+            payment_url: string;
+            gateway_reference: string;
+        };
+        MockApproveResponse: {
+            transaction_id: number;
+            order_id: number;
+            status: string;
+            order_status: string;
         };
         /**
          * @description * `IN` - Entrada
@@ -593,7 +741,7 @@ export interface components {
             /** Total final */
             readonly total: number;
             /** Estado del pedido */
-            readonly status: components["schemas"]["StatusEnum"];
+            readonly status: components["schemas"]["OrderStatusEnum"];
             /**
              * Fecha de creación
              * Format: date-time
@@ -610,6 +758,38 @@ export interface components {
              */
             readonly tracking_number: string | null;
             readonly items: components["schemas"]["OrderItem"][];
+            /**
+             * Tipo de entrega
+             * @description standard: fechas regulares de despacho; special: requiere acuerdo previo por WhatsApp.
+             *
+             *     * `standard` - Entrega Estándar
+             *     * `special` - Entrega Especial
+             */
+            readonly delivery_kind: components["schemas"]["DeliveryKindEnum"];
+            /**
+             * Fecha de despacho solicitada
+             * Format: date
+             * @description Fecha especial de despacho solicitada por el cliente.
+             */
+            readonly requested_dispatch_date: string | null;
+            /**
+             * Acuerdo de entrega especial
+             * Format: date-time
+             * @description Momento en que el staff confirmó el acuerdo especial; sin esto el pago permanece bloqueado.
+             */
+            readonly special_delivery_agreed_at: string | null;
+            /**
+             * Fecha estimada de entrega
+             * Format: date
+             * @description Fecha estimada de entrega registrada por el staff al despachar.
+             */
+            readonly estimated_delivery_date: string | null;
+            /**
+             * Fecha de despacho
+             * Format: date-time
+             * @description Momento en que el pedido fue despachado.
+             */
+            readonly dispatched_at: string | null;
         };
         OrderCreate: {
             /** Teléfono de contacto */
@@ -652,6 +832,15 @@ export interface components {
             quantity: number;
             readonly subtotal: number;
         };
+        /**
+         * @description * `PENDING` - Pendiente de Pago
+         *     * `PAID` - Pagado / Listo para Despacho
+         *     * `SHIPPED` - Enviado a Destino
+         *     * `DELIVERED` - Entregado al Cliente
+         *     * `CANCELLED` - Cancelado / Anulado
+         * @enum {string}
+         */
+        OrderStatusEnum: "PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
         PaginatedCategoryList: {
             /** @example 123 */
             count: number;
@@ -908,15 +1097,6 @@ export interface components {
             password: string;
             password_confirm: string;
         };
-        /**
-         * @description * `PENDING` - Pendiente de Pago
-         *     * `PAID` - Pagado / Listo para Despacho
-         *     * `SHIPPED` - Enviado a Destino
-         *     * `DELIVERED` - Entregado al Cliente
-         *     * `CANCELLED` - Cancelado / Anulado
-         * @enum {string}
-         */
-        StatusEnum: "PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
         StockMovement: {
             readonly id: number;
             /** Producto */
@@ -1326,6 +1506,95 @@ export interface operations {
             };
         };
     };
+    contact_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContactMessage"];
+                "application/x-www-form-urlencoded": components["schemas"]["ContactMessage"];
+                "multipart/form-data": components["schemas"]["ContactMessage"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactMessageResponse"];
+                };
+            };
+        };
+    };
+    favorites_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Favorite"][];
+                };
+            };
+        };
+    };
+    favorites_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FavoriteMerge"];
+                "application/x-www-form-urlencoded": components["schemas"]["FavoriteMerge"];
+                "multipart/form-data": components["schemas"]["FavoriteMerge"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Favorite"][];
+                };
+            };
+        };
+    };
+    favorites_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                product_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     orders_list: {
         parameters: {
             query?: {
@@ -1351,7 +1620,10 @@ export interface operations {
     orders_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Clave de idempotencia del checkout (máx. 64 caracteres). */
+                "Idempotency-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1377,6 +1649,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["QuoteRevisionStale"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuoteError"];
                 };
             };
         };
@@ -1487,10 +1767,34 @@ export interface operations {
             };
         };
     };
-    payments_initiate_create: {
+    payments_mock_approve_create: {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                transaction_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MockApproveResponse"];
+                };
+            };
+        };
+    };
+    payments_initiate_create: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Clave de idempotencia del intento de pago (máx. 64 caracteres). */
+                "Idempotency-Key"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -1502,12 +1806,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description No response body */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["InitiatePaymentResponse"];
+                };
             };
         };
     };

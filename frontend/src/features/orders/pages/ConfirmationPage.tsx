@@ -18,7 +18,7 @@ import type { components } from '@/api/schema.d.ts'
 
 import { useOrder } from '../hooks/useOrder'
 
-type OrderStatus = components['schemas']['StatusEnum']
+type OrderStatus = components['schemas']['OrderStatusEnum']
 type PaymentMethod = components['schemas']['Order']['payment_method']
 
 const STATUS_LABELS: Record<OrderStatus, string> = {

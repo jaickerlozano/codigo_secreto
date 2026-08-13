@@ -67,6 +67,15 @@ class OrderViewSet(mixins.CreateModelMixin,
 
     @extend_schema(
         request=OrderCreateSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="Idempotency-Key",
+                location=OpenApiParameter.HEADER,
+                required=False,
+                type=OpenApiTypes.STR,
+                description="Clave de idempotencia del checkout (máx. 64 caracteres).",
+            ),
+        ],
         responses={201: OrderSerializer, 400: QuoteRevisionStaleSerializer, 409: QuoteErrorSerializer},
     )
     def create(self, request, *args, **kwargs):
