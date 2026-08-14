@@ -9,9 +9,10 @@ import {
   Truck,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useCartStore } from '@/features/cart'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
 import type { components } from '@/api/schema.d.ts'
@@ -36,23 +37,28 @@ const PAYMENT_METHOD_LABELS: Record<NonNullable<PaymentMethod>, string> = {
   transfer: 'Transferencia bancaria',
 }
 
+const FULFILLMENT_ROWS = [
+  { icon: Mail, label: 'Confirmación', value: 'Enviada a tu email' },
+  { icon: Package, label: 'Embalaje', value: 'Discreto — sin logos ni marcas' },
+  { icon: Building2, label: 'Remitente', value: 'CS Logistics (neutro)' },
+]
+
 export function ConfirmationPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const orderNumber =
-    typeof location.state === 'object' &&
-    location.state !== null &&
-    'orderNumber' in location.state &&
-    typeof location.state.orderNumber === 'string'
-      ? location.state.orderNumber
-      : null
+  const params = useParams()
+  const stateOrderNumber = typeof location.state === 'object' && location.state !== null && 'orderNumber' in location.state && typeof location.state.orderNumber === 'string' ? location.state.orderNumber : null
+  const orderNumber = params.orderNumber ?? stateOrderNumber
   const [copied, setCopied] = useState(false)
   const prefersReduced = useReducedMotion()
+  const cartMode = useCartStore((state) => state.mode)
   const { data: order, isLoading, error } = useOrder(orderNumber ?? undefined)
 
   useEffect(() => {
     if (!orderNumber) navigate('/', { replace: true })
-  }, [navigate, orderNumber])
+    else if (order?.status === 'PENDING') navigate(`/checkout/payment/${orderNumber}`, { replace: true })
+    else if (order?.status === 'PAID' && cartMode === 'guest') useCartStore.getState().clearCart()
+  }, [navigate, order, orderNumber, cartMode])
 
   const handleCopy = () => {
     if (!orderNumber) return
@@ -104,6 +110,7 @@ export function ConfirmationPage() {
   }
 
   const isGuest = Boolean(order.guest_email)
+  const isCancelled = order.status === 'CANCELLED'
 
   return (
     <main
@@ -141,7 +148,7 @@ export function ConfirmationPage() {
           transition={prefersReduced ? { duration: 0 } : { delay: 0.2 }}
           className="mb-3 text-3xl font-extrabold uppercase tracking-wide text-foreground"
         >
-          ¡Pedido confirmado!
+          {isCancelled ? 'Pedido cancelado' : '¡Pedido confirmado!'}
         </motion.h1>
 
         <motion.p
@@ -150,8 +157,9 @@ export function ConfirmationPage() {
           transition={prefersReduced ? { duration: 0 } : { delay: 0.3 }}
           className="mx-auto mb-10 max-w-xs text-sm leading-relaxed text-muted-foreground"
         >
-          Recibirás una confirmación discreta en tu email en los próximos
-          minutos.
+          {isCancelled
+            ? 'Este pedido fue cancelado y no será despachado.'
+            : 'Recibirás una confirmación discreta en tu email en los próximos minutos.'}
         </motion.p>
 
         <motion.div
@@ -195,13 +203,7 @@ export function ConfirmationPage() {
 
           <div className="space-y-4">
             {[
-              { icon: Mail, label: 'Confirmación', value: 'Enviada a tu email' },
-              {
-                icon: Package,
-                label: 'Embalaje',
-                value: 'Discreto — sin logos ni marcas',
-              },
-              { icon: Building2, label: 'Remitente', value: 'CS Logistics (neutro)' },
+              ...(isCancelled ? [] : FULFILLMENT_ROWS),
             ].map(({ icon: Icon, label, value }) => (
               <div key={label} className="flex items-center gap-3.5">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-secondary">
@@ -327,6 +329,7 @@ export function ConfirmationPage() {
           </motion.div>
         )}
 
+        {!isCancelled && (
         <motion.div
           initial={prefersReduced ? false : { opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -344,6 +347,7 @@ export function ConfirmationPage() {
             proteger tu privacidad.
           </p>
         </motion.div>
+        )}
 
         <motion.button
           initial={prefersReduced ? false : { opacity: 0, y: 10 }}
@@ -357,6 +361,7 @@ export function ConfirmationPage() {
           Volver al inicio
         </motion.button>
 
+        {!isCancelled && (
         <motion.div
           initial={prefersReduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -370,6 +375,7 @@ export function ConfirmationPage() {
             Rastrear mi pedido
           </Link>
         </motion.div>
+        )}
       </motion.div>
     </main>
   )

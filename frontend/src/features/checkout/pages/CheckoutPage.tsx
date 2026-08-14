@@ -35,7 +35,7 @@ export function CheckoutPage() {
     goToStep,
   } = useCheckout()
   const cart = useCart({ comunaId: data.address.comunaId || null })
-  const { items, clearCart, subtotal, shippingCost, total, mode, isLoading, error: cartError, retry: retryCart, quote, quoteInput, quoteIsLoading, quoteIsError, quoteError, quoteIsStale, retryQuote } = cart
+  const { items, subtotal, shippingCost, total, mode, isLoading, error: cartError, retry: retryCart, quote, quoteInput, quoteIsLoading, quoteIsError, quoteError, quoteIsStale, retryQuote } = cart
   const createOrder = useCreateOrder()
   const initiatePayment = useInitiatePayment()
   const [confirmedRevision, setConfirmedRevision] = useState<string | null>(null)
@@ -91,17 +91,16 @@ export function CheckoutPage() {
           initiatePayment.mutate(
           { order_id: order.id },
           {
-            onSuccess: () => {
+            onSuccess: (initiation) => {
               if (mode === 'authenticated') {
                 queryClient.invalidateQueries({ queryKey: ['cart'] })
-              } else {
-                clearCart()
               }
 
-              navigate('/confirmation', { replace: true, state: { orderNumber: order.order_number } })
+              navigate(`/checkout/payment/${order.order_number}`, { replace: true, state: { transactionId: initiation.transaction_id } })
             },
             onError: (error) => {
               toast.error(error.message)
+              navigate(`/checkout/payment/${order.order_number}`, { replace: true })
             },
           },
           )

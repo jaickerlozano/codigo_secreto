@@ -1,16 +1,9 @@
 import { apiClient } from '@/lib/api-client'
+import type { components } from '@/api/schema.d.ts'
 
-export interface PaymentInitiation {
-  transaction_id: number
-  order_id: number
-  amount: number
-  payment_url: string
-  gateway_reference: string
-}
-
-export interface InitiatePaymentInput {
-  order_id: number
-}
+export type PaymentInitiation = components['schemas']['InitiatePaymentResponse']
+export type ApprovePaymentResult = components['schemas']['MockApproveResponse']
+export type InitiatePaymentInput = components['schemas']['InitiatePayment']
 
 function extractErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
@@ -28,18 +21,14 @@ function extractErrorMessage(error: unknown): string {
   return 'Ocurrió un error al iniciar el pago. Inténtalo de nuevo.'
 }
 
-export async function initiatePayment(
-  input: InitiatePaymentInput,
-): Promise<PaymentInitiation> {
-  const { data, error } = await apiClient.POST('/api/payments/initiate/', {
-    body: input,
-  })
+export async function initiatePayment(input: InitiatePaymentInput): Promise<PaymentInitiation> {
+  const { data, error } = await apiClient.POST('/api/payments/initiate/', { body: input })
+  if (error || !data) throw new Error(extractErrorMessage(error))
+  return data
+}
 
-  if (error) {
-    throw new Error(extractErrorMessage(error))
-  }
-
-  // The generated OpenAPI schema does not declare the response body for this
-  // endpoint, but the backend returns the shape defined in PaymentInitiation.
-  return (data ?? {}) as PaymentInitiation
+export async function approvePayment(transactionId: number): Promise<ApprovePaymentResult> {
+  const { data, error } = await apiClient.POST('/api/payments/{transaction_id}/mock-approve/', { params: { path: { transaction_id: transactionId } } })
+  if (error || !data) throw new Error(extractErrorMessage(error))
+  return data
 }

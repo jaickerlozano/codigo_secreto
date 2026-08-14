@@ -10,7 +10,7 @@ type OrderItem = components['schemas']['OrderItem']
 
 let nextOrderId = 100
 
-const trackedOrders = new Map<string, Order>()
+export const trackedOrders = new Map<string, Order>()
 
 function makeOrder(
   body: Partial<Order>,
@@ -95,6 +95,8 @@ export const orderHandlers = [
     trackedOrders.set(order.order_number, order)
     return HttpResponse.json(order, { status: 201 })
   }),
+
+  http.post('http://localhost:8000/api/orders/by-order-number/:orderNumber/access/', () => HttpResponse.json({})),
 
   http.get(
     'http://localhost:8000/api/orders/by-order-number/:orderNumber/',

@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 import { useCartStore } from '@/features/cart'
 
 import { resetServerCart } from './handlers/cart'
+import { resetPaymentHandlers } from './handlers/payments'
 import { handlers } from './handlers'
 
 Object.defineProperty(window, 'matchMedia', {
@@ -31,6 +32,7 @@ beforeAll(() =>
 afterEach(() => {
   server.resetHandlers()
   resetServerCart()
+  resetPaymentHandlers()
   useCartStore.setState({ items: [], isOpen: false, mode: 'guest' })
   window.localStorage.clear()
   window.sessionStorage.clear()

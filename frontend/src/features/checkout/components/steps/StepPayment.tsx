@@ -90,6 +90,7 @@ export function StepPayment({
                     <span className="text-[13px] font-bold text-foreground">
                       {opt.name}
                     </span>
+                    {import.meta.env.MODE !== 'production' && <span className="rounded-full border border-neon-cyan/20 bg-neon-cyan/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-neon-cyan">Simulado</span>}
                     {opt.id === 'webpay' && (
                       <span className="rounded-full border border-neon-magenta/20 bg-neon-magenta/10 px-1.5 py-0.5 text-[9px] font-bold uppercase text-neon-magenta">
                         Recomendado

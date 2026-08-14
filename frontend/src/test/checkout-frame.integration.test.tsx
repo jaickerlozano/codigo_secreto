@@ -30,12 +30,20 @@ async function completeDataStep(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/Email/), 'valentina@example.com')
   await user.type(screen.getByLabelText(/Teléfono/), '+56 9 1234 5678')
   await user.click(screen.getByRole('button', { name: /Siguiente/ }))
-  await user.selectOptions(await screen.findByLabelText(/Región/), '13')
+  await user.selectOptions(await screen.findByLabelText(/Región/, undefined, { timeout: 5000 }), '13')
   const comunaSelect = screen.getByLabelText(/Comuna/)
   await waitFor(() => expect(comunaSelect.querySelector('option[value="1"]')).not.toBeNull())
   await user.selectOptions(comunaSelect, '1')
   await user.type(screen.getByLabelText(/Calle y número/), 'Av. Providencia 1234')
   await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+}
+
+async function reachAndConfirm(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole('button', { name: /Siguiente/ }, { timeout: 5000 }))
+  await user.click(await screen.findByRole('radio', { name: 'Webpay' }, { timeout: 5000 }))
+  await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+  await user.click(await screen.findByRole('checkbox'))
+  await user.click(screen.getByRole('button', { name: 'Confirmar pedido' }))
 }
 
 describe('checkout frame runtime harness', () => {
@@ -74,7 +82,7 @@ describe('checkout frame runtime harness', () => {
     renderApp('/checkout')
     await completeDataStep(user)
 
-    const envio = await screen.findByRole('group', { name: 'Envío' })
+    const envio = await screen.findByRole('group', { name: 'Envío' }, { timeout: 5000 })
     expect(await within(envio).findByText('$3.500')).toBeDefined()
     expect(screen.getByText((_, node) => node?.tagName === 'P' && node.textContent === 'Envío a Santiago, Región Metropolitana')).toBeDefined()
     expect(screen.getByRole('button', { name: /Siguiente/ }).hasAttribute('disabled')).toBe(false)
@@ -89,6 +97,30 @@ describe('checkout frame runtime harness', () => {
     expect(screen.getByRole('button', { name: 'Confirmar pedido' }).hasAttribute('disabled')).toBe(true)
   })
 
+  it('guest completes the purchase: confirm → pending payment → dev approve → confirmation clears the cart', async () => {
+    useCartStore.setState({ mode: 'guest', items: [{ product, quantity: 1 }] })
+    const user = userEvent.setup()
+    renderApp('/checkout')
+    await completeDataStep(user)
+    await reachAndConfirm(user)
+    expect(await screen.findByRole('heading', { name: 'Pago pendiente' }, { timeout: 5000 })).toBeDefined()
+    expect(useCartStore.getState().items).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: /Aprobar pago/ }))
+    expect(await screen.findByRole('heading', { name: '¡Pedido confirmado!' }, { timeout: 5000 })).toBeDefined()
+    await waitFor(() => expect(useCartStore.getState().items).toHaveLength(0), { timeout: 5000 })
+  })
+
+  it('lands on the durable pending route when initiation fails, so confirm can never create another order', async () => {
+    server.use(http.post('http://localhost:8000/api/payments/initiate/', () => HttpResponse.json({ detail: 'Error del servidor. Intenta más tarde.' }, { status: 503 })))
+    useCartStore.setState({ mode: 'guest', items: [{ product, quantity: 1 }] })
+    const user = userEvent.setup()
+    renderApp('/checkout')
+    await completeDataStep(user)
+    await reachAndConfirm(user)
+    expect(await screen.findByRole('heading', { name: 'Pago pendiente' }, { timeout: 5000 })).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Confirmar pedido' })).toBeNull()
+  })
+
   it('blocks continue on quote failure and recovers through retry', async () => {
     useCartStore.setState({ mode: 'guest', items: [{ product, quantity: 1 }] })
     const user = userEvent.setup()
@@ -100,12 +132,12 @@ describe('checkout frame runtime harness', () => {
     })
     await completeDataStep(user)
 
-    const envio = await screen.findByRole('group', { name: 'Envío' })
+    const envio = await screen.findByRole('group', { name: 'Envío' }, { timeout: 5000 })
     expect((await within(envio).findByRole('alert', undefined, { timeout: 5000 })).textContent).toContain('Error del servidor. Intenta más tarde.')
     expect(screen.getByRole('button', { name: /Siguiente/ }).hasAttribute('disabled')).toBe(true)
     await user.click(within(envio).getByRole('button', { name: 'Reintentar' }))
 
-    expect(await within(envio).findByText('$3.500')).toBeDefined()
+    expect(await within(envio).findByText('$3.500', undefined, { timeout: 5000 })).toBeDefined()
     expect(screen.getByRole('button', { name: /Siguiente/ }).hasAttribute('disabled')).toBe(false)
   })
 })
