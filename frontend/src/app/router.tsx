@@ -3,7 +3,7 @@ import { createBrowserRouter, type RouteObject } from 'react-router'
 import { LoginPage } from '@/features/auth'
 import { RegisterPage } from '@/features/auth/pages/RegisterPage'
 import { CategoryPage, HomePage, ProductDetailPage } from '@/features/catalog'
-import { CheckoutPage } from '@/features/checkout'
+import { CheckoutPage, PendingPaymentPage } from '@/features/checkout'
 import { ConfirmationPage, OrderTrackingPage } from '@/features/orders'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
@@ -31,6 +31,10 @@ export const routes: RouteObject[] = [
         element: <CheckoutPage />,
       },
       {
+        path: 'checkout/payment/:orderNumber',
+        element: <PendingPaymentPage />,
+      },
+      {
         path: 'category/:categoryId',
         element: <CategoryPage />,
       },
@@ -40,6 +44,10 @@ export const routes: RouteObject[] = [
       },
       {
         path: 'confirmation',
+        element: <ConfirmationPage />,
+      },
+      {
+        path: 'confirmation/:orderNumber',
         element: <ConfirmationPage />,
       },
       {
