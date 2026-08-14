@@ -18,11 +18,10 @@ export interface AddressData {
   notes?: string
 }
 
-export type ShippingCarrier = 'express' | 'chilexpress' | 'bluexpress' | 'pickup'
-
-export interface ShippingData {
-  carrier: ShippingCarrier
-}
+// Shipping carries no user-selected carrier or fee: the backend tariff for
+// the destination (guest quote or authenticated cart) is the only source of
+// truth, so the step only records its confirmation.
+export type ShippingData = Record<string, never>
 
 export type PaymentMethod = 'webpay' | 'flow' | 'mercadopago' | 'transfer'
 
@@ -36,14 +35,6 @@ export interface CheckoutData {
   shipping: ShippingData
   payment: PaymentData
   termsAccepted: boolean
-}
-
-export interface ShippingOption {
-  id: ShippingCarrier
-  name: string
-  description: string
-  price: number
-  eta: string
 }
 
 export interface PaymentOption {

@@ -29,9 +29,9 @@ export const addressSchema = z.object({
 
 export type AddressSchema = z.infer<typeof addressSchema>
 
-export const shippingSchema = z.object({
-  carrier: z.enum(['express', 'chilexpress', 'bluexpress', 'pickup']),
-})
+// No user-selectable shipping options exist yet: the backend tariff for the
+// destination is the single source of truth, so the step submits no fields.
+export const shippingSchema = z.object({})
 
 export type ShippingSchema = z.infer<typeof shippingSchema>
 

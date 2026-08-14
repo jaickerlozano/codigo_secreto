@@ -35,7 +35,7 @@ export function CheckoutPage() {
     goToStep,
   } = useCheckout()
   const cart = useCart({ comunaId: data.address.comunaId || null })
-  const { items, clearCart, subtotal, shippingCost, total, mode, isLoading, error: cartError, retry: retryCart, quote, quoteInput, quoteIsLoading, quoteIsError, quoteIsStale } = cart
+  const { items, clearCart, subtotal, shippingCost, total, mode, isLoading, error: cartError, retry: retryCart, quote, quoteInput, quoteIsLoading, quoteIsError, quoteError, quoteIsStale, retryQuote } = cart
   const createOrder = useCreateOrder()
   const initiatePayment = useInitiatePayment()
   const [confirmedRevision, setConfirmedRevision] = useState<string | null>(null)
@@ -148,9 +148,14 @@ export function CheckoutPage() {
                 )}
                 {currentStep === 2 && (
                   <StepShipping
-                    defaultValues={data.shipping}
-                    onSubmit={(shipping) => {
-                      setShipping(shipping)
+                    destinationName={data.address.comunaName ?? ''}
+                    destinationRegion={data.address.regionName}
+                    tariff={shippingCost}
+                    isLoading={quoteIsLoading}
+                    errorMessage={quoteIsError ? (quoteError?.message ?? 'No pudimos calcular el costo de envío.') : null}
+                    onRetry={retryQuote}
+                    onSubmit={() => {
+                      setShipping({})
                       nextStep()
                     }}
                     onBack={prevStep}
