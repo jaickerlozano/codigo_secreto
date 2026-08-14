@@ -23,9 +23,7 @@ const testAddress = {
   notes: 'Tocar timbre',
 }
 
-const testShipping = {
-  carrier: 'chilexpress' as const,
-}
+const testShipping = {}
 
 describe('useCheckout', () => {
   it('starts at step 1 with empty initial data', () => {
@@ -48,7 +46,7 @@ describe('useCheckout', () => {
       postalCode: '',
       notes: '',
     })
-    expect(result.current.data.shipping).toEqual({ carrier: 'chilexpress' })
+    expect(result.current.data.shipping).toEqual({})
     expect(result.current.data.payment).toEqual({ method: 'webpay' })
     expect(result.current.data.termsAccepted).toBe(false)
   })
@@ -73,15 +71,15 @@ describe('useCheckout', () => {
     expect(result.current.data.address).toEqual(testAddress)
   })
 
-  it('updates shipping and payment methods', () => {
+  it('updates shipping confirmation and payment methods', () => {
     const { result } = renderHook(() => useCheckout())
 
     act(() => {
-      result.current.setShipping({ carrier: 'bluexpress' })
+      result.current.setShipping({})
       result.current.setPayment({ method: 'mercadopago' })
     })
 
-    expect(result.current.data.shipping).toEqual({ carrier: 'bluexpress' })
+    expect(result.current.data.shipping).toEqual({})
     expect(result.current.data.payment).toEqual({ method: 'mercadopago' })
   })
 

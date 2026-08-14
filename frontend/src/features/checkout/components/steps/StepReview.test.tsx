@@ -6,7 +6,7 @@ import type { CheckoutData } from '../../types'
 
 import { StepReview } from './StepReview'
 
-const data: CheckoutData = { contact: { name: 'Juan Pérez', email: 'juan@example.com', phone: '+56 9 1234 5678', isGuest: true }, address: { regionId: 13, regionName: 'Región Metropolitana', comunaId: 1, comunaName: 'Santiago', address: 'Av. Siempre Viva 123', apartment: '301' }, shipping: { carrier: 'chilexpress' }, payment: { method: 'webpay' }, termsAccepted: true }
+const data: CheckoutData = { contact: { name: 'Juan Pérez', email: 'juan@example.com', phone: '+56 9 1234 5678', isGuest: true }, address: { regionId: 13, regionName: 'Región Metropolitana', comunaId: 1, comunaName: 'Santiago', address: 'Av. Siempre Viva 123', apartment: '301' }, shipping: {}, payment: { method: 'webpay' }, termsAccepted: true }
 
 function renderReview(onEditStep = vi.fn()) {
   return render(<StepReview data={data} subtotal={29990} shippingCost={3500} total={33490} quoteReady onEditStep={onEditStep} onTermsChange={vi.fn()} onBack={vi.fn()} onConfirm={vi.fn()} />)
@@ -33,5 +33,11 @@ describe('StepReview review map (four-step frame)', () => {
     expect(onEditStep).toHaveBeenLastCalledWith(2)
     await user.click(screen.getAllByRole('button', { name: 'Editar' })[3])
     expect(onEditStep).toHaveBeenLastCalledWith(3)
+  })
+
+  it('shows the destination-based Envío label instead of a frontend carrier name', () => {
+    renderReview()
+
+    expect(screen.getByText('Envío a Santiago, Región Metropolitana')).toBeDefined()
   })
 })

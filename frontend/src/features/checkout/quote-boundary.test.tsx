@@ -9,7 +9,7 @@ import { OrderSummary } from './components/OrderSummary'
 import { StepReview } from './components/steps/StepReview'
 
 const quote = { items: [{ product_id: 1, product_name: 'Producto', quantity: 1, unit_price: 10000, line_total: 10000 }], subtotal: 10000, shipping_cost: 3500, total: 13500, revision: 'gq1.current' }
-const data = { contact: { name: 'Guest', email: 'guest@example.com', phone: '+56', isGuest: true }, address: { regionId: 1, regionName: 'RM', comunaId: 1, comunaName: 'Providencia', address: 'Address' }, shipping: { carrier: 'express' as const }, payment: { method: 'webpay' as const }, termsAccepted: true }
+const data = { contact: { name: 'Guest', email: 'guest@example.com', phone: '+56', isGuest: true }, address: { regionId: 1, regionName: 'RM', comunaId: 1, comunaName: 'Providencia', address: 'Address' }, shipping: {}, payment: { method: 'webpay' as const }, termsAccepted: true }
 const Wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={queryClient()}>{children}</QueryClientProvider>
 
 describe('PR07 quote boundary', () => {

@@ -26,9 +26,7 @@ const INITIAL_DATA: CheckoutData = {
     postalCode: '',
     notes: '',
   },
-  shipping: {
-    carrier: 'chilexpress',
-  },
+  shipping: {},
   payment: {
     method: 'webpay',
   },

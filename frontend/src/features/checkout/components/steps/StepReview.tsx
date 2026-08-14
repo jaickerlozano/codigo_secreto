@@ -2,7 +2,7 @@ import { Check, Loader2, Lock, Package } from 'lucide-react'
 
 import { formatCLP } from '@/lib/format'
 
-import { PAYMENT_OPTIONS, SHIPPING_OPTIONS } from '../../data'
+import { PAYMENT_OPTIONS } from '../../data'
 import type { CheckoutData, CheckoutStep } from '../../types'
 
 interface StepReviewProps {
@@ -32,8 +32,9 @@ export function StepReview({
   onConfirm,
   isSubmitting = false,
 }: StepReviewProps) {
-  const shippingLabel =
-    SHIPPING_OPTIONS.find((s) => s.id === data.shipping.carrier)?.name ?? '—'
+  const shippingLabel = data.address.comunaName
+    ? `Envío a ${data.address.comunaName}${data.address.regionName ? `, ${data.address.regionName}` : ''}`
+    : '—'
   const paymentLabel =
     PAYMENT_OPTIONS.find((p) => p.id === data.payment.method)?.name ?? '—'
 
