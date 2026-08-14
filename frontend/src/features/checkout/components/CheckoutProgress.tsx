@@ -9,11 +9,11 @@ interface CheckoutProgressProps {
   totalSteps?: number
 }
 
-const STEP_LABELS = ['Contacto', 'Dirección', 'Envío', 'Pago', 'Revisar'] as const
+const STEP_LABELS = ['Datos', 'Envío', 'Pago', 'Confirmar'] as const
 
 export function CheckoutProgress({
   currentStep,
-  totalSteps = 5,
+  totalSteps = 4,
 }: CheckoutProgressProps) {
   const labels = STEP_LABELS.slice(0, totalSteps)
   const prefersReduced = useReducedMotion()

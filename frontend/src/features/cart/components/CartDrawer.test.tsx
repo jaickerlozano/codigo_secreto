@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
 import type { Product } from '@/features/catalog/types'
@@ -17,11 +18,51 @@ const product = { id: 1, name: 'Producto de prueba', description: 'Descripción'
 
 function Wrapper({ children }: { children: ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient()}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient()}>
+      <MemoryRouter>{children}</MemoryRouter>
+    </QueryClientProvider>
   )
 }
 
 describe('CartDrawer', () => {
+  it('shows authenticated cart loading instead of an empty cart', () => {
+    server.use(http.get('http://localhost:8000/api/cart/me/', async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      return HttpResponse.json({ items: [] })
+    }))
+    useCartStore.setState({ isOpen: true, mode: 'authenticated' })
+
+    render(<CartDrawer />, { wrapper: Wrapper })
+
+    expect(screen.getByRole('status').className).toContain('text-base')
+    expect(screen.queryByText('Tu carrito está vacío')).toBeNull()
+  })
+
+  it('shows authenticated cart errors and retries', async () => {
+    let attempts = 0
+    server.use(http.get('http://localhost:8000/api/cart/me/', () => ++attempts < 3 ? HttpResponse.json({ detail: 'Cart unavailable.' }, { status: 500 }) : HttpResponse.json({ items: [] })))
+    useCartStore.setState({ isOpen: true, mode: 'authenticated' })
+
+    render(<CartDrawer />, { wrapper: Wrapper })
+
+    const alert = await screen.findByRole('alert', undefined, { timeout: 2500 })
+    expect(alert.querySelector('p')?.className).toContain('text-base')
+    expect(screen.getByRole('button', { name: 'Retry cart' }).className).toContain('min-h-12')
+    await userEvent.click(screen.getByRole('button', { name: 'Retry cart' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    expect(screen.getByText('Tu carrito está vacío')).toBeDefined()
+    expect(attempts).toBe(3)
+  })
+
+  it('provides 48px quantity controls', () => {
+    useCartStore.setState({ isOpen: true, items: [{ product, quantity: 1 }] })
+
+    render(<CartDrawer />, { wrapper: Wrapper })
+
+    expect(screen.getByRole('button', { name: `Reducir ${product.name}` }).className).toContain('h-12 w-12')
+    expect(screen.getByRole('button', { name: `Aumentar ${product.name}` }).className).toContain('h-12 w-12')
+  })
+
   it('renders empty cart state when open', () => {
     useCartStore.setState({ isOpen: true })
 
@@ -48,5 +89,27 @@ describe('CartDrawer', () => {
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     expect(screen.getAllByText('$29.990')).toHaveLength(2)
     expect(attempts).toBe(2)
+  })
+
+  it('navigates to /checkout and closes the drawer from the CTA', async () => {
+    useCartStore.setState({ isOpen: true, items: [{ product, quantity: 1 }] })
+
+    render(
+      <QueryClientProvider client={queryClient()}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/" element={<CartDrawer />} />
+            <Route path="/checkout" element={<div>Checkout destino</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /Continuar al pago/ }),
+    )
+
+    expect(await screen.findByText('Checkout destino')).toBeDefined()
+    expect(useCartStore.getState().isOpen).toBe(false)
   })
 })

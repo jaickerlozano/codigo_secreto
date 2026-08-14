@@ -110,17 +110,17 @@ describe('useCheckout', () => {
       result.current.nextStep()
       result.current.nextStep()
     })
-    expect(result.current.currentStep).toBe(5)
+    expect(result.current.currentStep).toBe(4)
 
     act(() => {
       result.current.nextStep()
     })
-    expect(result.current.currentStep).toBe(5)
+    expect(result.current.currentStep).toBe(4)
 
     act(() => {
       result.current.prevStep()
     })
-    expect(result.current.currentStep).toBe(4)
+    expect(result.current.currentStep).toBe(3)
 
     act(() => {
       result.current.goToStep(2)
@@ -128,12 +128,12 @@ describe('useCheckout', () => {
     expect(result.current.currentStep).toBe(2)
   })
 
-  it('ignores steps outside the valid range', () => {
+  it('ignores steps outside the valid four-step range', () => {
     const { result } = renderHook(() => useCheckout())
 
     act(() => {
       result.current.goToStep(0 as unknown as CheckoutStep)
-      result.current.goToStep(6 as unknown as CheckoutStep)
+      result.current.goToStep(5 as unknown as CheckoutStep)
     })
 
     expect(result.current.currentStep).toBe(1)
