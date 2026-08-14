@@ -60,7 +60,7 @@ export function useCheckout(): UseCheckoutReturn {
   }
 
   const nextStep = () => {
-    setCurrentStep((prev) => (prev < 5 ? ((prev + 1) as CheckoutStep) : prev))
+    setCurrentStep((prev) => (prev < 4 ? ((prev + 1) as CheckoutStep) : prev))
   }
 
   const prevStep = () => {
@@ -68,7 +68,7 @@ export function useCheckout(): UseCheckoutReturn {
   }
 
   const goToStep = (step: CheckoutStep) => {
-    if (step >= 1 && step <= 5) {
+    if (step >= 1 && step <= 4) {
       setCurrentStep(step)
     }
   }

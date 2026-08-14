@@ -44,10 +44,10 @@ export function StepReview({
       value: data.address.address
         ? `${data.address.address}${data.address.apartment ? `, ${data.address.apartment}` : ''}, ${data.address.comunaName || '—'}, ${data.address.regionName || '—'}`
         : '—',
-      step: 2 as CheckoutStep,
+      step: 1 as CheckoutStep,
     },
-    { label: 'Envío', value: shippingLabel, step: 3 as CheckoutStep },
-    { label: 'Pago', value: paymentLabel, step: 4 as CheckoutStep },
+    { label: 'Envío', value: shippingLabel, step: 2 as CheckoutStep },
+    { label: 'Pago', value: paymentLabel, step: 3 as CheckoutStep },
   ]
 
   return (

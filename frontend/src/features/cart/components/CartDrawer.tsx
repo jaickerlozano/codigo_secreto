@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { Lock, Minus, Package, Plus, ShoppingCart, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router'
 
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
@@ -18,9 +19,14 @@ const FOCUSABLE_SELECTORS = [
 
 export function CartDrawer() {
   const { isOpen, closeCart } = useCartStore()
+  const navigate = useNavigate()
 
   const {
+    mode,
     items: cartItems,
+    isLoading,
+    error,
+    retry,
     updateQuantity,
     removeItem,
     subtotal,
@@ -140,7 +146,14 @@ export function CartDrawer() {
               className="flex-1 space-y-4 overflow-y-auto px-6 py-4"
               style={{ scrollbarWidth: 'none' }}
             >
-              {cartItems.length === 0 ? (
+              {mode === 'authenticated' && isLoading ? (
+                <p role="status" className="py-20 text-center text-base text-muted-foreground">Loading cart…</p>
+              ) : mode === 'authenticated' && error ? (
+                <div role="alert" className="my-16 rounded-xl bg-destructive/10 p-4 text-center">
+                  <p className="mb-3 text-base text-destructive">{error.message}</p>
+                  <button type="button" onClick={() => void retry()} className="min-h-12 rounded text-sm font-bold text-neon-magenta underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Retry cart</button>
+                </div>
+              ) : cartItems.length === 0 ? (
                 <div className="py-20 text-center">
                   <ShoppingCart
                     size={36}
@@ -189,7 +202,7 @@ export function CartDrawer() {
                                 item.quantity - 1,
                               )
                             }
-                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             aria-label={`Reducir ${item.product.name}`}
                           >
                             <Minus size={11} />
@@ -208,7 +221,7 @@ export function CartDrawer() {
                                 item.quantity + 1,
                               )
                             }
-                            className="flex h-7 w-7 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             aria-label={`Aumentar ${item.product.name}`}
                           >
                             <Plus size={11} />
@@ -314,6 +327,10 @@ export function CartDrawer() {
 
                 <button
                   type="button"
+                  onClick={() => {
+                    closeCart()
+                    navigate('/checkout')
+                  }}
                   className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl py-4 text-sm font-bold uppercase tracking-wide text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
                   style={{
                     background: 'var(--gradient-brand)',
