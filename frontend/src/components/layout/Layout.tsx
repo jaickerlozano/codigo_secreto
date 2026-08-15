@@ -8,11 +8,7 @@ import { Footer } from './Footer'
 import { Header } from './Header'
 import { WhatsAppFAB } from './WhatsAppFAB'
 
-interface LayoutProps {
-  wishlistCount?: number
-}
-
-export function Layout({ wishlistCount = 0 }: LayoutProps) {
+export function Layout() {
   const { data: categories } = useCategories()
 
   return (
@@ -26,10 +22,7 @@ export function Layout({ wishlistCount = 0 }: LayoutProps) {
         Saltar al contenido
       </a>
 
-      <Header
-        wishlistCount={wishlistCount}
-        categories={categories ?? []}
-      />
+      <Header categories={categories ?? []} />
 
       <CartDrawer />
 
