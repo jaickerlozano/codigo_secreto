@@ -27,8 +27,8 @@ function Wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('Header', () => {
-  it('renders logo, search, cart and category navigation', () => {
-    render(<Header wishlistCount={1} categories={TEST_CATEGORIES} />, {
+  it('renders logo, search, cart, favorites link and category navigation', async () => {
+    render(<Header categories={TEST_CATEGORIES} />, {
       wrapper: Wrapper,
     })
 
@@ -41,6 +41,7 @@ describe('Header', () => {
     expect(
       screen.getByRole('button', { name: /Carrito — 0 productos/i }),
     ).toBeDefined()
+    expect((await screen.findByRole('link', { name: /Favoritos — 0/i })).getAttribute('href')).toBe('/favorites')
   })
 
   it('renders mobile menu categories when menu is opened', async () => {

@@ -15,6 +15,7 @@ import {
 import { useAuth } from '@/features/auth/context/AuthContext'
 import type { Category } from '@/features/catalog/types'
 import { useCart, useCartStore } from '@/features/cart'
+import { useFavoriteCount } from '@/features/favorites/hooks/useFavorites'
 
 const FOCUSABLE_SELECTORS = [
   'button:not([disabled])',
@@ -26,12 +27,10 @@ const FOCUSABLE_SELECTORS = [
 ].join(', ')
 
 interface HeaderProps {
-  wishlistCount?: number
   categories?: Category[]
 }
 
 export function Header({
-  wishlistCount = 0,
   categories = [],
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -39,6 +38,7 @@ export function Header({
   const navigate = useNavigate()
   const { isAuthenticated, user, logout } = useAuth()
   const { totalItems: cartCount } = useCart()
+  const wishlistCount = useFavoriteCount()
   const toggleCart = useCartStore((state) => state.toggleCart)
   const menuRef = useRef<HTMLDivElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
@@ -178,13 +178,13 @@ export function Header({
               <User size={19} />
             </Link>
           )}
-          <button
-            type="button"
+          <Link
+            to="/favorites"
             className="hidden md:flex relative p-2.5 text-muted-foreground hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-lg"
-            aria-label={`Favoritos — ${wishlistCount}`}
+            aria-label={wishlistCount === null ? 'Favoritos' : `Favoritos — ${wishlistCount}`}
           >
             <Heart size={19} />
-            {wishlistCount > 0 && (
+            {wishlistCount !== null && wishlistCount > 0 && (
               <span
                 className="absolute -top-0.5 -right-0.5 w-[17px] h-[17px] bg-neon-magenta-500 text-foreground text-[9px] font-bold rounded-full flex items-center justify-center"
                 aria-hidden="true"
@@ -192,7 +192,7 @@ export function Header({
                 {wishlistCount > 9 ? '9+' : wishlistCount}
               </span>
             )}
-          </button>
+          </Link>
           <button
             type="button"
             onClick={toggleCart}

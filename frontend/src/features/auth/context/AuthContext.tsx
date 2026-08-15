@@ -10,6 +10,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { useCartStore } from '@/features/cart'
 import { mergeOnLogin } from '@/features/cart/lib/mergeOnLogin'
+import { mergeFavoritesOnLogin } from '@/features/favorites/lib/mergeFavoritesOnLogin'
+import { readGuestFavoriteIds } from '@/features/favorites/store/favoritesStore'
 import { SESSION_EXPIRED_EVENT } from '@/lib/api-client'
 
 import { login as loginApi, logoutUser } from '../api/auth.api'
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleSessionExpired = () => {
       queryClient.setQueryData(['me'], null)
       queryClient.removeQueries({ queryKey: ['cart'] })
+      queryClient.removeQueries({ queryKey: ['favorites'] })
     }
 
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired)
@@ -53,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await queryClient.refetchQueries({ queryKey: ['me'], exact: true })
       const itemsToMerge = [...useCartStore.getState().items]
       await mergeOnLogin(itemsToMerge, queryClient)
+      await mergeFavoritesOnLogin(readGuestFavoriteIds(), queryClient)
     },
   })
 
@@ -66,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Always clean local state even if the API call fails
         queryClient.removeQueries({ queryKey: ['me'] })
         queryClient.removeQueries({ queryKey: ['cart'] })
+        queryClient.removeQueries({ queryKey: ['favorites'] })
       }
     },
   })
