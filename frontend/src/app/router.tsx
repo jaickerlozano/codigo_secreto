@@ -4,6 +4,7 @@ import { LoginPage } from '@/features/auth'
 import { RegisterPage } from '@/features/auth/pages/RegisterPage'
 import { CategoryPage, HomePage, ProductDetailPage } from '@/features/catalog'
 import { CheckoutPage, PendingPaymentPage } from '@/features/checkout'
+import { ContactPage } from '@/features/contact/pages/ContactPage'
 import { FavoritesPage } from '@/features/favorites/pages/FavoritesPage'
 import { ConfirmationPage, OrderTrackingPage } from '@/features/orders'
 import { NotFoundPage } from '@/pages/NotFoundPage'
@@ -34,6 +35,10 @@ export const routes: RouteObject[] = [
       {
         path: 'favorites',
         element: <FavoritesPage />,
+      },
+      {
+        path: 'contact',
+        element: <ContactPage />,
       },
       {
         path: 'checkout/payment/:orderNumber',
