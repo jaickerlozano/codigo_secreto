@@ -245,12 +245,12 @@ export function Header({
                 {category.name}
               </Link>
             ))}
-            <button
-              type="button"
+            <Link
+              to="/contact"
               className="text-[12px] font-medium text-muted-foreground hover:text-foreground whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded px-1 ml-auto"
             >
               Contacto
-            </button>
+            </Link>
           </div>
         </div>
       </div>
@@ -300,13 +300,13 @@ export function Header({
                     {category.name}
                   </Link>
                 ))}
-                <button
-                  type="button"
+                <Link
+                  to="/contact"
                   onClick={() => setMenuOpen(false)}
                   className="text-sm text-muted-foreground hover:text-foreground py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded mt-1"
                 >
                   Contacto
-                </button>
+                </Link>
                 <div className="border-t border-border mt-2 pt-2">
                   {isAuthenticated ? (
                     <>

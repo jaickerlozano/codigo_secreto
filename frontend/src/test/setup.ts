@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, vi } from 'vitest'
 import { useCartStore } from '@/features/cart'
 
 import { resetServerCart } from './handlers/cart'
+import { resetContactHandlers } from './handlers/contact'
 import { resetFavoritesHandlers } from './handlers/favorites'
 import { resetPaymentHandlers } from './handlers/payments'
 import { handlers } from './handlers'
@@ -33,6 +34,7 @@ beforeAll(() =>
 afterEach(() => {
   server.resetHandlers()
   resetServerCart()
+  resetContactHandlers()
   resetFavoritesHandlers()
   resetPaymentHandlers()
   useCartStore.setState({ items: [], isOpen: false, mode: 'guest' })

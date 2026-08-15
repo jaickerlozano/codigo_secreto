@@ -34,7 +34,11 @@ export function useProductFilters({ products }: UseProductFiltersOptions) {
 
   // 3. Reseteamos el filtro manual del usuario cada vez que cambie la lista de productos de la API
   useEffect(() => {
-    setPriceRange({ min: 0, max: 0 })
+    // Idempotent reset: returning the current state when it is already zero
+    // makes React bail out (same reference, no re-render), so a fresh empty
+    // array on every render while loading cannot loop, while stale nonzero
+    // bounds still reset — including a legitimate empty results list.
+    setPriceRange((previous) => (previous.min === 0 && previous.max === 0 ? previous : { min: 0, max: 0 }))
   }, [products])
 
   const setMinPrice = (value: number) => {
