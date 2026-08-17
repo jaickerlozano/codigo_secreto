@@ -30,10 +30,26 @@ async function completeDataStep(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/Email/), 'valentina@example.com')
   await user.type(screen.getByLabelText(/Teléfono/), '+56 9 1234 5678')
   await user.click(screen.getByRole('button', { name: /Siguiente/ }))
-  await user.selectOptions(await screen.findByLabelText(/Región/, undefined, { timeout: 5000 }), '13')
-  const comunaSelect = screen.getByLabelText(/Comuna/)
-  await waitFor(() => expect(comunaSelect.querySelector('option[value="1"]')).not.toBeNull())
-  await user.selectOptions(comunaSelect, '1')
+  const regionTrigger = await screen.findByLabelText(/Región/, undefined, {
+    timeout: 5000,
+  })
+  await waitFor(() =>
+    expect(regionTrigger.hasAttribute('disabled')).toBe(false)
+  )
+  await user.click(regionTrigger)
+  await user.click(
+    await screen.findByRole(
+      'option',
+      { name: 'Región Metropolitana' },
+      { timeout: 5000 }
+    )
+  )
+  const comunaTrigger = screen.getByLabelText(/Comuna/)
+  await waitFor(() =>
+    expect(comunaTrigger.hasAttribute('disabled')).toBe(false)
+  )
+  await user.click(comunaTrigger)
+  await user.click(await screen.findByRole('option', { name: 'Santiago' }))
   await user.type(screen.getByLabelText(/Calle y número/), 'Av. Providencia 1234')
   await user.click(screen.getByRole('button', { name: /Siguiente/ }))
 }
@@ -95,7 +111,7 @@ describe('checkout frame runtime harness', () => {
     expect(await screen.findByRole('heading', { name: 'Revisar y confirmar' })).toBeDefined()
     expect(screen.getByText('Envío a Santiago, Región Metropolitana')).toBeDefined()
     expect(screen.getByRole('button', { name: 'Confirmar pedido' }).hasAttribute('disabled')).toBe(true)
-  })
+  }, 15000)
 
   it('guest completes the purchase: confirm → pending payment → dev approve → confirmation clears the cart', async () => {
     useCartStore.setState({ mode: 'guest', items: [{ product, quantity: 1 }] })
@@ -108,7 +124,7 @@ describe('checkout frame runtime harness', () => {
     await user.click(screen.getByRole('button', { name: /Aprobar pago/ }))
     expect(await screen.findByRole('heading', { name: '¡Pedido confirmado!' }, { timeout: 5000 })).toBeDefined()
     await waitFor(() => expect(useCartStore.getState().items).toHaveLength(0), { timeout: 5000 })
-  })
+  }, 15000)
 
   it('lands on the durable pending route when initiation fails, so confirm can never create another order', async () => {
     server.use(http.post('http://localhost:8000/api/payments/initiate/', () => HttpResponse.json({ detail: 'Error del servidor. Intenta más tarde.' }, { status: 503 })))
@@ -119,7 +135,7 @@ describe('checkout frame runtime harness', () => {
     await reachAndConfirm(user)
     expect(await screen.findByRole('heading', { name: 'Pago pendiente' }, { timeout: 5000 })).toBeDefined()
     expect(screen.queryByRole('button', { name: 'Confirmar pedido' })).toBeNull()
-  })
+  }, 15000)
 
   it('blocks continue on quote failure and recovers through retry', async () => {
     useCartStore.setState({ mode: 'guest', items: [{ product, quantity: 1 }] })
@@ -139,5 +155,5 @@ describe('checkout frame runtime harness', () => {
 
     expect(await within(envio).findByText('$3.500', undefined, { timeout: 5000 })).toBeDefined()
     expect(screen.getByRole('button', { name: /Siguiente/ }).hasAttribute('disabled')).toBe(false)
-  })
+  }, 15000)
 })

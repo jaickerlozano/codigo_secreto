@@ -56,11 +56,16 @@ describe('StepData (composed Data step)', () => {
     const { user, onSubmit } = renderStepData()
 
     await fillContact(user)
-    const regionSelect = await screen.findByLabelText(/Región/)
-    await user.selectOptions(regionSelect, '13')
-    const comunaSelect = screen.getByLabelText(/Comuna/)
-    await waitFor(() => expect(comunaSelect.querySelector('option[value="1"]')).not.toBeNull())
-    await user.selectOptions(comunaSelect, '1')
+    await user.click(await screen.findByLabelText(/Región/))
+    await user.click(
+      await screen.findByRole('option', { name: 'Región Metropolitana' })
+    )
+    const comunaTrigger = screen.getByLabelText(/Comuna/)
+    await waitFor(() =>
+      expect(comunaTrigger.hasAttribute('disabled')).toBe(false)
+    )
+    await user.click(comunaTrigger)
+    await user.click(await screen.findByRole('option', { name: 'Santiago' }))
     await user.type(screen.getByLabelText(/Calle y número/), 'Av. Siempre Viva 123')
     await user.click(screen.getByRole('button', { name: /Siguiente/ }))
 
