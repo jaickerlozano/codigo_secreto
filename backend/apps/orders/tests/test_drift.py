@@ -10,7 +10,7 @@ from rest_framework import status
 from apps.orders.models import Order, OrderItem
 from apps.orders.services import calculate_guest_quote
 from apps.products.services import resolve_product_price_snapshot as resolve_products
-from apps.shipping.services import resolve_comuna_shipping_snapshot as resolve_shipping
+from apps.shipping.services import resolve_shipping_price as resolve_shipping
 
 
 pytestmark = pytest.mark.django_db
@@ -175,7 +175,7 @@ def test_guest_creation_locks_products_before_shipping_inside_atomic(
         return resolve_shipping(*args, **kwargs)
 
     with mock.patch("apps.orders.services.resolve_product_price_snapshot", locked_products), mock.patch(
-        "apps.orders.services.resolve_comuna_shipping_snapshot", locked_shipping
+        "apps.orders.services.resolve_shipping_price", locked_shipping
     ):
         response = api_client.post(
             "/api/orders/",

@@ -2,7 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 from .models import Cart, CartItem
 from .serializers import CartSerializer, AddToCartSerializer
 from django.db.models import F
@@ -21,14 +22,28 @@ class MyCartView(APIView):
 
     @extend_schema(
         summary="Ver mi carrito de compras",
-        description="Devuelve el carrito del usuario conectado con su lista de productos, subtotales, envío y total.",
+        description="Devuelve el carrito del usuario con subtotales, envío y total; con ?comuna={id} el envío usa la autoridad de precios del backend.",
         tags=["Carrito"],
+        parameters=[OpenApiParameter(
+            name="comuna", location=OpenApiParameter.QUERY, required=False,
+            type=OpenApiTypes.INT,
+            description="ID de la comuna de entrega para el estimado de envío autoritativo.",
+        )],
         responses={200: CartSerializer}
     )
     def get(self, request):
         # Obtenemos el carro con prefetch_related para evitar consultas N+1
         cart = self._get_cart(request.user)
-        serializer = CartSerializer(cart)
+        comuna_selector = request.query_params.get("comuna")
+        if comuna_selector is not None:
+            try:
+                comuna_selector = int(comuna_selector)
+            except ValueError:
+                return Response(
+                    {"comuna": ["El parámetro comuna debe ser un número entero."]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        serializer = CartSerializer(cart, context={"comuna_selector": comuna_selector})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(

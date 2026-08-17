@@ -302,7 +302,7 @@ def test_order_by_order_number_not_found(api_client):
 
 def test_order_by_order_number_includes_comuna_and_region_names(api_client, order_factory, comuna_factory):
     """Guest order retrieve by order_number includes comuna_name and region_name."""
-    comuna = comuna_factory(name="Providencia", shipping_cost=3000)
+    comuna = comuna_factory(shipping_cost=3000)
     order = order_factory(
         user=None,
         guest_email="guest@example.com",

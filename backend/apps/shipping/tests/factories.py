@@ -24,19 +24,20 @@ class RegionFactory(factory.django.DjangoModelFactory):
 class ComunaFactory(factory.django.DjangoModelFactory):
     """Factory for Comuna.
 
-    Defaults to an active comuna with a random shipping cost inside a fresh
-    region. Override ``is_active`` or ``region`` to exercise filtering and
-    uniqueness constraints.
-
-    Note: ``django_get_or_create`` is intentionally omitted so tests can
-    explicitly trigger ``IntegrityError`` on the ``unique_together`` constraint.
+    Defaults to an active Santiago comuna with a random shipping cost inside
+    the shared Santiago region (comuna-priced delivery authority). Override
+    ``region`` with a non-Santiago region to exercise the regional authority.
+    ``django_get_or_create`` is intentionally omitted so tests can explicitly
+    trigger ``IntegrityError`` on the ``unique_together`` constraint.
     """
 
     class Meta:
         model = Comuna
 
     name = factory.Sequence(lambda n: f"Comuna {n}")
-    region = factory.SubFactory(RegionFactory)
+    region = factory.SubFactory(
+        RegionFactory, name="Metropolitana de Santiago", ordinal_number=7
+    )
     shipping_cost = factory.LazyFunction(lambda: faker.random_int(min=1000, max=10000))
     is_active = True
 
