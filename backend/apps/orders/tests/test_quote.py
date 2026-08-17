@@ -7,8 +7,14 @@ from django.core.cache import cache
 from django.test import override_settings
 from rest_framework import status
 
+from apps.carts.services import calculate_cart_totals
 from apps.orders.models import Order, OrderItem
-from apps.orders.services import calculate_guest_quote, load_guest_quote_revision
+from apps.orders.services import (
+    GuestQuoteValidationError,
+    calculate_guest_quote,
+    load_guest_quote_revision,
+)
+from apps.shipping.tests.factories import RegionFactory, RegionalShippingOptionFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -115,3 +121,93 @@ def test_quote_schema_is_explicitly_annotated():
     operation = SchemaGenerator().get_schema(request=None, public=True)["paths"]["/api/orders/quote/"]["post"]
     assert operation["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == "#/components/schemas/GuestQuoteResponse"
     assert {"400", "429"} <= set(operation["responses"])
+
+
+def test_guest_quote_regional_delivery_uses_exact_regional_tariff(
+    product_factory, comuna_factory
+):
+    product = product_factory(price=2000)
+    comuna = comuna_factory(
+        region=RegionFactory(name="Valparaiso"), shipping_cost=9000
+    )
+    RegionalShippingOptionFactory(key="regional", tariff=5500)
+
+    quote = calculate_guest_quote(items((product.id, 2)), comuna_selector=comuna.id)
+
+    assert (quote.shipping_cost, quote.total, quote.comuna_id) == (5500, 9500, comuna.id)
+
+
+def test_guest_quote_missing_regional_config_fails_closed(
+    product_factory, comuna_factory
+):
+    product = product_factory(price=2000)
+    comuna = comuna_factory(region=RegionFactory(name="Valparaiso"))
+
+    with pytest.raises(GuestQuoteValidationError):
+        calculate_guest_quote(items((product.id, 1)), comuna_selector=comuna.id)
+
+
+def test_regional_tariff_drift_refuses_creation_and_refreshes_quote(
+    api_client, product_factory, comuna_factory
+):
+    product = product_factory(price=1000)
+    comuna = comuna_factory(
+        region=RegionFactory(name="Valparaiso"), shipping_cost=9000
+    )
+    regional = RegionalShippingOptionFactory(key="regional", tariff=5500)
+    item_list = items((product.id, 1))
+    revision = calculate_guest_quote(item_list, comuna_selector=comuna.id).revision
+    regional.tariff = 6000
+    regional.save(update_fields=["tariff"])
+
+    response = api_client.post(
+        "/api/orders/",
+        {
+            "guest_email": "guest@example.com", "guest_name": "Guest",
+            "phone": "+56912345678", "comuna": comuna.id,
+            "shipping_address": "Street 1", "guest_items": item_list,
+            "confirmed_revision": revision,
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["code"] == "quote_revision_stale"
+    assert response.json()["refreshed_quote"]["shipping_cost"] == 6000
+    assert Order.objects.count() == 0
+
+
+def _assert_estimate_matches_charged_snapshot(authenticated_client, user, cart_factory,
+                                              cart_item_factory, product_factory, comuna, expected_shipping):
+    cart = cart_factory(user=user)
+    product = product_factory(price=1000, current_stock=10)
+    cart_item_factory(cart=cart, product=product, quantity=1)
+    estimate = calculate_cart_totals(cart, comuna_selector=comuna.id)
+    response = authenticated_client.post("/api/orders/", {
+        "phone": "+56912345678", "comuna": comuna.id, "shipping_address": "Calle 123",
+    }, format="json")
+
+    assert response.status_code == status.HTTP_201_CREATED
+    order = Order.objects.get(id=response.json()["id"])
+    assert estimate["shipping_cost"] == order.shipping_cost == expected_shipping
+    assert estimate["total"] == order.total
+
+
+def test_authenticated_estimate_matches_charged_snapshot_santiago(
+    authenticated_client, user, cart_factory, cart_item_factory, product_factory, comuna_factory
+):
+    _assert_estimate_matches_charged_snapshot(
+        authenticated_client, user, cart_factory, cart_item_factory,
+        product_factory, comuna_factory(shipping_cost=3000), 3000,
+    )
+
+
+def test_authenticated_estimate_matches_charged_snapshot_regional(
+    authenticated_client, user, cart_factory, cart_item_factory, product_factory, comuna_factory
+):
+    comuna = comuna_factory(region=RegionFactory(name="Valparaiso"), shipping_cost=9000)
+    RegionalShippingOptionFactory(key="regional", tariff=5500)
+    _assert_estimate_matches_charged_snapshot(
+        authenticated_client, user, cart_factory, cart_item_factory,
+        product_factory, comuna, 5500,
+    )

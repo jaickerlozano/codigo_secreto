@@ -7,7 +7,7 @@ from .services import (
     create_order,
     normalize_checkout_key,
 )
-from apps.shipping.services import ShippingSnapshotResolutionError, resolve_comuna_shipping_snapshot
+from apps.shipping.services import ShippingSnapshotResolutionError, resolve_shipping_price
 
 class OrderItemSerializer(serializers.ModelSerializer):
     subtotal = serializers.IntegerField(read_only=True)
@@ -185,7 +185,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 }
             return attrs
 
-        # Resolve the shipping snapshot without importing the shipping model.
+        # Resolve the exclusive shipping price authority without importing the shipping model.
         if 'comuna_id' not in attrs:
             comuna_name = attrs.pop('comuna_name', None)
             region_name = attrs.pop('region_name', None)
@@ -194,7 +194,7 @@ class OrderSerializer(serializers.ModelSerializer):
                     'comuna': 'Debes indicar la comuna de entrega.'
                 })
             try:
-                snapshot = resolve_comuna_shipping_snapshot(
+                snapshot = resolve_shipping_price(
                     comuna_name=comuna_name,
                     region_name=region_name,
                 )
@@ -202,15 +202,20 @@ class OrderSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'comuna': 'La comuna y región indicadas no son válidas.'
                 })
-            attrs['comuna_id'] = snapshot.id
+            if snapshot is None:
+                raise serializers.ValidationError({'comuna': 'El envío no está disponible para la comuna indicada.'})
+            attrs['comuna_id'] = snapshot.comuna_id
+            attrs['_shipping_price'] = snapshot.price
         else:
             attrs.pop('comuna_name', None)
             attrs.pop('region_name', None)
             try:
-                snapshot = resolve_comuna_shipping_snapshot(comuna_id=attrs['comuna_id'])
+                snapshot = resolve_shipping_price(comuna_id=attrs['comuna_id'])
             except ShippingSnapshotResolutionError:
                 raise serializers.ValidationError({'comuna': 'La comuna indicada no es válida.'})
-        attrs['_comuna_snapshot'] = snapshot
+            if snapshot is None:
+                raise serializers.ValidationError({'comuna': 'El envío no está disponible para la comuna indicada.'})
+            attrs['_shipping_price'] = snapshot.price
 
         return attrs
 
@@ -246,7 +251,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 }) from error
 
         comuna_id = validated_data.pop('comuna_id')
-        comuna_snapshot = validated_data.pop('_comuna_snapshot')
+        shipping_cost = validated_data.pop('_shipping_price')
         try:
             return create_order(
                 user=user,
@@ -256,7 +261,7 @@ class OrderSerializer(serializers.ModelSerializer):
                 apartment_office=validated_data.get('apartment_office', ''),
                 payment_method=validated_data.get('payment_method', 'webpay'),
                 comuna_id=comuna_id,
-                shipping_cost=comuna_snapshot.shipping_cost,
+                shipping_cost=shipping_cost,
             )
         except EmptyCartError:
             raise serializers.ValidationError({

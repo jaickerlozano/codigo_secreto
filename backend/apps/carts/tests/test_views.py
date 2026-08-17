@@ -2,6 +2,7 @@ import pytest
 from rest_framework import status
 
 from apps.carts.models import CartItem
+from apps.shipping.tests.factories import ComunaFactory, RegionFactory
 
 
 pytestmark = pytest.mark.django_db
@@ -62,6 +63,34 @@ def test_get_cart_authenticated(authenticated_client, cart_with_items):
     assert data["total"] == 25000
     assert data["free_shipping_progress"] == pytest.approx((22000 / 30000) * 100)
     assert data["free_shipping_threshold"] == 30000
+
+
+def test_get_cart_estimate_for_selected_comuna(authenticated_client, cart_with_items):
+    """GET /api/cart/me/?comuna={id} prices the estimate with the comuna authority."""
+    comuna = ComunaFactory(shipping_cost=3500)
+
+    data = authenticated_client.get(f"/api/cart/me/?comuna={comuna.id}").json()
+
+    assert data["shipping_cost"] == 3500
+    assert data["total"] == data["subtotal"] + 3500
+
+
+def test_get_cart_estimate_unavailable_delivery_fails_closed(
+    authenticated_client, cart_with_items
+):
+    """Sin configuración regional aplicable, el estimado queda no disponible."""
+    comuna = ComunaFactory(region=RegionFactory(name="Valparaiso"))
+
+    data = authenticated_client.get(f"/api/cart/me/?comuna={comuna.id}").json()
+
+    assert data["shipping_cost"] is None and data["total"] is None
+
+
+def test_get_cart_rejects_non_numeric_comuna_param(authenticated_client, cart_with_items):
+    """Un parámetro comuna no numérico se rechaza sin estimar."""
+    response = authenticated_client.get("/api/cart/me/?comuna=abc")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
 
 
 # ---------------------------------------------------------------------------

@@ -55,7 +55,7 @@ class CartSerializer(serializers.ModelSerializer):
             setattr(self, '_cached_totals', cache)
 
         if obj.pk not in cache:
-            cache[obj.pk] = calculate_cart_totals(obj)
+            cache[obj.pk] = calculate_cart_totals(obj, comuna_selector=self.context.get('comuna_selector'))
 
         return cache[obj.pk]
 

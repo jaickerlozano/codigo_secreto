@@ -35,6 +35,22 @@ class RegionalShippingSnapshot:
     max_lead_days: int
 
 
+# Santiago comunas price exactly from Comuna.shipping_cost; every other region
+# prices exactly from the sole active RegionalShippingOption.tariff.
+SANTIAGO_REGION_NAME = "Metropolitana de Santiago"
+SHIPPING_AUTHORITY_COMUNA = "comuna"
+SHIPPING_AUTHORITY_REGIONAL = "regional"
+
+
+@dataclass(frozen=True, slots=True)
+class ShippingPriceSnapshot:
+    """Exclusive backend shipping price authority for a selected destination."""
+
+    price: int
+    comuna_id: int
+    authority: str
+
+
 @dataclass(frozen=True, slots=True)
 class DeliveryScheduleDecision:
     """Domain decision for a requested dispatch date at the payment boundary."""
@@ -119,6 +135,38 @@ def resolve_regional_shipping_option(
         option.id, option.key, option.carrier, option.tariff,
         option.min_lead_days, option.max_lead_days,
     )
+
+
+def resolve_shipping_price(
+    *,
+    comuna_id=None,
+    comuna_name=None,
+    region_name=None,
+    for_update: bool = False,
+) -> ShippingPriceSnapshot | None:
+    """Resolve the exclusive shipping price authority for a destination.
+
+    Santiago prices exactly from ``Comuna.shipping_cost``; any other region
+    prices exactly from the sole active regional tariff. Missing applicable
+    configuration returns None (delivery unavailable), ambiguity raises
+    ``ShippingSnapshotResolutionError``, and the two authorities never combine.
+    """
+    comuna = resolve_comuna_shipping_snapshot(
+        comuna_id=comuna_id,
+        comuna_name=comuna_name,
+        region_name=region_name,
+        for_update=for_update,
+    )
+    if comuna is None:
+        return None
+
+    if comuna.region_name == SANTIAGO_REGION_NAME:
+        return ShippingPriceSnapshot(comuna.shipping_cost, comuna.id, SHIPPING_AUTHORITY_COMUNA)
+
+    regional = resolve_regional_shipping_option(for_update=for_update)
+    if regional is None:
+        return None
+    return ShippingPriceSnapshot(regional.tariff, comuna.id, SHIPPING_AUTHORITY_REGIONAL)
 
 
 def future_dispatch_dates(*, from_date: date | None = None, limit: int = 4) -> tuple[date, ...]:

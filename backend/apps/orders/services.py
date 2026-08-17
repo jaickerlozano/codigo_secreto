@@ -9,7 +9,7 @@ from django.utils import timezone
 from apps.orders.models import Order, OrderItem
 from apps.orders.notifications import schedule_delivery
 from apps.products.services import ProductSnapshotResolutionError, resolve_product_price_snapshot
-from apps.shipping.services import ShippingSnapshotResolutionError, resolve_comuna_shipping_snapshot
+from apps.shipping.services import ShippingSnapshotResolutionError, resolve_shipping_price
 
 
 GUEST_ACCESS_COOKIE_NAME = "guest_order_access"
@@ -101,7 +101,7 @@ def calculate_guest_quote(guest_items, comuna_selector=None, *, lock=False):
         if selector is None:
             shipping = None
         elif isinstance(selector, dict):
-            shipping = resolve_comuna_shipping_snapshot(for_update=lock, **selector)
+            shipping = resolve_shipping_price(for_update=lock, **selector)
         else:
             raise GuestQuoteValidationError("Invalid quote destination.")
     except (ProductSnapshotResolutionError, ShippingSnapshotResolutionError, TypeError, ValueError) as error:
@@ -112,9 +112,9 @@ def calculate_guest_quote(guest_items, comuna_selector=None, *, lock=False):
     lines = tuple(GuestQuoteLine(product_id, products[product_id].name, quantity,
         products[product_id].unit_price, products[product_id].unit_price * quantity) for product_id, quantity in items)
     subtotal = sum(line.line_total for line in lines)
-    shipping_cost = shipping.shipping_cost if shipping else None
+    shipping_cost = shipping.price if shipping else None
     total = subtotal + shipping_cost if shipping_cost is not None else None
-    comuna_id = shipping.id if shipping else None
+    comuna_id = shipping.comuna_id if shipping else None
     revision = sign_guest_quote_revision(_canonical_quote_data(lines, comuna_id=comuna_id,
         subtotal=subtotal, shipping_cost=shipping_cost, total=total))
     return GuestQuote(lines, subtotal, shipping_cost, total, comuna_id, revision)
