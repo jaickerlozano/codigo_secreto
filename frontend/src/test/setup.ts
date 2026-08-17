@@ -23,6 +23,13 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
+// jsdom does not implement these DOM APIs; Radix Select requires
+// scrollIntoView on open and pointer-capture calls during pointer events.
+Element.prototype.scrollIntoView = vi.fn()
+Element.prototype.hasPointerCapture = vi.fn(() => false)
+Element.prototype.setPointerCapture = vi.fn()
+Element.prototype.releasePointerCapture = vi.fn()
+
 export const server = setupServer(...handlers)
 
 beforeAll(() =>
