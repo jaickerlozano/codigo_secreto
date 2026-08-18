@@ -11,6 +11,7 @@ from apps.orders.models import Order, OrderItem
 from apps.orders.services import calculate_guest_quote
 from apps.products.services import resolve_product_price_snapshot as resolve_products
 from apps.shipping.services import resolve_shipping_price as resolve_shipping
+from apps.shipping.services import future_dispatch_dates
 
 
 pytestmark = pytest.mark.django_db
@@ -28,6 +29,8 @@ def _guest_payload(comuna, guest_items, **extra):
         "comuna": comuna.id,
         "shipping_address": "Street 1",
         "guest_items": guest_items,
+        "delivery_kind": "standard",
+        "requested_dispatch_date": str(future_dispatch_dates()[0]),
     }
     payload.update(extra)
     return payload

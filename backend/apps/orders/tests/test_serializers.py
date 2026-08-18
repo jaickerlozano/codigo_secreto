@@ -3,6 +3,7 @@ from rest_framework import status
 
 from apps.orders.models import Order, OrderItem
 from apps.orders.services import calculate_guest_quote
+from apps.shipping.services import future_dispatch_dates
 
 
 pytestmark = pytest.mark.django_db
@@ -15,6 +16,8 @@ def _order_payload(comuna, **overrides):
         "comuna": comuna.id,
         "shipping_address": "Calle 123",
         "shipping_cost": comuna.shipping_cost,
+        "delivery_kind": "standard",
+        "requested_dispatch_date": str(future_dispatch_dates()[0]),
     }
     payload.update(overrides)
     return payload
@@ -91,6 +94,8 @@ def test_create_order_guest(api_client, product_factory, comuna_factory):
             "shipping_cost": 3000,
             "guest_items": [{"product_id": product.id, "quantity": 2}],
             "confirmed_revision": revision,
+            "delivery_kind": "standard",
+            "requested_dispatch_date": str(future_dispatch_dates()[0]),
         },
         format="json",
     )

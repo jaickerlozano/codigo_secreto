@@ -221,3 +221,104 @@ def evaluate_requested_dispatch_date(
         payment_blocked=special_delivery_agreed_at is None,
         recovery_guidance=guidance,
     )
+
+
+DEFAULT_CARRIER = "Chilexpress"
+
+
+class DeliveryValidationError(ValueError):
+    """The submitted delivery selection is invalid."""
+
+
+class StaleDeliveryOptionError(DeliveryValidationError):
+    """The submitted regional option no longer matches the active authority."""
+
+
+@dataclass(frozen=True, slots=True)
+class DeliverySnapshot:
+    """Fields to snapshot onto an Order for a validated delivery selection."""
+
+    delivery_kind: str
+    requested_dispatch_date: date | None
+    carrier: str
+    shipping_price: int
+
+
+def resolve_delivery_snapshot(
+    *,
+    comuna_id,
+    delivery_kind=DISPATCH_KIND_STANDARD,
+    requested_dispatch_date=None,
+    shipping_option_id=None,
+    for_update=False,
+) -> DeliverySnapshot:
+    """Validate the submitted delivery selection against the exclusive shipping
+    authority and return the fields to snapshot onto the Order, including the
+    shipping price re-derived under the same locked resolution.
+
+    Santiago (``comuna`` authority): a standard date must be a future Tuesday
+    or Thursday; a special date must be strictly future; a regional option id
+    is never applicable. Regional (``regional`` authority): the submitted
+    option id must match the sole active option (stale otherwise) and its
+    carrier is snapshotted; requested dates never apply. An absent required
+    selection (Santiago date or regional option id) is rejected.
+    """
+    authority = resolve_shipping_price(comuna_id=comuna_id, for_update=for_update)
+    if authority is None:
+        raise DeliveryValidationError(
+            "El envío no está disponible para la comuna indicada."
+        )
+    if authority.authority == SHIPPING_AUTHORITY_COMUNA:
+        if shipping_option_id is not None:
+            raise DeliveryValidationError(
+                "La opción de envío regional no aplica para Santiago."
+            )
+        if requested_dispatch_date is None:
+            if delivery_kind == DISPATCH_KIND_SPECIAL:
+                raise DeliveryValidationError(
+                    "La entrega especial requiere una fecha de despacho solicitada."
+                )
+            raise DeliveryValidationError(
+                "La entrega estándar requiere una fecha de despacho solicitada."
+            )
+        if delivery_kind == DISPATCH_KIND_STANDARD:
+            decision = evaluate_requested_dispatch_date(
+                requested_date=requested_dispatch_date
+            )
+            if decision.dispatch_kind != DISPATCH_KIND_STANDARD:
+                raise DeliveryValidationError(
+                    "La fecha de despacho estándar debe ser un martes o jueves futuro."
+                )
+            return DeliverySnapshot(
+                DISPATCH_KIND_STANDARD, requested_dispatch_date, DEFAULT_CARRIER,
+                authority.price,
+            )
+        if not requested_dispatch_date > timezone.localdate():
+            raise DeliveryValidationError(
+                "La fecha de despacho especial debe ser una fecha futura."
+            )
+        return DeliverySnapshot(
+            DISPATCH_KIND_SPECIAL, requested_dispatch_date, DEFAULT_CARRIER,
+            authority.price,
+        )
+
+    if delivery_kind == DISPATCH_KIND_SPECIAL:
+        raise DeliveryValidationError(
+            "La entrega especial no aplica para entregas regionales."
+        )
+    if requested_dispatch_date is not None:
+        raise DeliveryValidationError(
+            "La fecha de despacho no aplica para entregas regionales."
+        )
+    if shipping_option_id is None:
+        raise DeliveryValidationError(
+            "Selecciona la opción de envío regional."
+        )
+    option = resolve_regional_shipping_option(for_update=for_update)
+    if option is None or shipping_option_id != option.id:
+        raise StaleDeliveryOptionError(
+            "La opción de envío seleccionada ya no está disponible."
+        )
+    return DeliverySnapshot(
+        DISPATCH_KIND_STANDARD, None, option.carrier, authority.price
+    )

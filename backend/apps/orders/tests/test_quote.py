@@ -14,6 +14,7 @@ from apps.orders.services import (
     calculate_guest_quote,
     load_guest_quote_revision,
 )
+from apps.shipping.services import future_dispatch_dates
 from apps.shipping.tests.factories import RegionFactory, RegionalShippingOptionFactory
 
 pytestmark = pytest.mark.django_db
@@ -67,6 +68,8 @@ def test_quote_optional_comuna_and_create_parity(api_client, product_factory, co
         "guest_email": "guest@example.com", "guest_name": "Guest", "phone": "+56912345678",
         "comuna": comuna.id, "shipping_address": "Street 1", "guest_items": item_list,
         "confirmed_revision": quote.json()["revision"],
+        "delivery_kind": "standard",
+        "requested_dispatch_date": str(future_dispatch_dates()[0]),
     }, format="json")
     assert subtotal.status_code == quote.status_code == status.HTTP_200_OK
     assert subtotal.json()["subtotal"] == 4400 and "total" not in subtotal.json()
@@ -178,13 +181,13 @@ def test_regional_tariff_drift_refuses_creation_and_refreshes_quote(
 
 
 def _assert_estimate_matches_charged_snapshot(authenticated_client, user, cart_factory,
-                                              cart_item_factory, product_factory, comuna, expected_shipping):
+                                              cart_item_factory, product_factory, comuna, expected_shipping, delivery):
     cart = cart_factory(user=user)
     product = product_factory(price=1000, current_stock=10)
     cart_item_factory(cart=cart, product=product, quantity=1)
     estimate = calculate_cart_totals(cart, comuna_selector=comuna.id)
     response = authenticated_client.post("/api/orders/", {
-        "phone": "+56912345678", "comuna": comuna.id, "shipping_address": "Calle 123",
+        "phone": "+56912345678", "comuna": comuna.id, "shipping_address": "Calle 123", **delivery,
     }, format="json")
 
     assert response.status_code == status.HTTP_201_CREATED
@@ -199,6 +202,7 @@ def test_authenticated_estimate_matches_charged_snapshot_santiago(
     _assert_estimate_matches_charged_snapshot(
         authenticated_client, user, cart_factory, cart_item_factory,
         product_factory, comuna_factory(shipping_cost=3000), 3000,
+        {"delivery_kind": "standard", "requested_dispatch_date": str(future_dispatch_dates()[0])},
     )
 
 
@@ -206,8 +210,9 @@ def test_authenticated_estimate_matches_charged_snapshot_regional(
     authenticated_client, user, cart_factory, cart_item_factory, product_factory, comuna_factory
 ):
     comuna = comuna_factory(region=RegionFactory(name="Valparaiso"), shipping_cost=9000)
-    RegionalShippingOptionFactory(key="regional", tariff=5500)
+    option = RegionalShippingOptionFactory(key="regional", tariff=5500)
     _assert_estimate_matches_charged_snapshot(
         authenticated_client, user, cart_factory, cart_item_factory,
         product_factory, comuna, 5500,
+        {"delivery_kind": "standard", "shipping_option_id": option.id},
     )
