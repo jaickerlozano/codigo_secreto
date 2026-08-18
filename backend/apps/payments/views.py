@@ -20,6 +20,7 @@ from .services import (
     PaymentMethodUnsupportedError,
     PaymentProviderUnavailableError,
     PaymentStateError,
+    SpecialDeliveryAgreementRequiredError,
     approve_payment,
     initiate_payment,
 )
@@ -71,6 +72,13 @@ class InitiatePaymentView(APIView):
             return Response({'code': 'payment_key_conflict',
                              'detail': 'The idempotency key cannot be reused for a different payment.'},
                             status=status.HTTP_409_CONFLICT)
+        except SpecialDeliveryAgreementRequiredError as error:
+            return Response({
+                'code': 'special_delivery_agreement_required',
+                'detail': error.recovery_guidance,
+                'whatsapp_url': error.whatsapp_url,
+                'poll_after_seconds': error.poll_after_seconds,
+            }, status=status.HTTP_409_CONFLICT)
         except PaymentStateError as error:
             return Response(
                 {'order_id': [f"Este pedido no se puede pagar porque su estado es: {error.args[0]}."]},

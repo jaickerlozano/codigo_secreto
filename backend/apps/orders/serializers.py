@@ -1,4 +1,7 @@
 from rest_framework import serializers
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema_field
+
 from .models import Order, OrderItem
 from .services import (
     EmptyCartError,
@@ -7,7 +10,12 @@ from .services import (
     create_order,
     normalize_checkout_key,
 )
-from apps.shipping.services import ShippingSnapshotResolutionError, resolve_shipping_price
+from apps.shipping.services import (
+    DISPATCH_KIND_SPECIAL,
+    ShippingSnapshotResolutionError,
+    evaluate_requested_dispatch_date,
+    resolve_shipping_price,
+)
 
 class OrderItemSerializer(serializers.ModelSerializer):
     subtotal = serializers.IntegerField(read_only=True)
@@ -110,6 +118,10 @@ class OrderSerializer(serializers.ModelSerializer):
     # Nombre legible de la comuna (solo lectura) para el frontend de seguimiento
     comuna_display = serializers.SerializerMethodField()
 
+    # Estado del portón de pago: 'ready' o 'blocked'; nunca expone el campo de
+    # acuerdo (special_delivery_agreed_at) que solo el staff escribe en Admin.
+    delivery_gate_status = serializers.SerializerMethodField()
+
     # Método de pago elegido en el checkout
     payment_method = serializers.ChoiceField(choices=Order.PAYMENT_METHOD_CHOICES, required=False)
 
@@ -129,19 +141,27 @@ class OrderSerializer(serializers.ModelSerializer):
             'guest_access',
             'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
             'carrier', 'tracking_number', 'items',
-            'delivery_kind', 'requested_dispatch_date', 'special_delivery_agreed_at',
+            'delivery_kind', 'requested_dispatch_date', 'delivery_gate_status',
             'estimated_delivery_date', 'dispatched_at',
             'shipping_option_id',
         ]
         read_only_fields = [
             'order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
             'comuna_display', 'carrier', 'tracking_number',
-            'special_delivery_agreed_at',
             'estimated_delivery_date', 'dispatched_at',
         ]
 
     def get_comuna_display(self, obj):
         return str(obj.comuna) if obj.comuna else None
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_delivery_gate_status(self, obj):
+        decision = evaluate_requested_dispatch_date(
+            requested_date=obj.requested_dispatch_date,
+            special_delivery_agreed_at=obj.special_delivery_agreed_at,
+        )
+        blocked = obj.delivery_kind == DISPATCH_KIND_SPECIAL and decision.payment_blocked
+        return "blocked" if blocked else "ready"
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
