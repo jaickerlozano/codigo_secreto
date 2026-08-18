@@ -1,7 +1,11 @@
+import datetime as dt
+
 import pytest
+from django.utils import timezone
 from rest_framework import status
 
 from apps.shipping.models import Comuna, Region
+from apps.shipping.services import resolve_shipping_price
 
 
 pytestmark = pytest.mark.django_db
@@ -195,3 +199,149 @@ def test_list_comunas_filtered_by_region(api_client, comuna_factory, region_fact
     ids = {item["id"] for item in results}
     assert comuna_a.id in ids
     assert comuna_b.id not in ids
+
+
+# ---------------------------------------------------------------------------
+# Dispatch options endpoint
+# ---------------------------------------------------------------------------
+
+
+DISPATCH_OPTIONS_URL = "/api/shipping/dispatch-options/"
+
+
+def _dispatch_options(client, comuna):
+    """GET the dispatch options for a comuna, as the StepShipping client would."""
+    return client.get(DISPATCH_OPTIONS_URL, {"comuna": comuna.id})
+
+
+def test_dispatch_options_santiago_exactly_four_future_tue_thu_excluding_today(
+    api_client, comuna_factory
+):
+    """Santiago dispatch exposes exactly the next four Tue/Thu dates, never today."""
+    comuna = comuna_factory()
+
+    response = _dispatch_options(api_client, comuna)
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["comuna_id"] == comuna.id
+    assert data["mode"] == "santiago"
+    assert data["shipping_option"] is None
+    today = timezone.localdate().isoformat()
+    assert len(data["dates"]) == 4
+    assert all(option_date > today for option_date in data["dates"])
+    assert all(
+        dt.date.fromisoformat(option_date).weekday() in (1, 3)
+        for option_date in data["dates"]
+    )
+
+
+def test_dispatch_options_regional_exposes_one_applicable_option(
+    api_client, comuna_factory, region_factory, regional_option_factory
+):
+    """A non-Santiago comuna exposes the single applicable regional option."""
+    comuna = comuna_factory(
+        name="Vina del Mar", region=region_factory(name="Valparaiso")
+    )
+    option = regional_option_factory(
+        key="regional", carrier="CS Logistics", tariff=5500,
+        min_lead_days=2, max_lead_days=5,
+    )
+
+    response = _dispatch_options(api_client, comuna)
+
+    assert response.status_code == status.HTTP_200_OK
+    data = response.json()
+    assert data["comuna_id"] == comuna.id
+    assert data["mode"] == "regional"
+    assert data["dates"] is None
+    selected = data["shipping_option"]
+    assert selected["shipping_option_id"] == option.id
+    assert selected["key"] == "regional"
+    assert selected["carrier"] == "CS Logistics"
+    assert selected["tariff"] == 5500
+    assert selected["min_lead_days"] == 2
+    assert selected["max_lead_days"] == 5
+
+
+def test_dispatch_options_regional_tariff_matches_price_authority(
+    api_client, comuna_factory, region_factory, regional_option_factory
+):
+    """The advertised regional tariff equals the exclusive backend price authority."""
+    comuna = comuna_factory(
+        region=region_factory(name="Valparaiso"), shipping_cost=9000
+    )
+    regional_option_factory(key="regional", tariff=5500)
+
+    response = _dispatch_options(api_client, comuna)
+
+    authority = resolve_shipping_price(comuna_id=comuna.id)
+    assert response.status_code == status.HTTP_200_OK
+    assert authority.authority == "regional"
+    assert response.json()["shipping_option"]["tariff"] == authority.price
+
+
+def test_dispatch_options_requires_comuna_parameter(api_client):
+    response = api_client.get(DISPATCH_OPTIONS_URL)
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["code"] == "comuna_required"
+
+
+def test_dispatch_options_rejects_non_integer_comuna(api_client):
+    response = api_client.get(DISPATCH_OPTIONS_URL, {"comuna": "not-a-number"})
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert response.json()["code"] == "comuna_invalid"
+
+
+def test_dispatch_options_unknown_comuna_fails_closed(api_client):
+    response = api_client.get(DISPATCH_OPTIONS_URL, {"comuna": 999_999})
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["code"] == "delivery_unavailable"
+
+
+def test_dispatch_options_inactive_comuna_fails_closed(api_client, comuna_factory):
+    comuna = comuna_factory(name="Comuna Inactiva", is_active=False)
+
+    response = _dispatch_options(api_client, comuna)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["code"] == "delivery_unavailable"
+
+
+def test_dispatch_options_regional_without_configuration_fails_closed(
+    api_client, comuna_factory, region_factory
+):
+    comuna = comuna_factory(region=region_factory(name="Valparaiso"))
+
+    response = _dispatch_options(api_client, comuna)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["code"] == "delivery_unavailable"
+
+
+def test_dispatch_options_ambiguous_regional_configuration_fails_closed_without_leaks(
+    api_client, comuna_factory, region_factory, regional_option_factory
+):
+    """Two active regional options fail closed; no configuration detail leaks."""
+    comuna = comuna_factory(region=region_factory(name="Valparaiso"))
+    regional_option_factory(key="regional", carrier="Carrier One", tariff=3000)
+    regional_option_factory(key="regional-alt", carrier="Carrier Two", tariff=4000)
+
+    response = _dispatch_options(api_client, comuna)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    body = response.json()
+    assert body["code"] == "delivery_configuration_invalid"
+    assert "Carrier One" not in str(body)
+    assert "Carrier Two" not in str(body)
+
+
+def test_dispatch_options_is_read_only(api_client, comuna_factory):
+    comuna = comuna_factory()
+
+    response = api_client.post(DISPATCH_OPTIONS_URL, {"comuna": comuna.id})
+
+    assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
