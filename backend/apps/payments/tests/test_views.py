@@ -1,7 +1,11 @@
 import pytest
+from datetime import timedelta
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 
+from apps.orders.admin import OrderAdmin
+from apps.orders.serializers import OrderSerializer
 from apps.payments.models import Transaction
 
 
@@ -154,3 +158,110 @@ class TestInitiatePaymentView:
         assert api_client.post('/api/payments/initiate/', {'order_id': order.id}).status_code == 429
         cache.clear()
         assert api_client.post('/api/payments/initiate/', {'order_id': order.id}).status_code == 200
+
+
+@pytest.mark.django_db
+class TestSpecialDeliveryPaymentGateView:
+    """Special-delivery payment blocking, read-only gate status, Django
+    Admin-only agreement recovery, and idempotent retry."""
+
+    @pytest.fixture(autouse=True)
+    def _restore_payment_initiate_throttle(self):
+        """Isolate the retry journey from the throttling test above, which
+        leaves the global payment_initiate rate at 2/min; restore afterwards."""
+        from rest_framework.settings import api_settings
+
+        original = api_settings.DEFAULT_THROTTLE_RATES.get("payment_initiate")
+        api_settings.DEFAULT_THROTTLE_RATES["payment_initiate"] = "100/min"
+        yield
+        if original is None:
+            api_settings.DEFAULT_THROTTLE_RATES.pop("payment_initiate", None)
+        else:
+            api_settings.DEFAULT_THROTTLE_RATES["payment_initiate"] = original
+
+    @staticmethod
+    def _special_order(user, order_factory):
+        return order_factory(
+            user=user, status="PENDING", total=23000,
+            delivery_kind="special",
+            requested_dispatch_date=timezone.localdate() + timedelta(days=1),
+        )
+
+    def test_special_without_agreement_returns_typed_409_and_no_transaction(
+        self, authenticated_client, user, order_factory, mock_payment_enabled
+    ):
+        order = self._special_order(user, order_factory)
+
+        response = authenticated_client.post(
+            "/api/payments/initiate/", {"order_id": order.id}
+        )
+
+        assert response.status_code == status.HTTP_409_CONFLICT
+        body = response.json()
+        assert body["code"] == "special_delivery_agreement_required"
+        assert "whatsapp" in body["detail"].lower()
+        assert body["whatsapp_url"].startswith("https://wa.me/")
+        assert order.order_number in body["whatsapp_url"]
+        assert body["poll_after_seconds"] > 0
+        assert not Transaction.objects.filter(order=order).exists()
+
+    def test_order_read_exposes_gate_status_and_never_agreement_field(
+        self, authenticated_client, user, order_factory
+    ):
+        order = self._special_order(user, order_factory)
+
+        response = authenticated_client.get(
+            f"/api/orders/by-order-number/{order.order_number}/"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["delivery_gate_status"] == "blocked"
+        assert "special_delivery_agreed_at" not in response.json()
+
+        order.special_delivery_agreed_at = timezone.now()
+        order.save(update_fields=["special_delivery_agreed_at", "updated_at"])
+        response = authenticated_client.get(
+            f"/api/orders/by-order-number/{order.order_number}/"
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["delivery_gate_status"] == "ready"
+
+    def test_agreement_stays_staff_writable_but_never_public(
+        self, user, order_factory
+    ):
+        order = self._special_order(user, order_factory)
+        order.special_delivery_agreed_at = timezone.now()
+        order.save(update_fields=["special_delivery_agreed_at", "updated_at"])
+
+        assert "special_delivery_agreed_at" not in OrderAdmin.readonly_fields
+        assert "special_delivery_agreed_at" not in OrderSerializer.Meta.fields
+        assert "special_delivery_agreed_at" not in OrderSerializer.Meta.read_only_fields
+        assert "delivery_gate_status" in OrderSerializer.Meta.fields
+
+    def test_special_recovers_after_admin_agreement_with_idempotent_retry(
+        self, authenticated_client, user, order_factory, mock_payment_enabled
+    ):
+        order = self._special_order(user, order_factory)
+        url = "/api/payments/initiate/"
+
+        blocked = authenticated_client.post(
+            url, {"order_id": order.id}, HTTP_IDEMPOTENCY_KEY="special-pay-1"
+        )
+        assert blocked.status_code == status.HTTP_409_CONFLICT
+        assert not Transaction.objects.filter(order=order).exists()
+
+        # Staff records the special-delivery agreement via Django Admin.
+        order.special_delivery_agreed_at = timezone.now()
+        order.save(update_fields=["special_delivery_agreed_at", "updated_at"])
+
+        first = authenticated_client.post(
+            url, {"order_id": order.id}, HTTP_IDEMPOTENCY_KEY="special-pay-1"
+        )
+        second = authenticated_client.post(
+            url, {"order_id": order.id}, HTTP_IDEMPOTENCY_KEY="special-pay-1"
+        )
+
+        assert first.status_code == second.status_code == 200
+        assert first.json()["transaction_id"] == second.json()["transaction_id"]
+        assert Transaction.objects.filter(order=order).count() == 1

@@ -24,6 +24,9 @@ DEBUG = env('DEBUG')
 # Payment provider; only "mock" is selectable, and only when DEBUG=True
 PAYMENT_PROVIDER = env("PAYMENT_PROVIDER", default=None)
 
+# Support WhatsApp line for special-delivery agreement guidance (E.164, no "+")
+SUPPORT_WHATSAPP_PHONE = env("SUPPORT_WHATSAPP_PHONE", default="56953716242")
+
 # Email for transactional notifications; env-driven, no secrets in the repo
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST", default="")

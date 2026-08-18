@@ -1,18 +1,26 @@
 """Backend-owned payment initiation and mock approval: fail-closed provider
-selection, order state validation, idempotent replay, transaction creation
-and the development-only approval transition. Authorization stays at the
-request boundary (``authorize_order_access``).
+selection, order state validation, the special-delivery agreement gate,
+idempotent replay, transaction creation and the development-only approval
+transition. Authorization stays at the request boundary
+(``authorize_order_access``).
 """
+from urllib.parse import quote
+
 from django.conf import settings
 from django.db import IntegrityError, transaction
 
 from apps.orders.models import Order
 from apps.orders.notifications import schedule_delivery
+from apps.shipping.services import (
+    DISPATCH_KIND_SPECIAL,
+    evaluate_requested_dispatch_date,
+)
 
 from .models import Transaction
 from .providers import MOCK_PROVIDER_ID, SUPPORTED_PAYMENT_METHODS, MockPaymentProvider
 
 IDEMPOTENCY_KEY_MAX_LENGTH = 64  # mirrors the checkout-key client contract
+POLL_AFTER_SECONDS = 30  # client poll interval while a special agreement is pending
 
 
 class InvalidPaymentKeyError(ValueError): """The Idempotency-Key header cannot be used safely."""
@@ -22,6 +30,26 @@ class PaymentIdempotencyConflictError(ValueError): """An idempotency key was reu
 class PaymentStateError(ValueError): """The order is not in a payable state (carries the status label)."""
 class PaymentAlreadyPaidError(ValueError): """The order already has an APPROVED transaction."""
 class PaymentApprovalError(ValueError): """The transaction cannot be approved in its current state."""
+class SpecialDeliveryAgreementRequiredError(ValueError):
+    """A special-dispatch order cannot be paid until staff records the
+    WhatsApp agreement in Django Admin; no transaction is created."""
+
+    def __init__(self, recovery_guidance, whatsapp_url, poll_after_seconds=POLL_AFTER_SECONDS):
+        super().__init__(recovery_guidance)
+        self.recovery_guidance = recovery_guidance
+        self.whatsapp_url = whatsapp_url
+        self.poll_after_seconds = poll_after_seconds
+
+
+def special_delivery_whatsapp_url(order):
+    """Backend-produced WhatsApp URL with neutral prefilled text naming the
+    order number and requested special dispatch date."""
+    phone = getattr(settings, "SUPPORT_WHATSAPP_PHONE", "")
+    message = (
+        f"Hola, quiero coordinar la entrega especial de mi pedido "
+        f"{order.order_number} para el {order.requested_dispatch_date}."
+    )
+    return f"https://wa.me/{phone}?text={quote(message)}"
 
 
 def normalize_idempotency_key(raw):
@@ -63,6 +91,15 @@ def initiate_payment(*, order, idempotency_key):
         order = Order.objects.select_for_update().get(id=order.id)
         if order.status != "PENDING":
             raise PaymentStateError(order.get_status_display())
+        decision = evaluate_requested_dispatch_date(
+            requested_date=order.requested_dispatch_date,
+            special_delivery_agreed_at=order.special_delivery_agreed_at,
+        )
+        if order.delivery_kind == DISPATCH_KIND_SPECIAL and decision.payment_blocked:
+            raise SpecialDeliveryAgreementRequiredError(
+                decision.recovery_guidance,
+                whatsapp_url=special_delivery_whatsapp_url(order),
+            )
         if order.transactions.filter(status="APPROVED").exists():
             raise PaymentAlreadyPaidError()
         if idempotency_key:
