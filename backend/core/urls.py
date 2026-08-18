@@ -13,7 +13,7 @@ from apps.authentication.views import (
     UserMeView,
     LogoutView,
 )
-from apps.shipping.views import RegionViewSet, ComunaViewSet
+from apps.shipping.views import RegionViewSet, ComunaViewSet, DispatchOptionsView
 from apps.carts.views import MyCartView 
 from apps.orders.views import OrderViewSet
 from apps.payments.views import ApproveMockPaymentView, InitiatePaymentView
@@ -47,6 +47,9 @@ urlpatterns = [
 
     # Ruta manual para la APIView del carrito de compras
     path('api/cart/me/', MyCartView.as_view(), name='my_cart'),
+
+    # Ruta manual para las opciones de despacho autoritativas por comuna
+    path('api/shipping/dispatch-options/', DispatchOptionsView.as_view(), name='dispatch_options'),
 
     # Ruta manual para la APIView del inicio de pago
     path('api/payments/initiate/', InitiatePaymentView.as_view(), name='payment_initiate'),
