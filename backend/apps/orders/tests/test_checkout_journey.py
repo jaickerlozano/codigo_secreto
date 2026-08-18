@@ -30,6 +30,7 @@ from apps.orders.models import NotificationDelivery, Order
 from apps.orders.notifications import attempt_delivery, retry_delivery
 from apps.orders.services import fulfill_dispatch
 from apps.products.tests.factories import ProductFactory
+from apps.shipping.services import future_dispatch_dates
 
 pytestmark = pytest.mark.django_db
 
@@ -74,13 +75,17 @@ def _guest_payload(product_id, comuna_id, revision, quantity=2):
         "guest_items": [{"product_id": product_id, "quantity": quantity}],
         "confirmed_revision": revision,
         "payment_method": "webpay",
+        "delivery_kind": "standard",
+        "requested_dispatch_date": str(future_dispatch_dates()[0]),
     }
 
 
 def _auth_payload(comuna_id):
     # shipping_cost intentionally omitted: the backend resolves the snapshot.
     return {"phone": "+56987654321", "comuna": comuna_id,
-            "shipping_address": "Calle 456", "payment_method": "webpay"}
+            "shipping_address": "Calle 456", "payment_method": "webpay",
+            "delivery_kind": "standard",
+            "requested_dispatch_date": str(future_dispatch_dates()[0])}
 
 
 def _quote(api_client, product_id, comuna_id, quantity=2):

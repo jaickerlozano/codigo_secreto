@@ -8,6 +8,7 @@ from rest_framework.test import APIClient
 from apps.authentication.tests.factories import UserFactory
 from apps.orders.models import Order, OrderItem
 from apps.orders.services import CheckoutKeyConflictError, _race_replay_auth, calculate_guest_quote
+from apps.shipping.services import DeliverySnapshot, future_dispatch_dates
 
 
 pytestmark = pytest.mark.django_db
@@ -34,12 +35,16 @@ def _guest_payload(product, comuna, quantity=2):
             "guest_items": [{"product_id": product.id, "quantity": quantity}],
             "confirmed_revision": calculate_guest_quote(
                 [{"product_id": product.id, "quantity": quantity}], comuna_selector=comuna.id
-            ).revision}
+            ).revision,
+            "delivery_kind": "standard",
+            "requested_dispatch_date": str(future_dispatch_dates()[0])}
 
 
 def _auth_payload(comuna):
     return {"phone": "+56912345678", "comuna": comuna.id,
-            "shipping_address": "Calle 123", "shipping_cost": comuna.shipping_cost}
+            "shipping_address": "Calle 123", "shipping_cost": comuna.shipping_cost,
+            "delivery_kind": "standard",
+            "requested_dispatch_date": str(future_dispatch_dates()[0])}
 
 
 def test_auth_replay_returns_same_order_and_preserves_cart(
@@ -127,9 +132,10 @@ def test_auth_race_replay_resolves_or_conflicts(
     OrderItem.objects.create(order=winner, product_id=product.id, product_name=product.name,
                              price=1000, quantity=2)
 
-    assert _race_replay_auth(KEY, user.id, comuna.id, cart.items.all()).id == winner.id
+    delivery = DeliverySnapshot("standard", None, "Chilexpress", 3000)
+    assert _race_replay_auth(KEY, user.id, comuna.id, cart.items.all(), delivery).id == winner.id
     with pytest.raises(CheckoutKeyConflictError):
-        _race_replay_auth(KEY, UserFactory.create().id, comuna.id, cart.items.all())
+        _race_replay_auth(KEY, UserFactory.create().id, comuna.id, cart.items.all(), delivery)
     assert Order.objects.count() == 1
 
 

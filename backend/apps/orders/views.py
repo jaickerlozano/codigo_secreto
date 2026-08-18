@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
+from apps.shipping.services import DeliveryValidationError, StaleDeliveryOptionError
+
 from .models import Order
 from .serializers import (
     GuestQuoteResponseSerializer,
@@ -94,6 +96,16 @@ class OrderViewSet(mixins.CreateModelMixin,
                 'code': 'checkout_key_conflict',
                 'detail': 'The checkout key cannot be reused for a different purchase.',
             }, status=status.HTTP_409_CONFLICT)
+        except StaleDeliveryOptionError as error:
+            return Response({
+                'code': 'delivery_option_stale',
+                'detail': str(error),
+            }, status=status.HTTP_409_CONFLICT)
+        except DeliveryValidationError as error:
+            return Response({
+                'code': 'delivery_schedule_ineligible',
+                'detail': str(error),
+            }, status=status.HTTP_400_BAD_REQUEST)
 
     @extend_schema(
         request=QuoteSerializer,

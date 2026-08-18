@@ -113,6 +113,13 @@ class OrderSerializer(serializers.ModelSerializer):
     # Método de pago elegido en el checkout
     payment_method = serializers.ChoiceField(choices=Order.PAYMENT_METHOD_CHOICES, required=False)
 
+    # Selección de entrega (validada y congelada por el backend en create()).
+    delivery_kind = serializers.ChoiceField(choices=Order.DELIVERY_KIND_CHOICES, required=False)
+    requested_dispatch_date = serializers.DateField(required=False, allow_null=True)
+    shipping_option_id = serializers.IntegerField(
+        min_value=1, required=False, allow_null=True, write_only=True,
+    )
+
     class Meta:
         model = Order
         fields = [
@@ -124,11 +131,12 @@ class OrderSerializer(serializers.ModelSerializer):
             'carrier', 'tracking_number', 'items',
             'delivery_kind', 'requested_dispatch_date', 'special_delivery_agreed_at',
             'estimated_delivery_date', 'dispatched_at',
+            'shipping_option_id',
         ]
         read_only_fields = [
             'order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
             'comuna_display', 'carrier', 'tracking_number',
-            'delivery_kind', 'requested_dispatch_date', 'special_delivery_agreed_at',
+            'special_delivery_agreed_at',
             'estimated_delivery_date', 'dispatched_at',
         ]
 
@@ -228,6 +236,10 @@ class OrderSerializer(serializers.ModelSerializer):
         except InvalidCheckoutKeyError:
             raise serializers.ValidationError({'detail': 'Invalid idempotency key.'})
 
+        delivery_kind = validated_data.pop('delivery_kind', 'standard')
+        requested_dispatch_date = validated_data.pop('requested_dispatch_date', None)
+        shipping_option_id = validated_data.pop('shipping_option_id', None)
+
         if not user or user.is_anonymous:
             guest_items = validated_data.pop('guest_items')
             confirmed_revision = validated_data.pop('confirmed_revision', None)
@@ -244,6 +256,9 @@ class OrderSerializer(serializers.ModelSerializer):
                     guest_items=guest_items,
                     confirmed_revision=confirmed_revision,
                     comuna_selector=comuna_selector,
+                    delivery_kind=delivery_kind,
+                    requested_dispatch_date=requested_dispatch_date,
+                    shipping_option_id=shipping_option_id,
                 )
             except GuestQuoteValidationError as error:
                 raise serializers.ValidationError({
@@ -262,6 +277,9 @@ class OrderSerializer(serializers.ModelSerializer):
                 payment_method=validated_data.get('payment_method', 'webpay'),
                 comuna_id=comuna_id,
                 shipping_cost=shipping_cost,
+                delivery_kind=delivery_kind,
+                requested_dispatch_date=requested_dispatch_date,
+                shipping_option_id=shipping_option_id,
             )
         except EmptyCartError:
             raise serializers.ValidationError({

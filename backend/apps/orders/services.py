@@ -9,7 +9,11 @@ from django.utils import timezone
 from apps.orders.models import Order, OrderItem
 from apps.orders.notifications import schedule_delivery
 from apps.products.services import ProductSnapshotResolutionError, resolve_product_price_snapshot
-from apps.shipping.services import ShippingSnapshotResolutionError, resolve_shipping_price
+from apps.shipping.services import (
+    ShippingSnapshotResolutionError,
+    resolve_delivery_snapshot,
+    resolve_shipping_price,
+)
 
 
 GUEST_ACCESS_COOKIE_NAME = "guest_order_access"
@@ -201,21 +205,27 @@ def _canonical_items(items):
     return tuple(sorted((item.product_id, item.quantity) for item in items))
 
 
-def _guest_intent(quote, guest_email):
-    return ((guest_email or "").casefold(), quote.comuna_id, _canonical_items(quote.items))
+def _delivery_intent(delivery):
+    return (delivery.delivery_kind, delivery.requested_dispatch_date, delivery.carrier)
 
 
-def _ensure_guest_replay(existing, quote, guest_email):
+def _guest_intent(quote, guest_email, delivery):
+    return ((guest_email or "").casefold(), quote.comuna_id, _canonical_items(quote.items),
+            _delivery_intent(delivery))
+
+
+def _ensure_guest_replay(existing, quote, guest_email, delivery):
     frozen = ((existing.guest_email or "").casefold(), existing.comuna_id,
-              _canonical_items(existing.items.all()))
-    if existing.user is not None or frozen != _guest_intent(quote, guest_email):
+              _canonical_items(existing.items.all()),
+              (existing.delivery_kind, existing.requested_dispatch_date, existing.carrier))
+    if existing.user is not None or frozen != _guest_intent(quote, guest_email, delivery):
         raise CheckoutKeyConflictError()
 
 
-def _race_replay(checkout_key, quote, guest_email):
+def _race_replay(checkout_key, quote, guest_email, delivery):
     """Resolve a same-key IntegrityError (concurrent double-submit) to a replay."""
     existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().get()
-    _ensure_guest_replay(existing, quote, guest_email)
+    _ensure_guest_replay(existing, quote, guest_email, delivery)
     existing._guest_access_token = existing.rotate_guest_access()
     return existing
 
@@ -223,26 +233,36 @@ def _race_replay(checkout_key, quote, guest_email):
 class EmptyCartError(ValueError): """The authenticated cart cannot produce an order."""
 
 
-def _auth_intent(user_id, comuna_id, cart_items):
-    return (user_id, comuna_id, _canonical_items(cart_items))
+def _auth_intent(user_id, comuna_id, cart_items, delivery):
+    return (user_id, comuna_id, _canonical_items(cart_items), _delivery_intent(delivery))
 
 
-def _ensure_auth_replay(existing, user_id, comuna_id, cart_items):
+def _ensure_auth_replay(existing, user_id, comuna_id, cart_items, delivery):
     frozen = (existing.user_id, existing.comuna_id,
-              _canonical_items(existing.items.all()))
-    if frozen != _auth_intent(user_id, comuna_id, cart_items):
+              _canonical_items(existing.items.all()),
+              (existing.delivery_kind, existing.requested_dispatch_date, existing.carrier))
+    if frozen != _auth_intent(user_id, comuna_id, cart_items, delivery):
         raise CheckoutKeyConflictError()
 
 
-def _race_replay_auth(checkout_key, user_id, comuna_id, cart_items):
+def _race_replay_auth(checkout_key, user_id, comuna_id, cart_items, delivery):
     """Resolve a same-key IntegrityError to a verified replay or a masked conflict."""
     existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().get()
-    _ensure_auth_replay(existing, user_id, comuna_id, cart_items)
+    _ensure_auth_replay(existing, user_id, comuna_id, cart_items, delivery)
     return existing
 
 
+def _resolve_delivery(comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id):
+    return resolve_delivery_snapshot(
+        comuna_id=comuna_id, delivery_kind=delivery_kind,
+        requested_dispatch_date=requested_dispatch_date,
+        shipping_option_id=shipping_option_id, for_update=True,
+    )
+
+
 def _create_authenticated_order(*, user, checkout_key, phone, shipping_address,
-                                apartment_office, payment_method, comuna_id, shipping_cost):
+                                apartment_office, payment_method, comuna_id, shipping_cost,
+                                delivery_kind, requested_dispatch_date, shipping_option_id):
     """Create an authenticated order from the server-side cart or replay it by
     ``checkout_key``. The cart is preserved until payment approval; totals are
     backend-computed from live product rows and frozen into the order."""
@@ -251,10 +271,12 @@ def _create_authenticated_order(*, user, checkout_key, phone, shipping_address,
         if checkout_key:
             existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().first()
             if existing is not None:
-                _ensure_auth_replay(existing, user.id, comuna_id, cart_items)
+                delivery = _resolve_delivery(comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
+                _ensure_auth_replay(existing, user.id, comuna_id, cart_items, delivery)
                 return existing
         if not cart_items:
             raise EmptyCartError()
+        delivery = _resolve_delivery(comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
         subtotal = sum(item.subtotal for item in cart_items)
         try:
             with transaction.atomic():
@@ -262,7 +284,11 @@ def _create_authenticated_order(*, user, checkout_key, phone, shipping_address,
                     user=user, comuna_id=comuna_id, phone=phone,
                     shipping_address=shipping_address, apartment_office=apartment_office,
                     payment_method=payment_method, checkout_key=checkout_key,
-                    subtotal=subtotal, shipping_cost=shipping_cost, total=subtotal + shipping_cost,
+                    subtotal=subtotal, shipping_cost=delivery.shipping_price,
+                    total=subtotal + delivery.shipping_price,
+                    delivery_kind=delivery.delivery_kind,
+                    requested_dispatch_date=delivery.requested_dispatch_date,
+                    carrier=delivery.carrier,
                 )
                 OrderItem.objects.bulk_create([
                     OrderItem(order=order, product_id=item.product_id,
@@ -273,14 +299,15 @@ def _create_authenticated_order(*, user, checkout_key, phone, shipping_address,
         except IntegrityError:
             if not checkout_key:
                 raise
-            return _race_replay_auth(checkout_key, user.id, comuna_id, cart_items)
+            return _race_replay_auth(checkout_key, user.id, comuna_id, cart_items, delivery)
         return order
 
 
 def create_order(*, user=None, checkout_key=None, guest_email=None, guest_name=None, phone=None,
                  shipping_address=None, apartment_office="", payment_method="webpay",
                  guest_items=None, confirmed_revision=None, comuna_selector=None,
-                 comuna_id=None, shipping_cost=None):
+                 comuna_id=None, shipping_cost=None,
+                 delivery_kind="standard", requested_dispatch_date=None, shipping_option_id=None):
     """Create an order or replay it by ``checkout_key``. Authenticated orders
     use the server-side cart (never cleared here); guest orders use the
     client-side list and rotate their raw capability on replay. Totals are
@@ -290,28 +317,34 @@ def create_order(*, user=None, checkout_key=None, guest_email=None, guest_name=N
             user=user, checkout_key=checkout_key, phone=phone,
             shipping_address=shipping_address, apartment_office=apartment_office,
             payment_method=payment_method, comuna_id=comuna_id, shipping_cost=shipping_cost,
+            delivery_kind=delivery_kind, requested_dispatch_date=requested_dispatch_date,
+            shipping_option_id=shipping_option_id,
         )
     return _create_guest_order(
         checkout_key=checkout_key, guest_email=guest_email, guest_name=guest_name,
         phone=phone, shipping_address=shipping_address, apartment_office=apartment_office,
         payment_method=payment_method, guest_items=guest_items,
         confirmed_revision=confirmed_revision, comuna_selector=comuna_selector,
+        delivery_kind=delivery_kind, requested_dispatch_date=requested_dispatch_date,
+        shipping_option_id=shipping_option_id,
     )
 
 
 def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shipping_address,
                         apartment_office, payment_method, guest_items, confirmed_revision,
-                        comuna_selector):
+                        comuna_selector, delivery_kind, requested_dispatch_date, shipping_option_id):
     with transaction.atomic():
         quote = calculate_guest_quote(guest_items, comuna_selector=comuna_selector, lock=True)
         if checkout_key:
             existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().first()
             if existing is not None:
-                _ensure_guest_replay(existing, quote, guest_email)
+                delivery = _resolve_delivery(quote.comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
+                _ensure_guest_replay(existing, quote, guest_email, delivery)
                 existing._guest_access_token = existing.rotate_guest_access()
                 return existing
         if not quote_revision_matches(confirmed_revision, quote):
             raise GuestQuoteRevisionStale(quote)
+        delivery = _resolve_delivery(quote.comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
         try:
             with transaction.atomic():
                 order = Order.objects.create(
@@ -320,6 +353,9 @@ def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shippin
                     apartment_office=apartment_office, payment_method=payment_method,
                     checkout_key=checkout_key, subtotal=quote.subtotal,
                     shipping_cost=quote.shipping_cost, total=quote.total,
+                    delivery_kind=delivery.delivery_kind,
+                    requested_dispatch_date=delivery.requested_dispatch_date,
+                    carrier=delivery.carrier,
                 )
                 OrderItem.objects.bulk_create([
                     OrderItem(order=order, product_id=line.product_id,
@@ -330,7 +366,7 @@ def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shippin
         except IntegrityError:
             if not checkout_key:
                 raise
-            return _race_replay(checkout_key, quote, guest_email)
+            return _race_replay(checkout_key, quote, guest_email, delivery)
         order._guest_access_token = order.issue_guest_access()
         return order
 
