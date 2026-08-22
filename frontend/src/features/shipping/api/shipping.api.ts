@@ -1,8 +1,8 @@
 import type { operations } from '@/api/schema.d.ts'
 import { apiClient } from '@/lib/api-client'
 
-import { mapApiComuna, mapApiRegion } from '../lib/mappers'
-import type { Comuna, Region } from '../types'
+import { mapApiComuna, mapApiDispatchOptions, mapApiRegion } from '../lib/mappers'
+import type { Comuna, DispatchOptions, Region } from '../types'
 
 function extractErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
@@ -46,4 +46,18 @@ export async function getComunas(regionId?: number): Promise<Comuna[]> {
   }
 
   return data.results.map(mapApiComuna)
+}
+
+export async function getDispatchOptions(comunaId: number): Promise<DispatchOptions> {
+  const { data, error } = await apiClient.GET('/api/shipping/dispatch-options/', {
+    params: {
+      query: { comuna: comunaId },
+    },
+  })
+
+  if (error || !data) {
+    throw new Error(extractErrorMessage(error))
+  }
+
+  return mapApiDispatchOptions(data)
 }

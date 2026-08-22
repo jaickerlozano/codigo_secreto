@@ -46,4 +46,32 @@ export const shippingHandlers = [
       results: filtered,
     })
   }),
+
+  http.get(/\/api\/shipping\/dispatch-options\/$/, ({ request }) => {
+    const url = new URL(request.url)
+    const comunaId = parseInt(url.searchParams.get('comuna') ?? '0', 10)
+
+    if (comunaId === 1) {
+      return HttpResponse.json({
+        comuna_id: comunaId,
+        mode: 'santiago',
+        dates: ['2026-08-25', '2026-08-27'],
+        shipping_option: null,
+      })
+    }
+
+    return HttpResponse.json({
+      comuna_id: comunaId,
+      mode: 'regional',
+      dates: null,
+      shipping_option: {
+        shipping_option_id: 7,
+        key: 'chilexpress',
+        carrier: 'Chilexpress',
+        tariff: 4900,
+        min_lead_days: 2,
+        max_lead_days: 4,
+      },
+    })
+  }),
 ]
