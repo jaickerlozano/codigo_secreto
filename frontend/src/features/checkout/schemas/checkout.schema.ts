@@ -29,9 +29,14 @@ export const addressSchema = z.object({
 
 export type AddressSchema = z.infer<typeof addressSchema>
 
-// No user-selectable shipping options exist yet: the backend tariff for the
-// destination is the single source of truth, so the step submits no fields.
-export const shippingSchema = z.object({})
+// Delivery selection mirrors the backend dispatch contract: Santiago records
+// a standard date (or a special future date), regional records the option id.
+// The backend re-validates authority and amount at create time.
+export const shippingSchema = z.object({
+  deliveryKind: z.enum(['standard', 'special']).optional(),
+  requestedDispatchDate: z.string().date().nullish(),
+  shippingOptionId: z.number().int().nullish(),
+})
 
 export type ShippingSchema = z.infer<typeof shippingSchema>
 

@@ -2,8 +2,9 @@ import { Check, Loader2, Lock, Package } from 'lucide-react'
 
 import { formatCLP } from '@/lib/format'
 
+import { formatDispatchDate } from '../../lib/shipping-selection'
 import { PAYMENT_OPTIONS } from '../../data'
-import type { CheckoutData, CheckoutStep } from '../../types'
+import type { CheckoutData, CheckoutStep, ShippingData } from '../../types'
 
 interface StepReviewProps {
   data: CheckoutData
@@ -20,6 +21,12 @@ interface StepReviewProps {
 
 function quoteAmount(value: number | null, empty = 'Calculando…') { return value === null ? empty : formatCLP(value) }
 
+function dispatchDetail(shipping: ShippingData): string {
+  if (!shipping.requestedDispatchDate) return ''
+  const date = formatDispatchDate(shipping.requestedDispatchDate)
+  return shipping.deliveryKind === 'special' ? ` — Entrega especial ${date}` : ` — ${date}`
+}
+
 export function StepReview({
   data,
   subtotal,
@@ -33,7 +40,7 @@ export function StepReview({
   isSubmitting = false,
 }: StepReviewProps) {
   const shippingLabel = data.address.comunaName
-    ? `Envío a ${data.address.comunaName}${data.address.regionName ? `, ${data.address.regionName}` : ''}`
+    ? `Envío a ${data.address.comunaName}${data.address.regionName ? `, ${data.address.regionName}` : ''}${dispatchDetail(data.shipping)}`
     : '—'
   const paymentLabel =
     PAYMENT_OPTIONS.find((p) => p.id === data.payment.method)?.name ?? '—'

@@ -6,7 +6,7 @@ export type GuestQuote = components['schemas']['GuestQuoteResponse']
 type QuoteRevisionStale = components['schemas']['QuoteRevisionStale']
 export type CreateOrderInput = NonNullable<paths['/api/orders/']['post']['requestBody']>['content']['application/json']
 
-export class OrderCreationError extends Error { readonly status?: number; readonly refreshedQuote?: GuestQuote; constructor(message: string, status?: number, refreshedQuote?: GuestQuote) { super(message); this.name = 'OrderCreationError'; this.status = status; this.refreshedQuote = refreshedQuote } }
+export class OrderCreationError extends Error { readonly status?: number; readonly code?: string; readonly refreshedQuote?: GuestQuote; constructor(message: string, status?: number, code?: string, refreshedQuote?: GuestQuote) { super(message); this.name = 'OrderCreationError'; this.status = status; this.code = code; this.refreshedQuote = refreshedQuote } }
 
 type AccessLocation = Pick<Location, 'hash' | 'pathname' | 'search'>
 type HistoryWriter = Pick<History, 'replaceState'>
@@ -83,7 +83,8 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
 
   if (error || !data) {
     const stale = response?.status === 400 && isQuoteRevisionStale(error) ? error : undefined
-    throw new OrderCreationError(extractErrorMessage(error), response?.status, stale?.refreshed_quote)
+    const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string' ? error.code : undefined
+    throw new OrderCreationError(extractErrorMessage(error), response?.status, code, stale?.refreshed_quote)
   }
 
   return data

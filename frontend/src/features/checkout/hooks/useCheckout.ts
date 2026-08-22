@@ -33,7 +33,7 @@ const INITIAL_DATA: CheckoutData = {
   termsAccepted: false,
 }
 
-interface UseCheckoutReturn {
+export interface UseCheckoutReturn {
   currentStep: CheckoutStep
   data: CheckoutData
   setContact: (contact: ContactData) => void

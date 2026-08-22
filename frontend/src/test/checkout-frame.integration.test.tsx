@@ -10,6 +10,7 @@ import { routes } from '@/app/router.tsx'
 import { useCartStore } from '@/features/cart'
 import type { Product } from '@/features/catalog/types'
 import { queryClient } from '@/lib/query-client'
+import { trackedOrders } from '@/test/handlers/orders'
 import { server } from '@/test/setup'
 
 const product = { id: 1, name: 'Vibrador de prueba', price: 29990, category: '1', experienceLevel: 'intermedio', features: [], description: 'Descripción de prueba', materials: [], usageInstructions: '', icon: '✦', gradient: 'from-violet-950 via-purple-900 to-violet-800', sku: '101', stock: 10, image: null, images: [] } as Product
@@ -55,7 +56,9 @@ async function completeDataStep(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function reachAndConfirm(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole('button', { name: /Siguiente/ }, { timeout: 5000 }))
+  const envio = await screen.findByRole('group', { name: 'Envío' }, { timeout: 5000 })
+  await user.click(within(envio).getByRole('radio', { name: /25 de agosto/ }))
+  await user.click(screen.getByRole('button', { name: /Siguiente/ }))
   await user.click(await screen.findByRole('radio', { name: 'Webpay' }, { timeout: 5000 }))
   await user.click(screen.getByRole('button', { name: /Siguiente/ }))
   await user.click(await screen.findByRole('checkbox'))
@@ -101,6 +104,8 @@ describe('checkout frame runtime harness', () => {
     const envio = await screen.findByRole('group', { name: 'Envío' }, { timeout: 5000 })
     expect(await within(envio).findByText('$3.500')).toBeDefined()
     expect(screen.getByText((_, node) => node?.tagName === 'P' && node.textContent === 'Envío a Santiago, Región Metropolitana')).toBeDefined()
+    expect(screen.getByRole('button', { name: /Siguiente/ }).hasAttribute('disabled')).toBe(true)
+    await user.click(within(envio).getByRole('radio', { name: /25 de agosto/ }))
     expect(screen.getByRole('button', { name: /Siguiente/ }).hasAttribute('disabled')).toBe(false)
     await user.click(screen.getByRole('button', { name: /Siguiente/ }))
 
@@ -109,7 +114,8 @@ describe('checkout frame runtime harness', () => {
     await user.click(screen.getByRole('button', { name: /Siguiente/ }))
 
     expect(await screen.findByRole('heading', { name: 'Revisar y confirmar' })).toBeDefined()
-    expect(screen.getByText('Envío a Santiago, Región Metropolitana')).toBeDefined()
+    expect(screen.getByText(/Envío a Santiago, Región Metropolitana/)).toBeDefined()
+    expect(screen.getByText(/martes 25 de agosto/)).toBeDefined()
     expect(screen.getByRole('button', { name: 'Confirmar pedido' }).hasAttribute('disabled')).toBe(true)
   }, 15000)
 
@@ -121,6 +127,10 @@ describe('checkout frame runtime harness', () => {
     await reachAndConfirm(user)
     expect(await screen.findByRole('heading', { name: 'Pago pendiente' }, { timeout: 5000 })).toBeDefined()
     expect(useCartStore.getState().items).toHaveLength(1)
+    const createdOrder = [...trackedOrders.values()].at(-1)
+    expect(createdOrder?.delivery_kind).toBe('standard')
+    expect(createdOrder?.requested_dispatch_date).toBe('2026-08-25')
+    expect(createdOrder?.shipping_option_id).toBeUndefined()
     await user.click(screen.getByRole('button', { name: /Aprobar pago/ }))
     expect(await screen.findByRole('heading', { name: '¡Pedido confirmado!' }, { timeout: 5000 })).toBeDefined()
     await waitFor(() => expect(useCartStore.getState().items).toHaveLength(0), { timeout: 5000 })
@@ -154,6 +164,8 @@ describe('checkout frame runtime harness', () => {
     await user.click(within(envio).getByRole('button', { name: 'Reintentar' }))
 
     expect(await within(envio).findByText('$3.500', undefined, { timeout: 5000 })).toBeDefined()
+    expect(screen.getByRole('button', { name: /Siguiente/ }).hasAttribute('disabled')).toBe(true)
+    await user.click(within(envio).getByRole('radio', { name: /25 de agosto/ }))
     expect(screen.getByRole('button', { name: /Siguiente/ }).hasAttribute('disabled')).toBe(false)
   }, 15000)
 })
