@@ -133,7 +133,7 @@ export interface paths {
         };
         /**
          * Ver mi carrito de compras
-         * @description Devuelve el carrito del usuario conectado con su lista de productos, subtotales, envío y total.
+         * @description Devuelve el carrito del usuario con subtotales, envío y total; con ?comuna={id} el envío usa la autoridad de precios del backend.
          */
         get: operations["cart_me_retrieve"];
         put?: never;
@@ -445,6 +445,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/shipping/dispatch-options/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Opciones de despacho para una comuna
+         * @description Devuelve las opciones de despacho autoritativas para la comuna indicada: para Santiago, las próximas cuatro fechas de martes/jueves (excluyendo hoy); fuera de Santiago, la única opción regional configurada (transportista, tarifa y plazos). Si el destino o la configuración no están disponibles, falla cerrado con un error tipificado.
+         */
+        get: operations["shipping_dispatch_options_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/shipping/regions/": {
         parameters: {
             query?: never;
@@ -650,6 +670,19 @@ export interface components {
          * @enum {string}
          */
         DeliveryKindEnum: "standard" | "special";
+        /**
+         * @description Read-only dispatch options for a selected destination comuna.
+         *
+         *     Santiago comunas expose the next four future Tuesday/Thursday dates;
+         *     non-Santiago comunas expose the single applicable regional option.
+         *     Exactly one of ``dates``/``shipping_option`` is populated per mode.
+         */
+        DispatchOptions: {
+            readonly comuna_id: number;
+            readonly mode: components["schemas"]["ModeEnum"];
+            readonly dates: string[] | null;
+            readonly shipping_option: components["schemas"]["RegionalDispatchOption"] | null;
+        };
         Favorite: {
             readonly id: number;
             /** Producto */
@@ -702,6 +735,12 @@ export interface components {
             status: string;
             order_status: string;
         };
+        /**
+         * @description * `santiago` - santiago
+         *     * `regional` - regional
+         * @enum {string}
+         */
+        ModeEnum: "santiago" | "regional";
         /**
          * @description * `IN` - Entrada
          *     * `OUT` - Salida
@@ -758,26 +797,10 @@ export interface components {
              */
             readonly tracking_number: string | null;
             readonly items: components["schemas"]["OrderItem"][];
-            /**
-             * Tipo de entrega
-             * @description standard: fechas regulares de despacho; special: requiere acuerdo previo por WhatsApp.
-             *
-             *     * `standard` - Entrega Estándar
-             *     * `special` - Entrega Especial
-             */
-            readonly delivery_kind: components["schemas"]["DeliveryKindEnum"];
-            /**
-             * Fecha de despacho solicitada
-             * Format: date
-             * @description Fecha especial de despacho solicitada por el cliente.
-             */
-            readonly requested_dispatch_date: string | null;
-            /**
-             * Acuerdo de entrega especial
-             * Format: date-time
-             * @description Momento en que el staff confirmó el acuerdo especial; sin esto el pago permanece bloqueado.
-             */
-            readonly special_delivery_agreed_at: string | null;
+            delivery_kind?: components["schemas"]["DeliveryKindEnum"];
+            /** Format: date */
+            requested_dispatch_date?: string | null;
+            readonly delivery_gate_status: string;
             /**
              * Fecha estimada de entrega
              * Format: date
@@ -790,6 +813,7 @@ export interface components {
              * @description Momento en que el pedido fue despachado.
              */
             readonly dispatched_at: string | null;
+            shipping_option_id?: number | null;
         };
         OrderCreate: {
             /** Teléfono de contacto */
@@ -813,6 +837,10 @@ export interface components {
             /** @description Signed quote revision explicitly confirmed by a guest. */
             confirmed_revision?: string | null;
             payment_method?: components["schemas"]["PaymentMethodEnum"];
+            delivery_kind?: components["schemas"]["DeliveryKindEnum"];
+            /** Format: date */
+            requested_dispatch_date?: string | null;
+            shipping_option_id?: number | null;
         };
         OrderItem: {
             readonly id: number;
@@ -1085,6 +1113,15 @@ export interface components {
             ordinal_number: number;
             readonly comunas: string;
         };
+        /** @description The one applicable regional shipping option for a non-Santiago comuna. */
+        RegionalDispatchOption: {
+            readonly shipping_option_id: number;
+            readonly key: string;
+            readonly carrier: string;
+            readonly tariff: number;
+            readonly min_lead_days: number;
+            readonly max_lead_days: number;
+        };
         Register: {
             /** Nombre */
             first_name?: string;
@@ -1297,7 +1334,10 @@ export interface operations {
     };
     cart_me_retrieve: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description ID de la comuna de entrega para el estimado de envío autoritativo. */
+                comuna?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -2017,6 +2057,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Comuna"];
+                };
+            };
+        };
+    };
+    shipping_dispatch_options_retrieve: {
+        parameters: {
+            query: {
+                /** @description ID de la comuna de destino para calcular las opciones de despacho. */
+                comuna: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DispatchOptions"];
                 };
             };
         };

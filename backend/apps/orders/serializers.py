@@ -317,7 +317,14 @@ class OrderCreateSerializer(serializers.ModelSerializer):
     payment_method = serializers.ChoiceField(
         choices=Order.PAYMENT_METHOD_CHOICES, required=False
     )
+    # Selección de entrega (validada y congelada por el backend en create()).
+    # Documenta el mismo contrato que OrderSerializer para el request de checkout.
+    delivery_kind = serializers.ChoiceField(choices=Order.DELIVERY_KIND_CHOICES, required=False)
+    requested_dispatch_date = serializers.DateField(required=False, allow_null=True)
+    shipping_option_id = serializers.IntegerField(
+        min_value=1, required=False, allow_null=True, write_only=True,
+    )
 
     class Meta:
         model = Order
-        fields = ['phone', 'comuna', 'comuna_name', 'region_name', 'shipping_address', 'apartment_office', 'guest_email', 'guest_name', 'guest_items', 'confirmed_revision', 'payment_method']
+        fields = ['phone', 'comuna', 'comuna_name', 'region_name', 'shipping_address', 'apartment_office', 'guest_email', 'guest_name', 'guest_items', 'confirmed_revision', 'payment_method', 'delivery_kind', 'requested_dispatch_date', 'shipping_option_id']
