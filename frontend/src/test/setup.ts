@@ -30,6 +30,16 @@ Element.prototype.hasPointerCapture = vi.fn(() => false)
 Element.prototype.setPointerCapture = vi.fn()
 Element.prototype.releasePointerCapture = vi.fn()
 
+// jsdom does not implement ResizeObserver; Radix Select measures content
+// with it. Mirrors the stub pattern used in contact.integration.test.tsx.
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+globalThis.ResizeObserver =
+  ResizeObserverStub as unknown as typeof ResizeObserver
+
 export const server = setupServer(...handlers)
 
 beforeAll(() =>
