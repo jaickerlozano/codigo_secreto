@@ -40,4 +40,10 @@ describe('StepReview review map (four-step frame)', () => {
 
     expect(screen.getByText('Envío a Santiago, Región Metropolitana')).toBeDefined()
   })
+
+  it('shows the selected dispatch date in the Envío review line', () => {
+    render(<StepReview data={{ ...data, shipping: { deliveryKind: 'standard', requestedDispatchDate: '2026-08-25' } }} subtotal={29990} shippingCost={3500} total={33490} quoteReady onEditStep={vi.fn()} onTermsChange={vi.fn()} onBack={vi.fn()} onConfirm={vi.fn()} />)
+
+    expect(screen.getByText('Envío a Santiago, Región Metropolitana — martes 25 de agosto')).toBeDefined()
+  })
 })
