@@ -1134,6 +1134,18 @@ export interface components {
             password: string;
             password_confirm: string;
         };
+        /**
+         * @description 409 response body when a special-dispatch order still awaits its staff
+         *     agreement: typed error code, recovery guidance, the backend-produced
+         *     WhatsApp agreement link, and the client poll interval in seconds.
+         */
+        SpecialDeliveryAgreementRequiredError: {
+            code: string;
+            detail: string;
+            /** Format: uri */
+            whatsapp_url: string;
+            poll_after_seconds: number;
+        };
         StockMovement: {
             readonly id: number;
             /** Producto */
@@ -1852,6 +1864,14 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InitiatePaymentResponse"];
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecialDeliveryAgreementRequiredError"];
                 };
             };
         };

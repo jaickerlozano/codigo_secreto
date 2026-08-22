@@ -649,6 +649,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/InitiatePaymentResponse'
           description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialDeliveryAgreementRequiredError'
+          description: ''
   /api/products/:
     get:
       operationId: products_list
@@ -2325,6 +2331,28 @@ components:
       - email
       - password
       - password_confirm
+    SpecialDeliveryAgreementRequiredError:
+      type: object
+      description: |-
+        409 response body when a special-dispatch order still awaits its staff
+        agreement: typed error code, recovery guidance, the backend-produced
+        WhatsApp agreement link, and the client poll interval in seconds.
+      properties:
+        code:
+          type: string
+        detail:
+          type: string
+        whatsapp_url:
+          type: string
+          format: uri
+        poll_after_seconds:
+          type: integer
+          minimum: 1
+      required:
+      - code
+      - detail
+      - poll_after_seconds
+      - whatsapp_url
     StockMovement:
       type: object
       properties:

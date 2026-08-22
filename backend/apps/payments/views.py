@@ -12,6 +12,7 @@ from .serializers import (
     InitiatePaymentResponseSerializer,
     InitiatePaymentSerializer,
     MockApproveResponseSerializer,
+    SpecialDeliveryAgreementRequiredErrorSerializer,
 )
 from .services import (
     PaymentAlreadyPaidError,
@@ -47,7 +48,10 @@ class InitiatePaymentView(APIView):
                 description="Clave de idempotencia del intento de pago (máx. 64 caracteres).",
             ),
         ],
-        responses={200: InitiatePaymentResponseSerializer},
+        responses={
+            200: InitiatePaymentResponseSerializer,
+            409: SpecialDeliveryAgreementRequiredErrorSerializer,
+        },
     )
     def post(self, request):
         serializer = InitiatePaymentSerializer(data=request.data, context={'request': request})

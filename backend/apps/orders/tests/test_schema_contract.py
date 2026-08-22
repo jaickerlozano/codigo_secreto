@@ -56,6 +56,24 @@ def test_committed_schema_accepts_delivery_selection_on_order_create():
     assert order_create["shipping_option_id"]["nullable"] is True
 
 
+def test_committed_schema_documents_special_delivery_409_recovery_body():
+    schema = _committed_schema()
+    operation = schema["paths"]["/api/payments/initiate/"]["post"]
+
+    error_ref = operation["responses"]["409"]["content"]["application/json"]["schema"][
+        "$ref"
+    ]
+    assert error_ref == "#/components/schemas/SpecialDeliveryAgreementRequiredError"
+    error = schema["components"]["schemas"]["SpecialDeliveryAgreementRequiredError"]
+    assert error["required"] == ["code", "detail", "poll_after_seconds", "whatsapp_url"]
+    assert error["properties"]["code"]["type"] == "string"
+    assert error["properties"]["detail"]["type"] == "string"
+    assert error["properties"]["whatsapp_url"]["type"] == "string"
+    assert error["properties"]["whatsapp_url"]["format"] == "uri"
+    assert error["properties"]["poll_after_seconds"]["type"] == "integer"
+    assert error["properties"]["poll_after_seconds"]["minimum"] == 1
+
+
 def test_order_access_schema_describes_header_only_no_content_exchange():
     schema = SchemaGenerator().get_schema(request=None, public=True)
     lookup = schema['paths']['/api/orders/by-order-number/{order_number}/']
