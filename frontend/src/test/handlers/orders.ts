@@ -43,7 +43,7 @@ function makeOrder(
     tracking_number: 'CHX-9988776655',
     delivery_kind: body.delivery_kind ?? 'standard',
     requested_dispatch_date: body.requested_dispatch_date ?? null,
-    special_delivery_agreed_at: body.special_delivery_agreed_at ?? null,
+    delivery_gate_status: body.delivery_gate_status ?? 'ready',
     estimated_delivery_date: body.estimated_delivery_date ?? null,
     dispatched_at: body.dispatched_at ?? null,
     items,

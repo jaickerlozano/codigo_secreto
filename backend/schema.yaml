@@ -138,9 +138,15 @@ paths:
   /api/cart/me/:
     get:
       operationId: cart_me_retrieve
-      description: Devuelve el carrito del usuario conectado con su lista de productos,
-        subtotales, envío y total.
+      description: Devuelve el carrito del usuario con subtotales, envío y total;
+        con ?comuna={id} el envío usa la autoridad de precios del backend.
       summary: Ver mi carrito de compras
+      parameters:
+      - in: query
+        name: comuna
+        schema:
+          type: integer
+        description: ID de la comuna de entrega para el estimado de envío autoritativo.
       tags:
       - Carrito
       responses:
@@ -885,6 +891,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/Comuna'
           description: ''
+  /api/shipping/dispatch-options/:
+    get:
+      operationId: shipping_dispatch_options_retrieve
+      description: 'Devuelve las opciones de despacho autoritativas para la comuna
+        indicada: para Santiago, las próximas cuatro fechas de martes/jueves (excluyendo
+        hoy); fuera de Santiago, la única opción regional configurada (transportista,
+        tarifa y plazos). Si el destino o la configuración no están disponibles, falla
+        cerrado con un error tipificado.'
+      summary: Opciones de despacho para una comuna
+      parameters:
+      - in: query
+        name: comuna
+        schema:
+          type: integer
+        description: ID de la comuna de destino para calcular las opciones de despacho.
+        required: true
+      tags:
+      - Despachos
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DispatchOptions'
+          description: ''
   /api/shipping/regions/:
     get:
       operationId: shipping_regions_list
@@ -1337,6 +1370,39 @@ components:
       description: |-
         * `standard` - Entrega Estándar
         * `special` - Entrega Especial
+    DispatchOptions:
+      type: object
+      description: |-
+        Read-only dispatch options for a selected destination comuna.
+
+        Santiago comunas expose the next four future Tuesday/Thursday dates;
+        non-Santiago comunas expose the single applicable regional option.
+        Exactly one of ``dates``/``shipping_option`` is populated per mode.
+      properties:
+        comuna_id:
+          type: integer
+          readOnly: true
+        mode:
+          allOf:
+          - $ref: '#/components/schemas/ModeEnum'
+          readOnly: true
+        dates:
+          type: array
+          items:
+            type: string
+            format: date
+          readOnly: true
+          nullable: true
+        shipping_option:
+          allOf:
+          - $ref: '#/components/schemas/RegionalDispatchOption'
+          readOnly: true
+          nullable: true
+      required:
+      - comuna_id
+      - dates
+      - mode
+      - shipping_option
     Favorite:
       type: object
       properties:
@@ -1469,6 +1535,14 @@ components:
       - order_status
       - status
       - transaction_id
+    ModeEnum:
+      enum:
+      - santiago
+      - regional
+      type: string
+      description: |-
+        * `santiago` - santiago
+        * `regional` - regional
     MovementTypeEnum:
       enum:
       - IN
@@ -1576,30 +1650,14 @@ components:
             $ref: '#/components/schemas/OrderItem'
           readOnly: true
         delivery_kind:
-          allOf:
-          - $ref: '#/components/schemas/DeliveryKindEnum'
-          readOnly: true
-          title: Tipo de entrega
-          description: |-
-            standard: fechas regulares de despacho; special: requiere acuerdo previo por WhatsApp.
-
-            * `standard` - Entrega Estándar
-            * `special` - Entrega Especial
+          $ref: '#/components/schemas/DeliveryKindEnum'
         requested_dispatch_date:
           type: string
           format: date
-          readOnly: true
           nullable: true
-          title: Fecha de despacho solicitada
-          description: Fecha especial de despacho solicitada por el cliente.
-        special_delivery_agreed_at:
+        delivery_gate_status:
           type: string
-          format: date-time
           readOnly: true
-          nullable: true
-          title: Acuerdo de entrega especial
-          description: Momento en que el staff confirmó el acuerdo especial; sin esto
-            el pago permanece bloqueado.
         estimated_delivery_date:
           type: string
           format: date
@@ -1614,11 +1672,16 @@ components:
           nullable: true
           title: Fecha de despacho
           description: Momento en que el pedido fue despachado.
+        shipping_option_id:
+          type: integer
+          minimum: 1
+          writeOnly: true
+          nullable: true
       required:
       - carrier
       - comuna_display
       - created_at
-      - delivery_kind
+      - delivery_gate_status
       - dispatched_at
       - estimated_delivery_date
       - guest_access
@@ -1626,10 +1689,8 @@ components:
       - items
       - order_number
       - phone
-      - requested_dispatch_date
       - shipping_address
       - shipping_cost
-      - special_delivery_agreed_at
       - status
       - subtotal
       - total
@@ -1680,6 +1741,17 @@ components:
           description: Signed quote revision explicitly confirmed by a guest.
         payment_method:
           $ref: '#/components/schemas/PaymentMethodEnum'
+        delivery_kind:
+          $ref: '#/components/schemas/DeliveryKindEnum'
+        requested_dispatch_date:
+          type: string
+          format: date
+          nullable: true
+        shipping_option_id:
+          type: integer
+          minimum: 1
+          writeOnly: true
+          nullable: true
       required:
       - phone
       - shipping_address
@@ -2190,6 +2262,36 @@ components:
       - id
       - name
       - ordinal_number
+    RegionalDispatchOption:
+      type: object
+      description: The one applicable regional shipping option for a non-Santiago
+        comuna.
+      properties:
+        shipping_option_id:
+          type: integer
+          readOnly: true
+        key:
+          type: string
+          readOnly: true
+        carrier:
+          type: string
+          readOnly: true
+        tariff:
+          type: integer
+          readOnly: true
+        min_lead_days:
+          type: integer
+          readOnly: true
+        max_lead_days:
+          type: integer
+          readOnly: true
+      required:
+      - carrier
+      - key
+      - max_lead_days
+      - min_lead_days
+      - shipping_option_id
+      - tariff
     Register:
       type: object
       properties:
