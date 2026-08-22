@@ -76,6 +76,15 @@ class TestNormalizeIdempotencyKey:
             normalize_idempotency_key(raw)
 
 
+def _future_special_date():
+    """A strictly-future date that never falls on a standard dispatch weekday
+    (Tuesday/Thursday), so the gate always classifies it as special delivery."""
+    candidate = timezone.localdate() + timedelta(days=1)
+    while candidate.weekday() in (1, 3):  # Tuesday=1, Thursday=3
+        candidate += timedelta(days=1)
+    return candidate
+
+
 @pytest.mark.django_db
 class TestSpecialDeliveryPaymentGate:
     """A special-dispatch order blocks payment until staff records the
@@ -86,7 +95,7 @@ class TestSpecialDeliveryPaymentGate:
         return order_factory(
             status="PENDING", total=23000,
             delivery_kind="special",
-            requested_dispatch_date=timezone.localdate() + timedelta(days=1),
+            requested_dispatch_date=_future_special_date(),
             special_delivery_agreed_at=agreed_at,
         )
 

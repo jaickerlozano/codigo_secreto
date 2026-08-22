@@ -132,7 +132,7 @@ class TestInitiatePaymentView:
         assert "idempotency" in str(response.json()["detail"]).lower()
         assert not Transaction.objects.filter(order=order).exists()
 
-    def test_guest_capability_cookie_authorizes_payment(self, api_client, order_factory, mock_payment_enabled):
+    def test_guest_capability_cookie_authorizes_payment(self, api_client, order_factory, mock_payment_enabled, monkeypatch):
         """A guest with a valid exchanged cookie can initiate payment."""
         order = order_factory(user=None, status="PENDING")
         raw_token = order.issue_guest_access()
@@ -151,13 +151,24 @@ class TestInitiatePaymentView:
 
         from django.core.cache import cache
         from rest_framework.settings import api_settings
+
         cache.clear()
-        api_settings.DEFAULT_THROTTLE_RATES['payment_initiate'] = '2/min'
-        assert api_client.post('/api/payments/initiate/', {'order_id': order.id}).status_code == 200
-        assert api_client.post('/api/payments/initiate/', {'order_id': order.id}).status_code == 200
-        assert api_client.post('/api/payments/initiate/', {'order_id': order.id}).status_code == 429
+        # Restored by monkeypatch even on assertion failure — no global leak.
+        monkeypatch.setitem(api_settings.DEFAULT_THROTTLE_RATES, "payment_initiate", "2/min")
+        assert api_client.post("/api/payments/initiate/", {"order_id": order.id}).status_code == 200
+        assert api_client.post("/api/payments/initiate/", {"order_id": order.id}).status_code == 200
+        assert api_client.post("/api/payments/initiate/", {"order_id": order.id}).status_code == 429
         cache.clear()
-        assert api_client.post('/api/payments/initiate/', {'order_id': order.id}).status_code == 200
+        assert api_client.post("/api/payments/initiate/", {"order_id": order.id}).status_code == 200
+
+
+def _future_special_date():
+    """A strictly-future date that never falls on a standard dispatch weekday
+    (Tuesday/Thursday), so the gate always classifies it as special delivery."""
+    candidate = timezone.localdate() + timedelta(days=1)
+    while candidate.weekday() in (1, 3):  # Tuesday=1, Thursday=3
+        candidate += timedelta(days=1)
+    return candidate
 
 
 @pytest.mark.django_db
@@ -165,26 +176,12 @@ class TestSpecialDeliveryPaymentGateView:
     """Special-delivery payment blocking, read-only gate status, Django
     Admin-only agreement recovery, and idempotent retry."""
 
-    @pytest.fixture(autouse=True)
-    def _restore_payment_initiate_throttle(self):
-        """Isolate the retry journey from the throttling test above, which
-        leaves the global payment_initiate rate at 2/min; restore afterwards."""
-        from rest_framework.settings import api_settings
-
-        original = api_settings.DEFAULT_THROTTLE_RATES.get("payment_initiate")
-        api_settings.DEFAULT_THROTTLE_RATES["payment_initiate"] = "100/min"
-        yield
-        if original is None:
-            api_settings.DEFAULT_THROTTLE_RATES.pop("payment_initiate", None)
-        else:
-            api_settings.DEFAULT_THROTTLE_RATES["payment_initiate"] = original
-
     @staticmethod
     def _special_order(user, order_factory):
         return order_factory(
             user=user, status="PENDING", total=23000,
             delivery_kind="special",
-            requested_dispatch_date=timezone.localdate() + timedelta(days=1),
+            requested_dispatch_date=_future_special_date(),
         )
 
     def test_special_without_agreement_returns_typed_409_and_no_transaction(
