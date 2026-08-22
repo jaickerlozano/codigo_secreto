@@ -19,7 +19,9 @@ type Order = components['schemas']['Order']
 const product = { id: 1, name: 'Vibrador de prueba', price: 29990, category: '1', experienceLevel: 'intermedio', features: [], description: 'Descripción de prueba', materials: [], usageInstructions: '', icon: '✦', gradient: 'from-violet-950 via-purple-900 to-violet-800', sku: '101', stock: 10, image: null, images: [] } as Product
 const routes = [{ path: '/', element: <p>Inicio</p> }, { path: '/checkout/payment/:orderNumber', element: <PendingPaymentPage /> }, { path: '/confirmation/:orderNumber', element: <ConfirmationPage /> }]
 const orderUrl = (n: string) => `http://localhost:8000/api/orders/by-order-number/${n}/`
+const initiateUrl = 'http://localhost:8000/api/payments/initiate/'
 const pending = (n: string, overrides: Partial<Order> = {}) => ({ ...testOrder, order_number: n, ...overrides })
+const agreement409 = (overrides: Partial<Record<string, unknown>> = {}) => ({ code: 'special_delivery_agreement_required', detail: 'Coordina tu entrega especial por WhatsApp antes de pagar.', whatsapp_url: 'https://wa.me/56912345678?text=Hola', poll_after_seconds: 30, ...overrides })
 function Wrapper({ children }: { children: ReactNode }) { return <QueryClientProvider client={queryClient()}>{children}</QueryClientProvider> }
 function setup(initialPath: string, state?: unknown) {
   const router = createMemoryRouter(routes, { initialEntries: [typeof state === 'undefined' ? initialPath : { pathname: initialPath, state }] })
@@ -29,7 +31,7 @@ function setup(initialPath: string, state?: unknown) {
 
 describe('PendingPaymentPage', () => {
   beforeEach(() => { useCartStore.setState({ mode: 'guest', items: [{ product, quantity: 1 }] }) })
-  afterEach(() => { vi.unstubAllEnvs() })
+  afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers(); Object.defineProperty(navigator, 'onLine', { configurable: true, value: true }) })
   it('renders the truthful pending state from the fetched order', async () => {
     server.use(http.get(orderUrl('CS-PEND1'), () => HttpResponse.json(pending('CS-PEND1', { total: 33490 }))))
     setup('/checkout/payment/CS-PEND1', { transactionId: 7 })
@@ -78,5 +80,82 @@ describe('PendingPaymentPage', () => {
     expect(await screen.findByRole('alert', undefined, { timeout: 5000 })).toBeDefined()
     await user.click(screen.getByRole('button', { name: 'Reintentar' }))
     expect(await screen.findByRole('heading', { name: 'Pago pendiente' })).toBeDefined()
+  })
+  it('shows WhatsApp recovery guidance when special delivery blocks payment', async () => {
+    server.use(
+      http.get(orderUrl('CS-SPEC1'), () => HttpResponse.json(pending('CS-SPEC1', { delivery_kind: 'special', delivery_gate_status: 'blocked' }))),
+      http.post(initiateUrl, () => HttpResponse.json(agreement409(), { status: 409 })),
+    )
+    const user = setup('/checkout/payment/CS-SPEC1')
+    expect(await screen.findByRole('heading', { name: 'Pago pendiente' })).toBeDefined()
+    await user.click(screen.getByRole('button', { name: 'Continuar pago' }))
+    const link = await screen.findByRole('link', { name: 'Coordinar por WhatsApp' })
+    expect(link.getAttribute('href')).toBe('https://wa.me/56912345678?text=Hola')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toContain('noopener')
+    expect(link.getAttribute('rel')).toContain('noreferrer')
+    expect(screen.getByText(/coordina tu entrega especial por whatsapp antes de pagar/i)).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Revisar acuerdo' })).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Continuar pago' })).toBeNull()
+  })
+  it('announces recovery and retries idempotently once the agreement is recorded', async () => {
+    let gate: 'blocked' | 'ready' = 'blocked'
+    let initiateCalls = 0
+    const keys: (string | null)[] = []
+    server.use(
+      http.get(orderUrl('CS-SPEC2'), () => HttpResponse.json(pending('CS-SPEC2', { delivery_kind: 'special', delivery_gate_status: gate }))),
+      http.post(initiateUrl, async ({ request }) => {
+        initiateCalls += 1
+        keys.push(request.headers.get('Idempotency-Key'))
+        if (initiateCalls === 1) return HttpResponse.json(agreement409(), { status: 409 })
+        return HttpResponse.json({ transaction_id: 9, order_id: 100, amount: 29990, payment_url: 'https://mock', gateway_reference: 'token' })
+      }),
+    )
+    const user = setup('/checkout/payment/CS-SPEC2')
+    await user.click(await screen.findByRole('button', { name: 'Continuar pago' }))
+    expect(await screen.findByRole('link', { name: 'Coordinar por WhatsApp' })).toBeDefined()
+    gate = 'ready'
+    await user.click(screen.getByRole('button', { name: 'Revisar acuerdo' }))
+    expect(await screen.findByText(/acuerdo registrado/i)).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Continuar pago' })).toBeDefined()
+    await user.click(screen.getByRole('button', { name: 'Continuar pago' }))
+    expect(await screen.findByRole('button', { name: 'Aprobar pago (simulado)' })).toBeDefined()
+    expect(initiateCalls).toBe(2)
+    expect(keys[0]).toBe(keys[1])
+    expect(keys[0]).toBe('payment-100')
+  })
+  it('polls the gate while blocked and stops polling after recovery', async () => {
+    let gate: 'blocked' | 'ready' = 'blocked'
+    let orderGets = 0
+    server.use(
+      http.get(orderUrl('CS-POLL1'), () => { orderGets += 1; return HttpResponse.json(pending('CS-POLL1', { delivery_kind: 'special', delivery_gate_status: gate })) }),
+      http.post(initiateUrl, () => HttpResponse.json(agreement409({ poll_after_seconds: 5 }), { status: 409 })),
+    )
+    const user = setup('/checkout/payment/CS-POLL1')
+    await user.click(await screen.findByRole('button', { name: 'Continuar pago' }))
+    expect(await screen.findByRole('link', { name: 'Coordinar por WhatsApp' })).toBeDefined()
+    const getsBeforeRecovery = orderGets
+    gate = 'ready'
+    expect(await screen.findByText(/acuerdo registrado/i, undefined, { timeout: 7000 })).toBeDefined()
+    expect(orderGets).toBeGreaterThan(getsBeforeRecovery)
+    const getsAtRecovery = orderGets
+    await new Promise((resolve) => setTimeout(resolve, 5600))
+    expect(orderGets).toBe(getsAtRecovery)
+  }, 15000)
+  it('shows an offline notice and disables payment actions while offline', async () => {
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    window.dispatchEvent(new Event('offline'))
+    server.use(http.get(orderUrl('CS-OFF1'), () => HttpResponse.json(pending('CS-OFF1'))))
+    setup('/checkout/payment/CS-OFF1')
+    expect(await screen.findByRole('heading', { name: 'Pago pendiente' })).toBeDefined()
+    expect(screen.getByText(/sin conexión a internet/i)).toBeDefined()
+    const button = screen.getByRole('button', { name: 'Continuar pago' }) as HTMLButtonElement
+    expect(button.disabled).toBe(true)
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+    window.dispatchEvent(new Event('online'))
+    await waitFor(() => {
+      const onlineButton = screen.getByRole('button', { name: 'Continuar pago' }) as HTMLButtonElement
+      expect(onlineButton.disabled).toBe(false)
+    })
   })
 })
