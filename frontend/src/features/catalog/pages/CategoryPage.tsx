@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { motion } from 'motion/react'
 import { ArrowLeft, ChevronLeft, ChevronRight, PackageX } from 'lucide-react'
@@ -115,6 +115,16 @@ export function CategoryPage() {
     products: displayProducts,
   })
 
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  // Move focus to the catalog heading once data has loaded, so that
+  // "Continue shopping" (and direct navigation) lands keyboard focus in
+  // meaningful catalog content instead of leaving it on <body>.
+  useEffect(() => {
+    if (categoriesLoading || productsLoading) return
+    headingRef.current?.focus()
+  }, [categoriesLoading, productsLoading])
+
   if (categoriesLoading || productsLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -200,7 +210,11 @@ export function CategoryPage() {
             >
               <ArrowLeft size={14} /> Volver al inicio
             </Link>
-            <h1 className="text-2xl font-extrabold uppercase tracking-wide text-foreground sm:text-3xl">
+            <h1
+              ref={headingRef}
+              tabIndex={-1}
+              className="text-2xl font-extrabold uppercase tracking-wide text-foreground sm:text-3xl"
+            >
               {heading}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">

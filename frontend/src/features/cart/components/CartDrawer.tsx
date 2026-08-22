@@ -341,7 +341,14 @@ export function CartDrawer() {
                 </button>
                 <button
                   type="button"
-                  onClick={closeCart}
+                  onClick={() => {
+                    // Do not restore focus to the drawer's opener: focus is
+                    // handed to the catalog main heading by CategoryPage
+                    // after navigation to /category/todos.
+                    previouslyFocusedRef.current = null
+                    closeCart()
+                    navigate('/category/todos')
+                  }}
                   className="w-full rounded-xl py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Seguir comprando
