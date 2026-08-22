@@ -18,10 +18,16 @@ export interface AddressData {
   notes?: string
 }
 
-// Shipping carries no user-selected carrier or fee: the backend tariff for
-// the destination (guest quote or authenticated cart) is the only source of
-// truth, so the step only records its confirmation.
-export type ShippingData = Record<string, never>
+export type DeliveryKind = 'standard' | 'special'
+
+// Explicit delivery selection recorded from backend dispatch options: a
+// Santiago standard date, a special future date, or the regional option id.
+// Amounts are never computed here — the backend is the only pricing authority.
+export interface ShippingData {
+  deliveryKind?: DeliveryKind
+  requestedDispatchDate?: string | null
+  shippingOptionId?: number | null
+}
 
 export type PaymentMethod = 'webpay' | 'flow' | 'mercadopago' | 'transfer'
 

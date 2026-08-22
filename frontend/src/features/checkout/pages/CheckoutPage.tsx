@@ -69,6 +69,9 @@ export function CheckoutPage() {
       comuna: data.address.comunaId,
       comuna_name: data.address.comunaName,
       region_name: data.address.regionName,
+      delivery_kind: data.shipping.deliveryKind,
+      requested_dispatch_date: data.shipping.requestedDispatchDate ?? null,
+      shipping_option_id: data.shipping.shippingOptionId ?? null,
       ...(mode === 'guest' && {
         guest_email: data.contact.email,
         guest_name: data.contact.name,
@@ -117,6 +120,17 @@ export function CheckoutPage() {
           toast.error('El total cambió. Revisa y confirma nuevamente.')
           return
         }
+        if (
+          error instanceof OrderCreationError &&
+          (error.code === 'checkout_key_conflict' ||
+            error.code === 'delivery_option_stale' ||
+            error.code === 'delivery_schedule_ineligible')
+        ) {
+          setShipping({})
+          goToStep(2)
+          toast.error('Tu selección de envío ya no está disponible. Selecciónala nuevamente.')
+          return
+        }
         toast.error(error.message)
       },
     })
@@ -140,6 +154,9 @@ export function CheckoutPage() {
                     }}
                     onSubmit={({ contact, address }) => {
                       setContact(contact)
+                      if (data.address.comunaId !== address.comunaId) {
+                        setShipping({})
+                      }
                       setAddress(address)
                       nextStep()
                     }}
@@ -147,14 +164,17 @@ export function CheckoutPage() {
                 )}
                 {currentStep === 2 && (
                   <StepShipping
+                    comunaId={data.address.comunaId}
                     destinationName={data.address.comunaName ?? ''}
                     destinationRegion={data.address.regionName}
-                    tariff={shippingCost}
-                    isLoading={quoteIsLoading}
-                    errorMessage={quoteIsError ? (quoteError?.message ?? 'No pudimos calcular el costo de envío.') : null}
-                    onRetry={retryQuote}
-                    onSubmit={() => {
-                      setShipping({})
+                    shippingCost={shippingCost}
+                    quoteIsLoading={quoteIsLoading}
+                    quoteIsError={quoteIsError}
+                    quoteError={quoteError}
+                    onRetryQuote={retryQuote}
+                    selection={data.shipping}
+                    onSubmit={(shipping) => {
+                      setShipping(shipping)
                       nextStep()
                     }}
                     onBack={prevStep}
