@@ -12,6 +12,10 @@ class OrderItemInline(admin.TabularInline):
     readonly_fields = ('product', 'product_name', 'price', 'quantity', 'subtotal')
     can_delete = False
 
+    @admin.display(description='Subtotal')
+    def subtotal(self, obj):
+        return obj.subtotal if obj.subtotal is not None else 'No disponible'
+
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
