@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
-const phoneRegex = /^\+56 9 \d{4} \d{4}$/
+const chileMobilePhonePattern =
+  /^(?:9(?: ?\d{4}) ?\d{4}|\+56 ?9(?: ?\d{4}) ?\d{4})$/
+
+function normalizeChileanMobilePhone(phone: string): string {
+  const localNumber = phone.replace(/\s/g, '').replace(/^\+56/, '')
+
+  return `+56 ${localNumber.slice(0, 1)} ${localNumber.slice(1, 5)} ${localNumber.slice(5)}`
+}
 
 export const contactSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
@@ -8,9 +15,10 @@ export const contactSchema = z.object({
   phone: z
     .string()
     .regex(
-      phoneRegex,
-      'Teléfono inválido. Usa el formato +56 9 XXXX XXXX',
-    ),
+      chileMobilePhonePattern,
+      'Ingresa un teléfono móvil chileno válido (ej. 9 1234 5678)'
+    )
+    .transform(normalizeChileanMobilePhone),
   isGuest: z.boolean(),
 })
 
