@@ -3,6 +3,7 @@ import { http, HttpResponse } from 'msw'
 import type { components, paths } from '@/api/schema.d.ts'
 
 type Order = components['schemas']['Order']
+type OrdersResponse = components['schemas']['PaginatedOrderList']
 type CreateOrderInput = NonNullable<
   paths['/api/orders/']['post']['requestBody']
 >['content']['application/json']
@@ -34,10 +35,10 @@ function makeOrder(
     comuna_display: `${body.comuna_name ?? 'Providencia'}, ${body.region_name ?? 'Región Metropolitana'}`,
     region_name: body.region_name ?? 'Región Metropolitana',
     payment_method: body.payment_method ?? 'webpay',
-    subtotal: 29990,
-    shipping_cost: 0,
-    total: 29990,
-    status: 'PENDING',
+    subtotal: body.subtotal ?? 29990,
+    shipping_cost: body.shipping_cost ?? 0,
+    total: body.total ?? 29990,
+    status: body.status ?? 'PENDING',
     created_at: new Date().toISOString(),
     carrier: 'Chilexpress',
     tracking_number: 'CHX-9988776655',
@@ -123,5 +124,22 @@ export const orderHandlers = [
     }
 
     return HttpResponse.json(testOrder)
+  }),
+
+  http.get('http://localhost:8000/api/orders/', () => {
+    const item = (id: number, name: string, price: number): OrderItem => ({
+      id, product_id: id, product_name: name, price, quantity: 1, subtotal: price,
+    })
+
+    return HttpResponse.json({
+      count: 3,
+      next: null,
+      previous: null,
+      results: [
+        makeOrder({ order_number: 'CS-1001', status: 'PAID', total: 29990, created_at: '2026-07-14T10:30:00Z' }, [item(1, 'Vibrador de prueba', 29990)]),
+        makeOrder({ order_number: 'CS-1002', status: 'SHIPPED', total: 45990, created_at: '2026-07-13T09:00:00Z' }, [item(2, 'Lubricante de prueba', 15990)]),
+        makeOrder({ order_number: 'CS-1003', status: 'PENDING', total: 19990, created_at: '2026-07-12T08:00:00Z' }, [item(3, 'Juego de prueba', 19990)]),
+      ],
+    } satisfies OrdersResponse)
   }),
 ]
