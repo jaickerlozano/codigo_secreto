@@ -18,10 +18,10 @@ function renderStepData(onSubmit = vi.fn()) {
   return { user, onSubmit }
 }
 
-async function fillContact(user: ReturnType<typeof userEvent.setup>) {
+async function fillContact(user: ReturnType<typeof userEvent.setup>, phone = '+56 9 1234 5678') {
   await user.type(screen.getByLabelText(/Nombre completo/), 'Juan Pérez')
   await user.type(screen.getByLabelText(/Email/), 'juan@example.com')
-  await user.type(screen.getByLabelText(/Teléfono/), '+56 9 1234 5678')
+  await user.type(screen.getByLabelText(/Teléfono/), phone)
   await user.click(screen.getByRole('button', { name: /Siguiente/ }))
 }
 
@@ -79,11 +79,12 @@ describe('StepData (composed Data step)', () => {
   it('returns from the address form to the contact form via Atrás', async () => {
     const { user } = renderStepData()
 
-    await fillContact(user)
+    await fillContact(user, '912345678')
     await screen.findByRole('group', { name: 'Dirección de envío' })
     await user.click(screen.getByRole('button', { name: 'Atrás' }))
 
     expect(screen.getByRole('group', { name: 'Datos de contacto' })).toBeDefined()
     expect((screen.getByLabelText(/Nombre completo/) as HTMLInputElement).value).toBe('Juan Pérez')
+    expect((screen.getByLabelText(/Teléfono/) as HTMLInputElement).value).toBe('+56 9 1234 5678')
   })
 })
