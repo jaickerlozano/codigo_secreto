@@ -1,9 +1,11 @@
 import { Link, useLocation, useParams } from 'react-router'
 import { motion } from 'motion/react'
 import { useQuery } from '@tanstack/react-query'
+import { ErrorBoundary } from 'react-error-boundary'
 import {
   ArrowLeft,
   Box,
+  CalendarDays,
   CreditCard,
   MapPin,
   MessageCircle,
@@ -18,6 +20,7 @@ import type { components } from '@/api/schema.d.ts'
 import { useOrder } from '../hooks/useOrder'
 import { OrderTimeline, type TimelineStep } from '../components/OrderTimeline'
 import { exchangeOrderAccessFromLocation } from '../api/orders.api'
+import { ErrorFallback } from '@/components/ui/ErrorFallback'
 
 type OrderStatus = components['schemas']['OrderStatusEnum']
 type PaymentMethod = components['schemas']['Order']['payment_method']
@@ -35,6 +38,14 @@ const PAYMENT_METHOD_LABELS: Record<NonNullable<PaymentMethod>, string> = {
   flow: 'Flow',
   mercadopago: 'Mercado Pago',
   transfer: 'Transferencia bancaria',
+}
+
+function formatLogisticsDate(date: string): string {
+  return new Intl.DateTimeFormat('es-CL', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(`${date}T12:00:00`))
 }
 
 function buildTimeline(
@@ -96,6 +107,14 @@ function buildTimeline(
 }
 
 export function OrderTrackingPage() {
+  return (
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <OrderTrackingContent />
+    </ErrorBoundary>
+  )
+}
+
+function OrderTrackingContent() {
   const { orderId: paramOrderId } = useParams<{ orderId: string }>()
   const location = useLocation()
   const orderNumber = paramOrderId || undefined
@@ -323,10 +342,52 @@ export function OrderTrackingPage() {
               </p>
             </motion.div>
 
+            {(order.requested_dispatch_date || order.estimated_delivery_date) && (
+              <motion.section
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.4 }}
+                className="rounded-2xl border border-border bg-card p-6"
+                aria-labelledby="logistics-details-heading"
+              >
+                <h2
+                  id="logistics-details-heading"
+                  className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-foreground"
+                >
+                  <CalendarDays size={14} className="text-neon-cyan" />
+                  Logística de entrega
+                </h2>
+                <dl className="space-y-3 text-sm">
+                  {order.requested_dispatch_date && (
+                    <div>
+                      <dt className="text-muted-foreground">
+                        Fecha de despacho solicitada
+                      </dt>
+                      <dd className="font-semibold text-foreground">
+                        <time dateTime={order.requested_dispatch_date}>
+                          {formatLogisticsDate(order.requested_dispatch_date)}
+                        </time>
+                      </dd>
+                    </div>
+                  )}
+                  {order.estimated_delivery_date && (
+                    <div>
+                      <dt className="text-muted-foreground">Entrega estimada</dt>
+                      <dd className="font-semibold text-foreground">
+                        <time dateTime={order.estimated_delivery_date}>
+                          {formatLogisticsDate(order.estimated_delivery_date)}
+                        </time>
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+              </motion.section>
+            )}
+
             <motion.button
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.4 }}
+              transition={{ duration: 0.4, delay: 0.45 }}
               type="button"
               onClick={handleContactSupport}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-neon-lime/30 bg-neon-lime/10 py-3.5 text-sm font-bold uppercase tracking-wide text-neon-lime transition-all hover:bg-neon-lime/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime"

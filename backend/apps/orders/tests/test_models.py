@@ -36,6 +36,19 @@ def test_order_item_subtotal(order_item_factory, product_factory):
     assert item.subtotal == 10500
 
 
+@pytest.mark.parametrize(
+    ("price", "quantity"),
+    [(None, 3), (3500, None), (None, None)],
+)
+def test_order_item_subtotal_is_unavailable_when_frozen_value_is_missing(
+    order_item_factory, price, quantity
+):
+    """Historical incomplete snapshots do not produce a fabricated subtotal."""
+    item = order_item_factory.build(price=price, quantity=quantity)
+
+    assert item.subtotal is None
+
+
 def test_order_str(order_factory):
     """Order.__str__ includes the order id, status and total."""
     order = order_factory(total=15000)
