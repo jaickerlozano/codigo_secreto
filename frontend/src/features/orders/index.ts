@@ -1,4 +1,6 @@
 export { ConfirmationPage } from './pages/ConfirmationPage'
 export { OrderTrackingPage } from './pages/OrderTrackingPage'
+export { OrdersPage } from './pages/OrdersPage'
 export { useCreateOrder } from './hooks/useCreateOrder'
 export { useOrder } from './hooks/useOrder'
+export { useOrders } from './hooks/useOrders'

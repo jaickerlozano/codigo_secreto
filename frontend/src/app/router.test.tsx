@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { http, HttpResponse } from 'msw'
@@ -6,6 +6,7 @@ import { isValidElement } from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { AuthProvider } from '@/features/auth/context/AuthContext'
+import { SESSION_EXPIRED_EVENT } from '@/lib/api-client'
 import { queryClient } from '@/lib/query-client'
 import { server } from '@/test/setup'
 
@@ -62,5 +63,39 @@ describe('router', () => {
     expect(
       await screen.findByRole('heading', { name: 'Categorías destacadas' }),
     ).toBeDefined()
+  })
+
+  it('protects /orders and preserves the complete next destination including new', async () => {
+    server.use(http.get('http://localhost:8000/api/auth/me/', () => HttpResponse.json({ detail: 'No autenticado' }, { status: 401 })))
+
+    const router = createMemoryRouter(routes, { initialEntries: ['/orders?new=CS-1001'] })
+    renderWithProviders(<RouterProvider router={router} />)
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/login')
+      expect(decodeURIComponent(router.state.location.search)).toContain('/orders?new=CS-1001')
+    })
+  })
+
+  it('redirects to login on session expiry without leaking order content', async () => {
+    server.use(
+      http.get('http://localhost:8000/api/auth/me/', () =>
+        HttpResponse.json({ id: 1, email: 'buyer@example.com', first_name: 'Buyer', last_name: 'User', rut: null, phone: null, is_admin: false }),
+      ),
+    )
+
+    const router = createMemoryRouter(routes, { initialEntries: ['/orders'] })
+    renderWithProviders(<RouterProvider router={router} />)
+
+    expect(await screen.findByText('Mis pedidos')).toBeDefined()
+
+    window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/login')
+      expect(decodeURIComponent(router.state.location.search)).toContain('next=/orders')
+    })
+
+    expect(screen.queryByText('CS-1001')).toBeNull()
   })
 })

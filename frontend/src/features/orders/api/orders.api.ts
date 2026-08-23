@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api-client'
 import type { components, paths } from '@/api/schema.d.ts'
 
 export type Order = components['schemas']['Order']
+export type OrdersResponse = components['schemas']['PaginatedOrderList']
 export type GuestQuote = components['schemas']['GuestQuoteResponse']
 type QuoteRevisionStale = components['schemas']['QuoteRevisionStale']
 export type CreateOrderInput = NonNullable<paths['/api/orders/']['post']['requestBody']>['content']['application/json']
@@ -102,6 +103,18 @@ export async function getOrderByNumber(orderNumber: string): Promise<Order> {
 
   if (error || !data) {
     throw new Error(extractErrorMessage(error) || 'Pedido no encontrado.')
+  }
+
+  return data
+}
+
+export async function listOrders(page = 1): Promise<OrdersResponse> {
+  const { data, error } = await apiClient.GET('/api/orders/', {
+    params: { query: { page } },
+  })
+
+  if (error || !data) {
+    throw new Error(extractErrorMessage(error) || 'No se pudieron cargar los pedidos.')
   }
 
   return data
