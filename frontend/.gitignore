@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Playwright (browser binaries stay in the local cache, never in the repo)
+test-results/
+playwright-report/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

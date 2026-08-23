@@ -29,5 +29,8 @@ export default defineConfig({
     css: true,
     setupFiles: ['./src/test/setup.ts'],
     pool: 'forks',
+    // Browser acceptance specs live in e2e/ and run under Playwright, not
+    // Vitest; keep Vitest scoped to src so *.spec.ts files are not double-run.
+    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
   },
 })
