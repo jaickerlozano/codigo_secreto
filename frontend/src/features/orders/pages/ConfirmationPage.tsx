@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router'
 
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { useAuth } from '@/features/auth/context/AuthContext'
 import { useCartStore } from '@/features/cart'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
@@ -52,6 +53,7 @@ export function ConfirmationPage() {
   const [copied, setCopied] = useState(false)
   const prefersReduced = useReducedMotion()
   const cartMode = useCartStore((state) => state.mode)
+  const { isAuthenticated } = useAuth()
   const { data: order, isLoading, error } = useOrder(orderNumber ?? undefined)
 
   useEffect(() => {
@@ -366,7 +368,7 @@ export function ConfirmationPage() {
           initial={prefersReduced ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={prefersReduced ? { duration: 0 } : { delay: 0.7 }}
-          className="mt-4"
+          className="mt-4 space-y-3"
         >
           <Link
             to={`/order/${order.order_number}`}
@@ -374,6 +376,14 @@ export function ConfirmationPage() {
           >
             Rastrear mi pedido
           </Link>
+          {isAuthenticated && !isGuest && (
+            <Link
+              to={`/orders?new=${order.order_number}`}
+              className="block w-full rounded-xl border border-neon-magenta-500/40 bg-transparent py-3.5 text-center text-sm font-bold uppercase tracking-wide text-neon-magenta-500 transition-all hover:border-neon-magenta-500 hover:bg-neon-magenta-500/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-magenta-500"
+            >
+              Mis pedidos
+            </Link>
+          )}
         </motion.div>
         )}
       </motion.div>
