@@ -23,21 +23,17 @@ export async function getRegions(): Promise<Region[]> {
     throw new Error(extractErrorMessage(error))
   }
 
-  return data.results.map(mapApiRegion)
+  return data.map(mapApiRegion)
 }
 
 export async function getComunas(regionId?: number): Promise<Comuna[]> {
-  const query: Record<string, number> = {}
-
-  if (regionId !== undefined) {
-    query.region = regionId
-  }
+  const query: NonNullable<
+    operations['shipping_comunas_list']['parameters']['query']
+  > = regionId === undefined ? {} : { region: regionId }
 
   const { data, error } = await apiClient.GET('/api/shipping/comunas/', {
     params: {
-      query: query as unknown as NonNullable<
-        operations['shipping_comunas_list']['parameters']['query']
-      >,
+      query,
     },
   })
 
@@ -45,7 +41,7 @@ export async function getComunas(regionId?: number): Promise<Comuna[]> {
     throw new Error(extractErrorMessage(error))
   }
 
-  return data.results.map(mapApiComuna)
+  return data.map(mapApiComuna)
 }
 
 export async function getDispatchOptions(comunaId: number): Promise<DispatchOptions> {

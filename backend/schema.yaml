@@ -852,12 +852,6 @@ paths:
         ver sus costos de despacho individuales.
       summary: Listar todas las comunas de Chile sueltas
       parameters:
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
       - in: query
         name: region
         schema:
@@ -871,7 +865,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedComunaList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Comuna'
           description: ''
   /api/shipping/comunas/{id}/:
     get:
@@ -930,13 +926,6 @@ paths:
       description: Devuelve el listado completo de las 16 regiones oficiales ordenadas
         de Norte a Sur, incluyendo sus comunas activas de forma anidada.
       summary: Listar regiones de Chile con sus comunas
-      parameters:
-      - name: page
-        required: false
-        in: query
-        description: Un número de página dentro del conjunto de resultados paginado.
-        schema:
-          type: integer
       tags:
       - Despachos
       security:
@@ -946,7 +935,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedRegionList'
+                type: array
+                items:
+                  $ref: '#/components/schemas/Region'
           description: ''
   /api/shipping/regions/{id}/:
     get:
@@ -1835,29 +1826,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Category'
-    PaginatedComunaList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Comuna'
     PaginatedOrderList:
       type: object
       required:
@@ -1904,29 +1872,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Product'
-    PaginatedRegionList:
-      type: object
-      required:
-      - count
-      - results
-      properties:
-        count:
-          type: integer
-          example: 123
-        next:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=4
-        previous:
-          type: string
-          nullable: true
-          format: uri
-          example: http://api.example.org/accounts/?page=2
-        results:
-          type: array
-          items:
-            $ref: '#/components/schemas/Region'
     PaginatedStockMovementList:
       type: object
       required:
