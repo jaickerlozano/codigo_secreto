@@ -884,21 +884,6 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["Category"][];
         };
-        PaginatedComunaList: {
-            /** @example 123 */
-            count: number;
-            /**
-             * Format: uri
-             * @example http://api.example.org/accounts/?page=4
-             */
-            next?: string | null;
-            /**
-             * Format: uri
-             * @example http://api.example.org/accounts/?page=2
-             */
-            previous?: string | null;
-            results: components["schemas"]["Comuna"][];
-        };
         PaginatedOrderList: {
             /** @example 123 */
             count: number;
@@ -928,21 +913,6 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["Product"][];
-        };
-        PaginatedRegionList: {
-            /** @example 123 */
-            count: number;
-            /**
-             * Format: uri
-             * @example http://api.example.org/accounts/?page=4
-             */
-            next?: string | null;
-            /**
-             * Format: uri
-             * @example http://api.example.org/accounts/?page=2
-             */
-            previous?: string | null;
-            results: components["schemas"]["Region"][];
         };
         PaginatedStockMovementList: {
             /** @example 123 */
@@ -2039,8 +2009,6 @@ export interface operations {
     shipping_comunas_list: {
         parameters: {
             query?: {
-                /** @description Un número de página dentro del conjunto de resultados paginado. */
-                page?: number;
                 region?: number;
             };
             header?: never;
@@ -2054,7 +2022,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedComunaList"];
+                    "application/json": components["schemas"]["Comuna"][];
                 };
             };
         };
@@ -2105,10 +2073,7 @@ export interface operations {
     };
     shipping_regions_list: {
         parameters: {
-            query?: {
-                /** @description Un número de página dentro del conjunto de resultados paginado. */
-                page?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -2120,7 +2085,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedRegionList"];
+                    "application/json": components["schemas"]["Region"][];
                 };
             };
         };

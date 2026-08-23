@@ -29,6 +29,7 @@ class RegionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.G
     """
     queryset = Region.objects.all()
     serializer_class = RegionSerializer
+    pagination_class = None
     permission_classes = [AllowAny] # Público para el cálculo de envíos
 
 
@@ -43,6 +44,7 @@ class ComunaViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.G
     """
     queryset = Comuna.objects.filter(is_active=True)
     serializer_class = ComunaSerializer
+    pagination_class = None
     permission_classes = [AllowAny]
     filterset_fields = ['region']
 

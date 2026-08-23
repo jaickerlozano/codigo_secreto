@@ -8,17 +8,18 @@ const testRegions = [
 const testComunas = [
   { id: 1, name: 'Santiago', shipping_cost: 3500, is_active: true },
   { id: 2, name: 'Providencia', shipping_cost: 3500, is_active: true },
-  { id: 3, name: 'Viña del Mar', shipping_cost: 4000, is_active: true },
+  ...Array.from({ length: 10 }, (_, index) => ({
+    id: index + 3,
+    name: `Comuna Metropolitana ${String(index + 1).padStart(2, '0')}`,
+    shipping_cost: 3500,
+    is_active: true,
+  })),
+  { id: 13, name: 'Viña del Mar', shipping_cost: 4000, is_active: true },
 ]
 
 export const shippingHandlers = [
   http.get(/\/api\/shipping\/regions\/$/, () =>
-    HttpResponse.json({
-      count: testRegions.length,
-      next: null,
-      previous: null,
-      results: testRegions,
-    }),
+    HttpResponse.json(testRegions),
   ),
 
   http.get(/\/api\/shipping\/comunas\/$/, ({ request }) => {
@@ -31,20 +32,15 @@ export const shippingHandlers = [
         ? testComunas
         : testComunas.filter((comuna) => {
             if (regionId === 13) {
-              return ['Santiago', 'Providencia'].includes(comuna.name)
+              return comuna.id !== 13
             }
             if (regionId === 5) {
-              return comuna.name === 'Viña del Mar'
+              return comuna.id === 13
             }
             return false
           })
 
-    return HttpResponse.json({
-      count: filtered.length,
-      next: null,
-      previous: null,
-      results: filtered,
-    })
+    return HttpResponse.json(filtered)
   }),
 
   http.get(/\/api\/shipping\/dispatch-options\/$/, ({ request }) => {

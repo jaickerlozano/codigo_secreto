@@ -16,39 +16,36 @@ pytestmark = pytest.mark.django_db
 # ---------------------------------------------------------------------------
 
 
-def _results(response):
-    """Return the list of results from a paginated DRF response."""
-    data = response.json()
-    return data.get("results", data)
-
-
-def _all_pages(client, url):
-    """Follow DRF pagination and return all results for a list endpoint."""
-    results = []
-    next_url = url
-    while next_url:
-        response = client.get(next_url)
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        results.extend(data.get("results", []))
-        next_url = data.get("next")
-    return results
-
-
 # ---------------------------------------------------------------------------
 # Region endpoints
 # ---------------------------------------------------------------------------
 
 
 def test_list_regions_public(api_client):
-    """GET /api/shipping/regions/ is public and returns a paginated list."""
+    """GET /api/shipping/regions/ is public and returns an array."""
     response = api_client.get("/api/shipping/regions/")
 
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
-    assert "results" in data
-    assert isinstance(data["results"], list)
-    assert data["results"]
+    assert isinstance(data, list)
+
+
+def test_list_regions_returns_all_sixteen_created_regions_in_order(api_client, region_factory):
+    """The unpaginated region list preserves north-to-south model ordering."""
+    created = [
+        region_factory(name=f"Región {ordinal}", ordinal_number=ordinal)
+        for ordinal in range(116, 100, -1)
+    ]
+
+    response = api_client.get("/api/shipping/regions/")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert isinstance(response.json(), list)
+    response_ids = [item["id"] for item in response.json()]
+    created_ids = {region.id for region in created}
+    assert [region.id for region in sorted(created, key=lambda region: region.ordinal_number)] == [
+        region_id for region_id in response_ids if region_id in created_ids
+    ]
 
 
 def test_list_regions_ordered_by_ordinal_number(api_client, region_factory):
@@ -56,7 +53,9 @@ def test_list_regions_ordered_by_ordinal_number(api_client, region_factory):
     region_factory(name="Región Zeta", ordinal_number=999)
     region_factory(name="Región Alfa", ordinal_number=0)
 
-    regions = _all_pages(api_client, "/api/shipping/regions/")
+    response = api_client.get("/api/shipping/regions/")
+    assert response.status_code == status.HTTP_200_OK
+    regions = response.json()
 
     ordinals = [item["ordinal_number"] for item in regions]
     assert ordinals == sorted(ordinals)
@@ -115,7 +114,9 @@ def test_list_comunas_public(api_client, comuna_factory):
     """GET /api/shipping/comunas/ is public and returns active comunas."""
     comuna = comuna_factory(name="Comuna Pública", is_active=True)
 
-    comunas = _all_pages(api_client, "/api/shipping/comunas/")
+    response = api_client.get("/api/shipping/comunas/")
+    assert response.status_code == status.HTTP_200_OK
+    comunas = response.json()
     ids = {item["id"] for item in comunas}
 
     assert comuna.id in ids
@@ -127,7 +128,9 @@ def test_list_comunas_excludes_inactive(api_client, comuna_factory):
     """ComunaViewSet list excludes comunas with is_active=False."""
     inactive_comuna = comuna_factory(name="Comuna Inactiva", is_active=False)
 
-    comunas = _all_pages(api_client, "/api/shipping/comunas/")
+    response = api_client.get("/api/shipping/comunas/")
+    assert response.status_code == status.HTTP_200_OK
+    comunas = response.json()
     ids = {item["id"] for item in comunas}
 
     assert inactive_comuna.id not in ids
@@ -139,7 +142,9 @@ def test_list_comunas_ordered_by_name(api_client, comuna_factory, region_factory
     comuna_factory(name="Zzz Comuna", region=region)
     comuna_factory(name="Aaa Comuna", region=region)
 
-    comunas = _all_pages(api_client, "/api/shipping/comunas/")
+    response = api_client.get("/api/shipping/comunas/")
+    assert response.status_code == status.HTTP_200_OK
+    comunas = response.json()
     names = [item["name"] for item in comunas]
 
     assert names == sorted(names)
@@ -186,19 +191,26 @@ def test_comuna_create_not_allowed(api_client):
 
 
 def test_list_comunas_filtered_by_region(api_client, comuna_factory, region_factory):
-    """GET /api/shipping/comunas/?region={id} returns only comunas for that region."""
+    """The unpaginated filtered list is complete, active-only, and region-scoped."""
     region_a = region_factory(name="Región A")
     region_b = region_factory(name="Región B")
-    comuna_a = comuna_factory(name="Comuna A", region=region_a)
-    comuna_b = comuna_factory(name="Comuna B", region=region_b)
+    created = [
+        comuna_factory(name=f"Comuna {index:02d}", region=region_a)
+        for index in range(12, 0, -1)
+    ]
+    inactive_comuna = comuna_factory(name="Comuna Inactiva", region=region_a, is_active=False)
+    other_region_comuna = comuna_factory(name="Comuna Otra Región", region=region_b)
 
     response = api_client.get(f"/api/shipping/comunas/?region={region_a.id}")
 
     assert response.status_code == status.HTTP_200_OK
-    results = _results(response)
-    ids = {item["id"] for item in results}
-    assert comuna_a.id in ids
-    assert comuna_b.id not in ids
+    results = response.json()
+    assert isinstance(results, list)
+    assert [item["id"] for item in results] == [
+        comuna.id for comuna in sorted(created, key=lambda comuna: comuna.name)
+    ]
+    assert inactive_comuna.id not in {item["id"] for item in results}
+    assert other_region_comuna.id not in {item["id"] for item in results}
 
 
 # ---------------------------------------------------------------------------

@@ -96,6 +96,28 @@ describe('StepAddress region/comuna controls', () => {
     )
   })
 
+  it('selects a commune beyond the former ten-item page boundary', async () => {
+    const { user, onSubmit } = renderStepAddress()
+
+    await pickRegion(user, 'Región Metropolitana')
+    await pickComuna(user, 'Comuna Metropolitana 10')
+    await user.type(
+      screen.getByLabelText(/Calle y número/),
+      'Av. Siempre Viva 123'
+    )
+    await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        regionId: 13,
+        comunaId: 12,
+        comunaName: 'Comuna Metropolitana 10',
+      }),
+      expect.anything()
+    )
+  })
+
   it('resets comuna before exposing the new cascade when region changes', async () => {
     const { user, onSubmit } = renderStepAddress()
 
@@ -126,7 +148,7 @@ describe('StepAddress region/comuna controls', () => {
       expect.objectContaining({
         regionId: 5,
         regionName: 'Valparaíso',
-        comunaId: 3,
+        comunaId: 13,
         comunaName: 'Viña del Mar',
       }),
       expect.anything()
@@ -141,11 +163,7 @@ describe('StepAddress region/comuna controls', () => {
     server.use(
       http.get(/\/api\/shipping\/comunas\/$/, () =>
         gate.then(() =>
-          HttpResponse.json({
-            count: 2,
-            next: null,
-            previous: null,
-            results: [
+          HttpResponse.json([
               { id: 1, name: 'Santiago', shipping_cost: 3500, is_active: true },
               {
                 id: 2,
@@ -153,8 +171,7 @@ describe('StepAddress region/comuna controls', () => {
                 shipping_cost: 3500,
                 is_active: true,
               },
-            ],
-          })
+            ])
         )
       )
     )
@@ -181,15 +198,10 @@ describe('StepAddress region/comuna controls', () => {
           failRegions -= 1
           return HttpResponse.json({ detail: 'boom' }, { status: 500 })
         }
-        return HttpResponse.json({
-          count: 2,
-          next: null,
-          previous: null,
-          results: [
+        return HttpResponse.json([
             { id: 13, name: 'Región Metropolitana', ordinal_number: 7 },
             { id: 5, name: 'Valparaíso', ordinal_number: 4 },
-          ],
-        })
+          ])
       })
     )
     const { user } = renderStepAddress()
@@ -215,14 +227,9 @@ describe('StepAddress region/comuna controls', () => {
           failComunas -= 1
           return HttpResponse.json({ detail: 'boom' }, { status: 500 })
         }
-        return HttpResponse.json({
-          count: 1,
-          next: null,
-          previous: null,
-          results: [
+        return HttpResponse.json([
             { id: 1, name: 'Santiago', shipping_cost: 3500, is_active: true },
-          ],
-        })
+          ])
       })
     )
     const { user } = renderStepAddress()
@@ -242,7 +249,7 @@ describe('StepAddress region/comuna controls', () => {
   it('shows an accessible empty state and keeps comuna disabled when no comunas match', async () => {
     server.use(
       http.get(/\/api\/shipping\/comunas\/$/, () =>
-        HttpResponse.json({ count: 0, next: null, previous: null, results: [] })
+        HttpResponse.json([])
       )
     )
     const { user } = renderStepAddress()
@@ -259,7 +266,7 @@ describe('StepAddress region/comuna controls', () => {
   it('shows an accessible empty state when no regions are available', async () => {
     server.use(
       http.get(/\/api\/shipping\/regions\/$/, () =>
-        HttpResponse.json({ count: 0, next: null, previous: null, results: [] })
+        HttpResponse.json([])
       )
     )
     renderStepAddress()
@@ -305,7 +312,7 @@ describe('StepAddress region/comuna controls', () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledOnce())
     expect(onSubmit).toHaveBeenCalledWith(
-      expect.objectContaining({ regionId: 5, comunaId: 3 }),
+      expect.objectContaining({ regionId: 5, comunaId: 13 }),
       expect.anything()
     )
   })

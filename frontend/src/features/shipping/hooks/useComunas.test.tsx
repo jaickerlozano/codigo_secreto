@@ -19,7 +19,7 @@ describe('useComunas', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    expect(result.current.data).toHaveLength(3)
+    expect(result.current.data).toHaveLength(13)
   })
 
   it('returns comunas filtered by region', async () => {
@@ -27,11 +27,8 @@ describe('useComunas', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    expect(result.current.data).toHaveLength(2)
-    expect(result.current.data?.map((c) => c.name)).toEqual([
-      'Santiago',
-      'Providencia',
-    ])
+    expect(result.current.data).toHaveLength(12)
+    expect(result.current.data?.at(-1)?.name).toBe('Comuna Metropolitana 10')
   })
 
   it('stays disabled when enabled is false', async () => {
