@@ -8,8 +8,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { useCartStore } from '@/features/cart'
 import type { Product } from '@/features/catalog/types'
 import type { components } from '@/api/schema.d.ts'
+import { AuthProvider } from '@/features/auth/context/AuthContext'
 import { queryClient } from '@/lib/query-client'
 import { testOrder } from '@/test/handlers/orders'
+import { testUser } from '@/test/handlers/auth'
 import { server } from '@/test/setup'
 import { PendingPaymentPage } from '@/features/checkout/pages/PendingPaymentPage'
 import { ConfirmationPage } from './ConfirmationPage'
@@ -18,8 +20,17 @@ type Order = components['schemas']['Order']
 const product = { id: 1, name: 'Vibrador de prueba', price: 29990, category: '1', experienceLevel: 'intermedio', features: [], description: 'Descripción de prueba', materials: [], usageInstructions: '', icon: '✦', gradient: 'from-violet-950 via-purple-900 to-violet-800', sku: '101', stock: 10, image: null, images: [] } as Product
 const routes = [{ path: '/confirmation/:orderNumber', element: <ConfirmationPage /> }, { path: '/checkout/payment/:orderNumber', element: <PendingPaymentPage /> }]
 const orderUrl = 'http://localhost:8000/api/orders/by-order-number/CS-123456/'
+const authMeUrl = 'http://localhost:8000/api/auth/me/'
 
-function Wrapper({ children }: { children: ReactNode }) { return <QueryClientProvider client={queryClient()}>{children}</QueryClientProvider> }
+const authenticatedOrder: Order = { ...testOrder, guest_email: null, guest_name: null }
+
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient()}>
+      <AuthProvider>{children}</AuthProvider>
+    </QueryClientProvider>
+  )
+}
 
 describe('ConfirmationPage', () => {
   beforeEach(() => { useCartStore.setState({ mode: 'guest', items: [{ product, quantity: 1 }] }) })
@@ -38,5 +49,38 @@ describe('ConfirmationPage', () => {
     if (status !== 'PENDING') expect(screen.getByText('Vibrador de prueba')).toBeDefined()
     if (clears) await waitFor(() => expect(useCartStore.getState().items).toHaveLength(0))
     else expect(useCartStore.getState().items).toHaveLength(1)
+  })
+
+  it('shows confirmation first and offers Mis pedidos for authenticated non-guest order', async () => {
+    server.use(http.get(authMeUrl, () => HttpResponse.json(testUser, { status: 200 })))
+    server.use(http.get(orderUrl, () => HttpResponse.json({ ...authenticatedOrder, status: 'PAID' })))
+    const router = createMemoryRouter(routes, { initialEntries: ['/confirmation/CS-123456'] })
+    render(<RouterProvider router={router} />, { wrapper: Wrapper })
+
+    expect(await screen.findByRole('heading', { name: '¡Pedido confirmado!' })).toBeDefined()
+    expect(screen.getByRole('link', { name: /Rastrear mi pedido/i }).getAttribute('href')).toBe('/order/CS-123456')
+    expect(screen.getByRole('link', { name: /Mis pedidos/i }).getAttribute('href')).toBe('/orders?new=CS-123456')
+  })
+
+  it('hides Mis pedidos CTA for guest order even when user is authenticated', async () => {
+    server.use(http.get(authMeUrl, () => HttpResponse.json(testUser, { status: 200 })))
+    server.use(http.get(orderUrl, () => HttpResponse.json({ ...testOrder, status: 'PAID' })))
+    const router = createMemoryRouter(routes, { initialEntries: ['/confirmation/CS-123456'] })
+    render(<RouterProvider router={router} />, { wrapper: Wrapper })
+
+    expect(await screen.findByRole('heading', { name: '¡Pedido confirmado!' })).toBeDefined()
+    expect(screen.getByRole('link', { name: /Rastrear mi pedido/i })).toBeDefined()
+    expect(screen.queryByRole('link', { name: /Mis pedidos/i })).toBeNull()
+  })
+
+  it('hides Mis pedidos CTA when buyer is not authenticated', async () => {
+    server.use(http.get(authMeUrl, () => new HttpResponse(null, { status: 401 })))
+    server.use(http.get(orderUrl, () => HttpResponse.json({ ...authenticatedOrder, status: 'PAID' })))
+    const router = createMemoryRouter(routes, { initialEntries: ['/confirmation/CS-123456'] })
+    render(<RouterProvider router={router} />, { wrapper: Wrapper })
+
+    expect(await screen.findByRole('heading', { name: '¡Pedido confirmado!' })).toBeDefined()
+    expect(screen.getByRole('link', { name: /Rastrear mi pedido/i })).toBeDefined()
+    expect(screen.queryByRole('link', { name: /Mis pedidos/i })).toBeNull()
   })
 })

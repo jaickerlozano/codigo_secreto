@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Heart, LogOut, Menu, Search, ShoppingCart, User, X } from 'lucide-react'
+import { Heart, LogOut, Menu, Package, Search, ShoppingCart, User, X } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 
 import { CSLogo } from '@/components/brand/CSLogo'
@@ -163,6 +163,12 @@ export function Header({
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/orders" className="cursor-pointer">
+                    <Package className="mr-2 size-4" />
+                    Mis pedidos
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 size-4" />
                   Cerrar sesión
@@ -313,6 +319,13 @@ export function Header({
                       <p className="px-2 py-1.5 text-sm font-medium text-foreground">
                         {user?.first_name || user?.email}
                       </p>
+                      <Link
+                        to="/orders"
+                        onClick={() => setMenuOpen(false)}
+                        className="block text-sm text-muted-foreground hover:text-foreground py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                      >
+                        Mis pedidos
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {

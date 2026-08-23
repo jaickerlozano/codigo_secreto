@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useCartStore } from '@/features/cart'
 import type { Product } from '@/features/catalog/types'
 import type { components } from '@/api/schema.d.ts'
+import { AuthProvider } from '@/features/auth/context/AuthContext'
 import { queryClient } from '@/lib/query-client'
 import { testOrder } from '@/test/handlers/orders'
 import { server } from '@/test/setup'
@@ -22,7 +23,13 @@ const orderUrl = (n: string) => `http://localhost:8000/api/orders/by-order-numbe
 const initiateUrl = 'http://localhost:8000/api/payments/initiate/'
 const pending = (n: string, overrides: Partial<Order> = {}) => ({ ...testOrder, order_number: n, ...overrides })
 const agreement409 = (overrides: Partial<Record<string, unknown>> = {}) => ({ code: 'special_delivery_agreement_required', detail: 'Coordina tu entrega especial por WhatsApp antes de pagar.', whatsapp_url: 'https://wa.me/56912345678?text=Hola', poll_after_seconds: 30, ...overrides })
-function Wrapper({ children }: { children: ReactNode }) { return <QueryClientProvider client={queryClient()}>{children}</QueryClientProvider> }
+function Wrapper({ children }: { children: ReactNode }) {
+  return (
+    <QueryClientProvider client={queryClient()}>
+      <AuthProvider>{children}</AuthProvider>
+    </QueryClientProvider>
+  )
+}
 function setup(initialPath: string, state?: unknown) {
   const router = createMemoryRouter(routes, { initialEntries: [typeof state === 'undefined' ? initialPath : { pathname: initialPath, state }] })
   render(<RouterProvider router={router} />, { wrapper: Wrapper })
@@ -43,6 +50,7 @@ describe('PendingPaymentPage', () => {
     expect(useCartStore.getState().items).toHaveLength(1)
   })
   it('approves exactly once and clears the guest cart only after the fetched PAID state', async () => {
+    server.use(http.get('http://localhost:8000/api/auth/me/', () => new HttpResponse(null, { status: 401 })))
     let order = pending('CS-APR1', { total: 33490 })
     server.use(http.get(orderUrl('CS-APR1'), () => HttpResponse.json(order)), http.post('http://localhost:8000/api/payments/7/mock-approve/', () => { order = { ...order, status: 'PAID' }; return HttpResponse.json({ transaction_id: 7, order_id: order.id, status: 'APPROVED', order_status: 'PAID' }) }))
     const user = setup('/checkout/payment/CS-APR1', { transactionId: 7 })

@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
+import { http, HttpResponse } from 'msw'
 import { MemoryRouter } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
 import { AuthProvider } from '@/features/auth/context/AuthContext'
 import type { Category } from '@/features/catalog/types'
 import { queryClient } from '@/lib/query-client'
+import { server } from '@/test/setup'
 
 import { Header } from './Header'
 
@@ -58,5 +60,52 @@ describe('Header', () => {
         screen.getAllByRole('link', { name: category.name }).length,
       ).toBeGreaterThan(0)
     }
+  })
+
+  it('shows Mis pedidos in desktop account dropdown when authenticated', async () => {
+    const userEventModule = await import('@testing-library/user-event')
+    const u = userEventModule.default.setup()
+
+    render(<Header categories={TEST_CATEGORIES} />, { wrapper: Wrapper })
+
+    const accountButton = await screen.findByRole('button', { name: /Mi cuenta/i })
+    await u.click(accountButton)
+    expect(screen.getByRole('menuitem', { name: /Mis pedidos/i })).toBeDefined()
+  })
+
+  it('shows Mis pedidos in mobile menu when authenticated', async () => {
+    const userEventModule = await import('@testing-library/user-event')
+    const u = userEventModule.default.setup()
+
+    render(<Header categories={TEST_CATEGORIES} />, { wrapper: Wrapper })
+    await screen.findByRole('button', { name: /Mi cuenta/i })
+
+    const menuButton = screen.getByRole('button', { name: /Abrir menú/i })
+    await u.click(menuButton)
+    expect(
+      screen.getAllByRole('link', { name: /Mis pedidos/i }).length,
+    ).toBeGreaterThan(0)
+  })
+
+  it('hides Mis pedidos from desktop dropdown and mobile menu for guests', async () => {
+    server.use(
+      http.get('http://localhost:8000/api/auth/me/', () =>
+        new HttpResponse(null, { status: 401 }),
+      ),
+    )
+
+    const userEventModule = await import('@testing-library/user-event')
+    const u = userEventModule.default.setup()
+
+    render(<Header categories={TEST_CATEGORIES} />, { wrapper: Wrapper })
+
+    const loginButton = await screen.findByRole('link', { name: /Iniciar sesión/i })
+    expect(loginButton).toBeDefined()
+    expect(screen.queryByRole('menuitem', { name: /Mis pedidos/i })).toBeNull()
+    expect(screen.queryByRole('link', { name: /Mis pedidos/i })).toBeNull()
+
+    const menuButton = screen.getByRole('button', { name: /Abrir menú/i })
+    await u.click(menuButton)
+    expect(screen.queryByRole('link', { name: /Mis pedidos/i })).toBeNull()
   })
 })
