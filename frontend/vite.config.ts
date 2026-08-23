@@ -29,6 +29,9 @@ export default defineConfig({
     css: true,
     setupFiles: ['./src/test/setup.ts'],
     pool: 'forks',
+    // Bound file-level concurrency to prevent jsdom worker memory pressure from
+    // starving async tests while preserving parallel execution and normal timeouts.
+    maxWorkers: 4,
     // Browser acceptance specs live in e2e/ and run under Playwright, not
     // Vitest; keep Vitest scoped to src so *.spec.ts files are not double-run.
     include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
