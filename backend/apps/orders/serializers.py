@@ -16,6 +16,10 @@ from apps.shipping.services import (
     evaluate_requested_dispatch_date,
     resolve_shipping_price,
 )
+from apps.authentication.phone import (
+    CHILEAN_MOBILE_PHONE_MESSAGE,
+    normalize_chilean_mobile_phone,
+)
 
 class OrderItemSerializer(serializers.ModelSerializer):
     subtotal = serializers.IntegerField(read_only=True)
@@ -97,6 +101,7 @@ class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
     order_number = serializers.CharField(read_only=True)
     guest_access = GuestAccessSerializer(read_only=True, required=False, allow_null=True)
+    phone = serializers.CharField(required=False)
 
     # NUEVO: El frontend debe enviar la lista de productos solo si compra como invitado
     guest_items = GuestOrderItemSerializer(
@@ -196,6 +201,10 @@ class OrderSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "guest_items": "Debes enviar la lista de productos del carrito local."
                 })
+            try:
+                attrs['phone'] = normalize_chilean_mobile_phone(attrs.get('phone'))
+            except ValueError as error:
+                raise serializers.ValidationError({'phone': CHILEAN_MOBILE_PHONE_MESSAGE}) from error
             if 'comuna_id' in attrs:
                 attrs.pop('comuna_name', None)
                 attrs.pop('region_name', None)
@@ -212,6 +221,15 @@ class OrderSerializer(serializers.ModelSerializer):
                     'region_name': region_name,
                 }
             return attrs
+
+        # The account profile, not the request body, is the contact authority.
+        attrs.pop('phone', None)
+        try:
+            attrs['_profile_phone'] = normalize_chilean_mobile_phone(user.phone)
+        except ValueError as error:
+            raise serializers.ValidationError({
+                'detail': 'Completa un teléfono móvil chileno válido en tu perfil antes de continuar.'
+            }) from error
 
         # Resolve the exclusive shipping price authority without importing the shipping model.
         if 'comuna_id' not in attrs:
@@ -287,11 +305,12 @@ class OrderSerializer(serializers.ModelSerializer):
 
         comuna_id = validated_data.pop('comuna_id')
         shipping_cost = validated_data.pop('_shipping_price')
+        profile_phone = validated_data.pop('_profile_phone')
         try:
             return create_order(
                 user=user,
                 checkout_key=checkout_key,
-                phone=validated_data['phone'],
+                phone=profile_phone,
                 shipping_address=validated_data['shipping_address'],
                 apartment_office=validated_data.get('apartment_office', ''),
                 payment_method=validated_data.get('payment_method', 'webpay'),
@@ -306,6 +325,9 @@ class OrderSerializer(serializers.ModelSerializer):
                 "detail": "No puedes crear un pedido con el carrito vacío."
             })
 class OrderCreateSerializer(serializers.ModelSerializer):
+    # Guests supply this value; authenticated orders always snapshot the
+    # validated phone stored on the authenticated account.
+    phone = serializers.CharField(required=False)
     comuna = serializers.IntegerField(source='comuna_id', required=False)
     comuna_name = serializers.CharField(required=False)
     region_name = serializers.CharField(required=False)

@@ -11,6 +11,7 @@ from apps.authentication.views import (
     GetCSRFTokenView,
     RegisterView,
     UserMeView,
+    ProfilePhoneView,
     LogoutView,
 )
 from apps.shipping.views import RegionViewSet, ComunaViewSet, DispatchOptionsView
@@ -42,6 +43,7 @@ urlpatterns = [
     path('api/auth/token/refresh/', CustomTokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/register/', RegisterView.as_view(), name='auth_register'),
     path('api/auth/me/', UserMeView.as_view(), name='auth_me'),
+    path('api/auth/me/phone/', ProfilePhoneView.as_view(), name='auth_profile_phone'),
     path('api/auth/csrf/', GetCSRFTokenView.as_view(), name='auth_csrf'),
     path('api/auth/logout/', LogoutView.as_view(), name='auth_logout'),
 

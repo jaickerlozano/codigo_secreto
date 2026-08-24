@@ -72,7 +72,7 @@ class UserFactory(factory.django.DjangoModelFactory):
     first_name = factory.Faker("first_name")
     last_name = factory.Faker("last_name")
     rut = factory.Sequence(lambda n: generate_rut(n))
-    phone = factory.Faker("phone_number")
+    phone = factory.Sequence(lambda n: f"+56 9 1234 {n % 10000:04d}")
     is_active = True
     is_staff = False
 

@@ -16,6 +16,7 @@ LOGIN_URL = "/api/auth/login/"
 LOGOUT_URL = "/api/auth/logout/"
 REFRESH_URL = "/api/auth/token/refresh/"
 ME_URL = "/api/auth/me/"
+PROFILE_PHONE_URL = "/api/auth/me/phone/"
 
 
 def test_register_endpoint_success(api_client):
@@ -188,6 +189,45 @@ def test_me_admin(staff_client, staff_user):
     assert response.status_code == 200
     assert response.data["is_admin"] is True
     assert response.data["email"] == staff_user.email
+
+
+def test_update_profile_phone_normalizes_and_returns_current_user(authenticated_client, user):
+    response = authenticated_client.patch(
+        PROFILE_PHONE_URL, {"phone": "912345678"}, format="json"
+    )
+
+    assert response.status_code == 200
+    user.refresh_from_db()
+    assert user.phone == "+56 9 1234 5678"
+    assert response.data["phone"] == user.phone
+
+
+def test_update_profile_phone_rejects_invalid_phone(authenticated_client, user):
+    response = authenticated_client.patch(
+        PROFILE_PHONE_URL, {"phone": "812345678"}, format="json"
+    )
+
+    assert response.status_code == 400
+    user.refresh_from_db()
+    assert user.phone != "812345678"
+
+
+def test_update_profile_phone_requires_authentication(api_client):
+    response = api_client.patch(PROFILE_PHONE_URL, {"phone": "912345678"}, format="json")
+
+    assert response.status_code == 401
+
+
+def test_update_profile_phone_cookie_auth_requires_csrf(api_client, user):
+    refresh = RefreshToken.for_user(user)
+    api_client.cookies["access_token"] = str(refresh.access_token)
+    api_client.handler.enforce_csrf_checks = True
+
+    response = api_client.patch(
+        PROFILE_PHONE_URL, {"phone": "912345678"}, format="json"
+    )
+
+    assert response.status_code == 403
 
 
 def test_auth_with_cookie(api_client, user):

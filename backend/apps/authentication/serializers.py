@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.db import transaction
 from .models import User, CustomerProfile
+from .phone import CHILEAN_MOBILE_PHONE_MESSAGE, normalize_chilean_mobile_phone
 
 class RegisterSerializer(serializers.ModelSerializer):
     # Definimos la contraseña con seguridad extra para que no se muestre en las respuestas GET
@@ -22,6 +23,14 @@ class RegisterSerializer(serializers.ModelSerializer):
             attrs['rut'] = attrs['rut'].replace('.', '').replace('-', '').upper().strip()
             
         return attrs
+
+    def validate_phone(self, value):
+        if not value:
+            return value
+        try:
+            return normalize_chilean_mobile_phone(value)
+        except ValueError as error:
+            raise serializers.ValidationError(str(error)) from error
 
     def create(self, validated_data):
         # Eliminamos la confirmación para no intentar guardarla en el modelo
@@ -54,3 +63,13 @@ class UserMeSerializer(serializers.ModelSerializer):
         model = User
         # Entregamos datos limpios de identidad, excluyendo contraseñas por seguridad
         fields = ('id', 'first_name', 'last_name', 'email', 'rut', 'phone', 'is_admin')
+
+
+class ProfilePhoneSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+
+    def validate_phone(self, value):
+        try:
+            return normalize_chilean_mobile_phone(value)
+        except ValueError as error:
+            raise serializers.ValidationError(CHILEAN_MOBILE_PHONE_MESSAGE) from error

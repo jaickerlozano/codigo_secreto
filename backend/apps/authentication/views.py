@@ -5,7 +5,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import RegisterSerializer, UserMeSerializer
+from .serializers import ProfilePhoneSerializer, RegisterSerializer, UserMeSerializer
 from rest_framework.views import APIView
 
 from .authentication import enforce_csrf
@@ -151,6 +151,28 @@ class UserMeView(APIView):
         # request.user contiene automáticamente al usuario dueño del token JWT
         serializer = UserMeSerializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class ProfilePhoneView(CookieCSRFMixin, APIView):
+    """Update only the authenticated account phone used by checkout."""
+
+    permission_classes = [IsAuthenticated]
+    csrf_cookie_names = [settings.SIMPLE_JWT.get("JWT_AUTH_COOKIE", "access_token")]
+
+    @extend_schema(
+        summary="Actualizar teléfono del perfil autenticado",
+        description="Valida y normaliza el teléfono móvil chileno usado para el checkout.",
+        tags=["Autenticación"],
+        request=ProfilePhoneSerializer,
+        responses={200: UserMeSerializer},
+    )
+    def patch(self, request):
+        self._enforce_csrf_for_cookie(request)
+        serializer = ProfilePhoneSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        request.user.phone = serializer.validated_data["phone"]
+        request.user.save(update_fields=["phone"])
+        return Response(UserMeSerializer(request.user).data, status=status.HTTP_200_OK)
 
 
 class LogoutView(CookieCSRFMixin, APIView):

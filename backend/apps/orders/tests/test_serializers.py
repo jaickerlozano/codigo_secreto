@@ -43,6 +43,61 @@ def test_create_order_authenticated(authenticated_client, cart_factory, cart_ite
     assert response.json()["guest_access"] is None
 
 
+def test_authenticated_order_snapshots_normalized_profile_phone_and_ignores_client_phone(
+    authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory
+):
+    user.phone = "+56912345678"
+    user.save(update_fields=["phone"])
+    cart = cart_factory(user=user)
+    product = product_factory(price=1000, current_stock=10)
+    cart_item_factory(cart=cart, product=product, quantity=1)
+    comuna = comuna_factory(shipping_cost=3000)
+
+    response = authenticated_client.post(
+        "/api/orders/", _order_payload(comuna, phone="+56 9 9999 9999"), format="json"
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED
+    order = Order.objects.get(id=response.json()["id"])
+    assert order.phone == "+56 9 1234 5678"
+
+
+def test_authenticated_order_without_phone_snapshots_normalized_profile_phone(
+    authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory
+):
+    user.phone = "+56912345678"
+    user.save(update_fields=["phone"])
+    cart = cart_factory(user=user)
+    product = product_factory(price=1000, current_stock=10)
+    cart_item_factory(cart=cart, product=product, quantity=1)
+    comuna = comuna_factory(shipping_cost=3000)
+
+    payload = _order_payload(comuna)
+    payload.pop("phone")
+    response = authenticated_client.post("/api/orders/", payload, format="json")
+
+    assert response.status_code == status.HTTP_201_CREATED
+    order = Order.objects.get(id=response.json()["id"])
+    assert order.phone == "+56 9 1234 5678"
+
+
+@pytest.mark.parametrize("profile_phone", [None, "", "812345678"])
+def test_authenticated_order_rejects_missing_or_invalid_profile_phone(
+    authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory, profile_phone
+):
+    user.phone = profile_phone
+    user.save(update_fields=["phone"])
+    cart = cart_factory(user=user)
+    product = product_factory(price=1000, current_stock=10)
+    cart_item_factory(cart=cart, product=product, quantity=1)
+    comuna = comuna_factory(shipping_cost=3000)
+
+    response = authenticated_client.post("/api/orders/", _order_payload(comuna), format="json")
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "teléfono móvil chileno válido" in str(response.json())
+
+
 def _detail_contains(response_data, substring):
     """Return True if ``substring`` appears in a string or list of strings."""
     detail = response_data.get("detail", [])
@@ -109,6 +164,32 @@ def test_create_order_guest(api_client, product_factory, comuna_factory):
     assert order.user is None
     assert order.items.count() == 1
     assert order.total == 5000
+
+
+def test_guest_order_requires_phone(api_client, product_factory, comuna_factory):
+    product = product_factory(price=1000, current_stock=10)
+    comuna = comuna_factory(shipping_cost=3000)
+    revision = calculate_guest_quote(
+        [{"product_id": product.id, "quantity": 1}], comuna_selector=comuna.id
+    ).revision
+
+    response = api_client.post(
+        "/api/orders/",
+        {
+            "guest_email": "guest@example.com",
+            "guest_name": "Invitado",
+            "comuna": comuna.id,
+            "shipping_address": "Calle 123",
+            "guest_items": [{"product_id": product.id, "quantity": 1}],
+            "confirmed_revision": revision,
+            "delivery_kind": "standard",
+            "requested_dispatch_date": str(future_dispatch_dates()[0]),
+        },
+        format="json",
+    )
+
+    assert response.status_code == status.HTTP_400_BAD_REQUEST
+    assert "phone" in response.json()
 
 
 
