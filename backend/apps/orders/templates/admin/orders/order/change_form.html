@@ -1,0 +1,10 @@
+{% extends "admin/change_form.html" %}
+
+{% block submit_buttons_bottom %}
+  {{ block.super }}
+  {% if show_save_and_dispatch %}
+    <div class="submit-row">
+      <input type="submit" value="Guardar y despachar" name="_save_and_dispatch">
+    </div>
+  {% endif %}
+{% endblock %}

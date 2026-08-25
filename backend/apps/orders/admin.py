@@ -1,4 +1,6 @@
+from django import forms
 from django.contrib import admin, messages
+from django.http import HttpResponseRedirect
 from django.utils import timezone
 
 from .models import NotificationDelivery, Order, OrderItem
@@ -16,9 +18,18 @@ class OrderItemInline(admin.TabularInline):
     def subtotal(self, obj):
         return obj.subtotal if obj.subtotal is not None else 'No disponible'
 
+class OrderAdminForm(forms.ModelForm):
+    class Meta:
+        model = Order
+        fields = "__all__"
+        error_messages = {
+            "carrier": {"required": "El transportista es obligatorio."},
+        }
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
+    change_form_template = "admin/orders/order/change_form.html"
+    form = OrderAdminForm
     list_display = ('id', 'buyer_display', 'phone', 'comuna', 'total_clp', 'status', 'guest_access_status', 'created_at')
     list_filter = ('status', 'created_at', 'guest_access_revoked_at', 'comuna__region')
     search_fields = ('id', 'guest_email', 'guest_name', 'user__email', 'phone')
@@ -33,6 +44,40 @@ class OrderAdmin(admin.ModelAdmin):
         'status', 'dispatched_at',
     )
     actions = ('revoke_guest_access', 'rotate_guest_access', 'dispatch_orders')
+
+    def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
+        context["show_save_and_dispatch"] = bool(
+            change
+            and obj
+            and obj.status == "PAID"
+            and self.has_change_permission(request, obj)
+        )
+        return super().render_change_form(request, context, add, change, form_url, obj)
+
+    def response_change(self, request, obj):
+        if "_save_and_dispatch" not in request.POST:
+            return super().response_change(request, obj)
+
+        try:
+            fulfill_dispatch(
+                order=obj,
+                carrier=obj.carrier,
+                estimated_delivery_date=obj.estimated_delivery_date,
+                tracking_number=obj.tracking_number,
+            )
+        except InvalidFulfillmentError as error:
+            self.message_user(
+                request,
+                f"No se pudo despachar {obj.order_number}: {error}",
+                level=messages.ERROR,
+            )
+        else:
+            self.message_user(
+                request,
+                f"Pedido {obj.order_number} guardado y despachado correctamente.",
+                level=messages.SUCCESS,
+            )
+        return HttpResponseRedirect(request.path)
 
     def guest_access_status(self, obj):
         if obj.guest_access_revoked_at:

@@ -12,6 +12,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core import mail
 from django.test import TestCase
+from django.urls import reverse
 
 from apps.orders.admin import NotificationDeliveryAdmin, OrderAdmin
 from apps.orders.models import NotificationDelivery, Order
@@ -105,6 +106,153 @@ class TestFulfillDispatch:
 
 
 class TestFulfillmentAdmin:
+    @pytest.fixture
+    def admin_client(self, client, paid_order):
+        staff = paid_order.user
+        staff.is_staff = True
+        staff.is_superuser = True
+        staff.save(update_fields=["is_staff", "is_superuser"])
+        client.force_login(staff)
+        return client
+
+    @staticmethod
+    def change_form_data(response, **updates):
+        data = {}
+        for field in response.context["adminform"].form:
+            data[field.html_name] = field.value() or ""
+        for inline_formset in response.context["inline_admin_formsets"]:
+            for field in inline_formset.formset.management_form:
+                data[field.html_name] = field.value()
+            for form in inline_formset.formset.forms:
+                for field in form:
+                    data[field.html_name] = field.value() or ""
+        data.update(updates)
+        return data
+
+    @staticmethod
+    def change_url(order):
+        return reverse("admin:orders_order_change", args=[order.id])
+
+    @pytest.mark.parametrize("status,visible", [("PAID", True), ("PENDING", False), ("SHIPPED", False)])
+    def test_change_form_shows_dispatch_submit_only_for_paid_orders(self, paid_order, order_factory, admin_client, status, visible):
+        order = order_factory(status=status, user=paid_order.user)
+
+        response = admin_client.get(self.change_url(order))
+
+        assert ("Guardar y despachar" in response.content.decode()) is visible
+
+    def test_change_form_hides_dispatch_submit_from_unauthorized_users(self, paid_order, client):
+        response = client.get(self.change_url(paid_order), follow=True)
+
+        assert response.status_code == 200
+        assert "Guardar y despachar" not in response.content.decode()
+
+    def test_change_form_saves_metadata_then_dispatches_once(self, paid_order, admin_client):
+        response = admin_client.get(self.change_url(paid_order))
+        data = self.change_form_data(
+            response,
+            carrier="Chilexpress",
+            estimated_delivery_date="2026-08-20",
+            _save_and_dispatch="Guardar y despachar",
+        )
+
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            response = admin_client.post(self.change_url(paid_order), data, follow=True)
+
+        paid_order.refresh_from_db()
+        assert response.status_code == 200
+        assert (paid_order.status, paid_order.dispatched_at is not None) == ("SHIPPED", True)
+        assert (response.context["original"].status, response.context["original"].dispatched_at is not None) == ("SHIPPED", True)
+        assert NotificationDelivery.objects.filter(order=paid_order, event="dispatch").count() == 1
+        assert "guardado y despachado correctamente" in response.content.decode()
+
+    def test_regular_save_updates_metadata_without_dispatching(self, paid_order, admin_client):
+        response = admin_client.get(self.change_url(paid_order))
+        data = self.change_form_data(response, estimated_delivery_date="2026-08-20", _save="Guardar")
+
+        admin_client.post(self.change_url(paid_order), data)
+
+        paid_order.refresh_from_db()
+        assert paid_order.status == "PAID"
+        assert paid_order.estimated_delivery_date == date(2026, 8, 20)
+        assert not NotificationDelivery.objects.filter(order=paid_order, event="dispatch").exists()
+
+    @pytest.mark.parametrize(
+        "updates,error",
+        [
+            ({"carrier": "", "estimated_delivery_date": "2026-08-20"}, "transportista es obligatorio"),
+            ({"carrier": "Chilexpress", "estimated_delivery_date": ""}, "fecha estimada de entrega es obligatoria"),
+        ],
+    )
+    def test_change_form_rejects_invalid_dispatch_metadata(self, paid_order, admin_client, updates, error):
+        response = admin_client.get(self.change_url(paid_order))
+        data = self.change_form_data(response, **updates, _save_and_dispatch="Guardar y despachar")
+
+        response = admin_client.post(self.change_url(paid_order), data, follow=True)
+
+        paid_order.refresh_from_db()
+        assert paid_order.status == "PAID"
+        assert not NotificationDelivery.objects.filter(order=paid_order, event="dispatch").exists()
+        assert error in response.content.decode()
+
+    def test_change_form_duplicate_submission_keeps_single_dispatch_notification(self, paid_order, admin_client):
+        response = admin_client.get(self.change_url(paid_order))
+        data = self.change_form_data(
+            response,
+            carrier="Chilexpress",
+            estimated_delivery_date="2026-08-20",
+            _save_and_dispatch="Guardar y despachar",
+        )
+
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            admin_client.post(self.change_url(paid_order), data)
+            response = admin_client.post(self.change_url(paid_order), data, follow=True)
+
+        paid_order.refresh_from_db()
+        assert paid_order.status == "SHIPPED"
+        assert NotificationDelivery.objects.filter(order=paid_order, event="dispatch").count() == 1
+        assert "no está listo para despacho" in response.content.decode()
+
+    def test_change_form_email_failure_preserves_shipment_and_failed_notification(self, paid_order, admin_client):
+        response = admin_client.get(self.change_url(paid_order))
+        data = self.change_form_data(
+            response,
+            carrier="Chilexpress",
+            estimated_delivery_date="2026-08-20",
+            _save_and_dispatch="Guardar y despachar",
+        )
+
+        with mock.patch("apps.orders.notifications.send_mail", side_effect=RuntimeError("SMTP down")):
+            with TestCase.captureOnCommitCallbacks(execute=True):
+                admin_client.post(self.change_url(paid_order), data)
+
+        paid_order.refresh_from_db()
+        delivery = NotificationDelivery.objects.get(order=paid_order, event="dispatch")
+        assert paid_order.status == "SHIPPED"
+        assert (delivery.status, delivery.attempts, delivery.next_retry_at is not None) == ("FAILED", 1, True)
+
+    def test_bulk_dispatch_action_remains_available(self, paid_order, admin_client):
+        paid_order.carrier = "Chilexpress"
+        paid_order.estimated_delivery_date = date(2026, 8, 20)
+        paid_order.save(update_fields=["carrier", "estimated_delivery_date"])
+
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            response = admin_client.post(
+                reverse("admin:orders_order_changelist"),
+                {
+                    "action": "dispatch_orders",
+                    "_selected_action": [str(paid_order.id)],
+                    "index": "0",
+                    "select_across": "0",
+                },
+                follow=True,
+            )
+
+        paid_order.refresh_from_db()
+        assert response.status_code == 200
+        assert paid_order.status == "SHIPPED"
+        assert NotificationDelivery.objects.filter(order=paid_order, event="dispatch").count() == 1
+
     @pytest.mark.parametrize("prepared", [True, False])
     def test_admin_dispatch_action_dispatches_or_reports(self, paid_order, order_admin, admin_request, prepared):
         if prepared:
