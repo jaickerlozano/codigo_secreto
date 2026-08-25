@@ -241,6 +241,12 @@ class NotificationDelivery(models.Model):
         ordering = ['-created_at']
         verbose_name = 'Notificación'
         verbose_name_plural = 'Notificaciones'
+        indexes = [
+            models.Index(
+                fields=['status', 'next_retry_at'],
+                name='orders_notif_status_next_retry',
+            ),
+        ]
 
     def __str__(self):
         return f"{self.get_event_display()} — {self.get_status_display()} ({self.order.order_number})"

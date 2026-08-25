@@ -27,9 +27,26 @@ PAYMENT_PROVIDER = env("PAYMENT_PROVIDER", default=None)
 # Support WhatsApp line for special-delivery agreement guidance (E.164, no "+")
 SUPPORT_WHATSAPP_PHONE = env("SUPPORT_WHATSAPP_PHONE", default="56953716242")
 
+
+def _resolve_email_backend(debug, email_host, email_backend=None):
+    """Deterministic backend precedence for development and production.
+
+    DEBUG with a blank SMTP host forces the console backend; every other
+    configuration uses env-driven TLS SMTP and never silently falls back to
+    console in production.
+    """
+    if debug and not email_host:
+        return "django.core.mail.backends.console.EmailBackend"
+    if email_backend and "console" in email_backend:
+        return "django.core.mail.backends.smtp.EmailBackend"
+    return email_backend or "django.core.mail.backends.smtp.EmailBackend"
+
+
 # Email for transactional notifications; env-driven, no secrets in the repo
-EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_BACKEND = _resolve_email_backend(
+    DEBUG, EMAIL_HOST, env("EMAIL_BACKEND", default=None)
+)
 EMAIL_PORT = env("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
