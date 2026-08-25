@@ -148,7 +148,6 @@ describe('OrderTrackingPage', () => {
     expect(screen.queryByText('Fecha de despacho solicitada')).toBeNull()
     expect(screen.queryByText('Entrega estimada')).toBeNull()
   })
-
   it('shows an accessible retry fallback when the tracking route fails to render', async () => {
     timelineMock.shouldThrow = true
     const router = createMemoryRouter(
