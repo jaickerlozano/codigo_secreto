@@ -27,7 +27,7 @@ function renderApp(initialPath: string, quoteHandler?: HttpResponseResolver) {
 }
 
 async function completeDataStep(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(/Nombre completo/), 'Valentina G.')
+  await user.type(await screen.findByLabelText(/Nombre completo/), 'Valentina G.')
   await user.type(screen.getByLabelText(/Email/), 'valentina@example.com')
   await user.type(screen.getByLabelText(/Teléfono/), '+56 9 1234 5678')
   await user.click(screen.getByRole('button', { name: /Siguiente/ }))
@@ -95,7 +95,7 @@ describe('checkout frame runtime harness', () => {
     expect(screen.getByText('1', { selector: '[aria-current="step"]' })).toBeDefined()
   })
 
-  it('guest walks Data → Shipping → Payment → Review with the backend tariff', async () => {
+  it('guest walks Data → Shipping → Payment → Review with the backend quote', async () => {
     useCartStore.setState({ mode: 'guest', items: [{ product, quantity: 1 }] })
     const user = userEvent.setup()
     renderApp('/checkout')

@@ -165,7 +165,7 @@ def test_regional_shipping_option_snapshots_carrier(
     assert order.delivery_kind == "standard"
     assert order.requested_dispatch_date is None
     assert order.carrier == "CS Logistics"
-    assert order.shipping_cost == 5500
+    assert order.shipping_cost == comuna.shipping_cost
 
 
 def test_regional_stale_shipping_option_is_conflict(
@@ -262,7 +262,7 @@ def test_santiago_standard_missing_date_is_rejected(
     assert Order.objects.count() == 0
 
 
-def test_regional_missing_option_is_rejected(
+def test_regional_missing_option_uses_comuna_price(
     authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory
 ):
     _seed_cart(cart_factory, cart_item_factory, product_factory, user)
@@ -271,9 +271,8 @@ def test_regional_missing_option_is_rejected(
     response = authenticated_client.post(
         "/api/orders/", _auth_payload(comuna, delivery_kind="standard"), format="json"
     )
-    assert response.status_code == status.HTTP_400_BAD_REQUEST
-    assert response.json()["code"] == "delivery_schedule_ineligible"
-    assert Order.objects.count() == 0
+    assert response.status_code == status.HTTP_201_CREATED
+    assert Order.objects.get(id=response.json()["id"]).shipping_cost == comuna.shipping_cost
 
 
 # --- Correction: delivery-intent idempotency (gap 2) ---
