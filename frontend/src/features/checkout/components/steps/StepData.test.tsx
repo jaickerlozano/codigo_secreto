@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { queryClient } from '@/lib/query-client'
+import type { UserMe } from '@/features/auth/types'
 
 import type { AddressData, ContactData } from '../../types'
 
@@ -18,6 +19,15 @@ function renderStepData(onSubmit = vi.fn()) {
   return { user, onSubmit }
 }
 
+const authenticatedUser: UserMe = {
+  id: 1,
+  first_name: 'María',
+  last_name: 'González',
+  email: 'maria@example.com',
+  rut: null,
+  phone: '+56 9 1234 5678',
+  is_admin: false,
+}
 async function fillContact(user: ReturnType<typeof userEvent.setup>, phone = '+56 9 1234 5678') {
   await user.type(screen.getByLabelText(/Nombre completo/), 'Juan Pérez')
   await user.type(screen.getByLabelText(/Email/), 'juan@example.com')
@@ -86,5 +96,32 @@ describe('StepData (composed Data step)', () => {
     expect(screen.getByRole('group', { name: 'Datos de contacto' })).toBeDefined()
     expect((screen.getByLabelText(/Nombre completo/) as HTMLInputElement).value).toBe('Juan Pérez')
     expect((screen.getByLabelText(/Teléfono/) as HTMLInputElement).value).toBe('+56 9 1234 5678')
+  })
+
+  it('starts authenticated checkout at the address without guest or contact controls', () => {
+    render(<QueryClientProvider client={queryClient()}><StepData defaultValues={{ contact, address }} authenticatedUser={authenticatedUser} onSubmit={vi.fn()} onCompleteProfilePhone={vi.fn()} /></QueryClientProvider>)
+
+    expect(screen.getByRole('group', { name: 'Dirección de envío' })).toBeDefined()
+    expect(screen.queryByText('Continuar como invitado')).toBeNull()
+    expect(screen.queryByLabelText(/Nombre completo/)).toBeNull()
+    expect(screen.queryByLabelText(/Email/)).toBeNull()
+    expect(screen.queryByLabelText(/Teléfono/)).toBeNull()
+  })
+
+  it('collects only a missing authenticated phone then continues to the address', async () => {
+    const user = userEvent.setup()
+    const onCompleteProfilePhone = vi.fn().mockResolvedValue({ ...authenticatedUser, phone: '+56 9 1234 5678' })
+    render(<QueryClientProvider client={queryClient()}><StepData defaultValues={{ contact, address }} authenticatedUser={{ ...authenticatedUser, phone: null }} onSubmit={vi.fn()} onCompleteProfilePhone={onCompleteProfilePhone} /></QueryClientProvider>)
+
+    expect(screen.getByLabelText(/Teléfono/)).toBeDefined()
+    expect(screen.queryByText('Continuar como invitado')).toBeNull()
+    expect(screen.queryByLabelText(/Nombre completo/)).toBeNull()
+    expect(screen.queryByLabelText(/Email/)).toBeNull()
+
+    await user.type(screen.getByLabelText(/Teléfono/), '912345678')
+    await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+
+    await waitFor(() => expect(onCompleteProfilePhone).toHaveBeenCalledWith('+56 9 1234 5678'))
+    expect(await screen.findByRole('group', { name: 'Dirección de envío' })).toBeDefined()
   })
 })

@@ -20,12 +20,14 @@ interface StepAddressProps {
   defaultValues: AddressSchema
   onSubmit: (data: AddressSchema) => void
   onBack: () => void
+  showBack?: boolean
 }
 
 export function StepAddress({
   defaultValues,
   onSubmit,
   onBack,
+  showBack = true,
 }: StepAddressProps) {
   const {
     control,
@@ -350,13 +352,13 @@ export function StepAddress({
         </div>
 
         <div className="flex gap-3 pt-4">
-          <button
+          {showBack && <button
             type="button"
             onClick={onBack}
             className="min-h-12 rounded-xl border border-white/10 px-6 py-3 text-sm font-bold uppercase tracking-wide text-muted-foreground transition-all hover:border-white/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Atrás
-          </button>
+          </button>}
           <button
             type="submit"
             className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"

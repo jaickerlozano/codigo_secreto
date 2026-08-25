@@ -46,4 +46,11 @@ describe('StepReview review map (four-step frame)', () => {
 
     expect(screen.getByText('Envío a Santiago, Región Metropolitana — martes 25 de agosto')).toBeDefined()
   })
+
+  it('shows the authenticated account contact instead of checkout form state', () => {
+    render(<StepReview data={data} accountContact="María González · maria@example.com" subtotal={29990} shippingCost={3500} total={33490} quoteReady onEditStep={vi.fn()} onTermsChange={vi.fn()} onBack={vi.fn()} onConfirm={vi.fn()} />)
+
+    expect(screen.getByText('María González · maria@example.com')).toBeDefined()
+    expect(screen.queryByText('juan@example.com')).toBeNull()
+  })
 })

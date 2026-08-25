@@ -1,24 +1,29 @@
 import { z } from 'zod'
 
-const chileMobilePhonePattern =
+export const chileMobilePhonePattern =
   /^(?:9(?: ?\d{4}) ?\d{4}|\+56 ?9(?: ?\d{4}) ?\d{4})$/
 
-function normalizeChileanMobilePhone(phone: string): string {
+export function normalizeChileanMobilePhone(phone: string): string {
   const localNumber = phone.replace(/\s/g, '').replace(/^\+56/, '')
 
   return `+56 ${localNumber.slice(0, 1)} ${localNumber.slice(1, 5)} ${localNumber.slice(5)}`
+}
+export const chileanMobilePhoneSchema = z
+  .string()
+  .regex(
+    chileMobilePhonePattern,
+    'Ingresa un teléfono móvil chileno válido (ej. 9 1234 5678)'
+  )
+  .transform(normalizeChileanMobilePhone)
+
+export function hasValidChileanMobilePhone(phone: string | null | undefined): boolean {
+  return chileanMobilePhoneSchema.safeParse(phone).success
 }
 
 export const contactSchema = z.object({
   name: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
   email: z.string().email('Email inválido'),
-  phone: z
-    .string()
-    .regex(
-      chileMobilePhonePattern,
-      'Ingresa un teléfono móvil chileno válido (ej. 9 1234 5678)'
-    )
-    .transform(normalizeChileanMobilePhone),
+  phone: chileanMobilePhoneSchema,
   isGuest: z.boolean(),
 })
 

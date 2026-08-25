@@ -17,6 +17,7 @@ interface StepReviewProps {
   onBack: () => void
   onConfirm: () => void
   isSubmitting?: boolean
+  accountContact?: string
 }
 
 function quoteAmount(value: number | null, empty = 'Calculando…') { return value === null ? empty : formatCLP(value) }
@@ -38,6 +39,7 @@ export function StepReview({
   onBack,
   onConfirm,
   isSubmitting = false,
+  accountContact,
 }: StepReviewProps) {
   const shippingLabel = data.address.comunaName
     ? `Envío a ${data.address.comunaName}${data.address.regionName ? `, ${data.address.regionName}` : ''}${dispatchDetail(data.shipping)}`
@@ -46,7 +48,7 @@ export function StepReview({
     PAYMENT_OPTIONS.find((p) => p.id === data.payment.method)?.name ?? '—'
 
   const summaryItems = [
-    { label: 'Contacto', value: data.contact.email, step: 1 as CheckoutStep },
+    { label: 'Contacto', value: accountContact ?? data.contact.email, step: 1 as CheckoutStep },
     {
       label: 'Dirección',
       value: data.address.address

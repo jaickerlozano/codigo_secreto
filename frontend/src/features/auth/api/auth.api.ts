@@ -70,3 +70,13 @@ export async function getMe(): Promise<UserMe | null> {
 
   return data
 }
+
+export async function updateProfilePhone(phone: NonNullable<paths['/api/auth/me/phone/']['patch']['requestBody']>['content']['application/json']): Promise<UserMe> {
+  const { data, error } = await apiClient.PATCH('/api/auth/me/phone/', { body: phone })
+
+  if (error || !data) {
+    throw new Error(extractErrorMessage(error as AuthApiError | undefined))
+  }
+
+  return data
+}
