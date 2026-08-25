@@ -232,6 +232,10 @@ class NotificationDelivery(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='fecha de creación')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='fecha de actualización')
 
+    @property
+    def exhausted(self):
+        return self.status == 'FAILED' and self.attempts >= 5 and self.next_retry_at is None
+
     class Meta:
         unique_together = ('order', 'event')
         ordering = ['-created_at']

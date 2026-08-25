@@ -13,7 +13,9 @@ from .models import NotificationDelivery
 
 logger = logging.getLogger(__name__)
 
-RETRY_DELAY_MINUTES = (15, 60, 240)  # escalating delays (minutes) by attempt count
+SUPPORTED_EVENTS = frozenset({"payment_confirmation", "dispatch"})
+RETRY_DELAY_MINUTES = (15, 60, 240, 720)
+STALE_PENDING_MINUTES = 15
 MAX_ERROR_LENGTH = 500
 
 
@@ -36,46 +38,66 @@ def _body(event, order):
 
 
 def schedule_delivery(order, event):
-    """Record the durable delivery row and send it after the transaction commits."""
+    """Record durable delivery row and, if supported, schedule initial send."""
+    if event not in SUPPORTED_EVENTS:
+        logger.warning("Unsupported notification event ignored: order=%s event=%s", order.order_number, event)
+        return None
     delivery, _ = NotificationDelivery.objects.get_or_create(order=order, event=event)
     if delivery.status != "SENT":
-        transaction.on_commit(lambda: attempt_delivery(delivery.id))
+        transaction.on_commit(lambda: attempt_delivery(delivery.id, trigger="initial"))
     return delivery
 
 
-def attempt_delivery(delivery_id):
-    """Send one delivery; a failure is recorded and never raised."""
-    delivery = NotificationDelivery.objects.get(id=delivery_id)
-    order = delivery.order
-    if delivery.status == "SENT":
-        return delivery
-    delivery.attempts += 1
+def attempt_delivery(delivery_id, trigger="automatic", now=None):
+    """Send one delivery under row lock; failures are recorded and never raised."""
+    now = now or timezone.now()
+    engine = settings.DATABASES["default"]["ENGINE"]
     try:
-        recipient = _recipient_email(order)
-        if not recipient:
-            raise ValueError("El pedido no tiene correo de contacto.")
-        send_mail(_subject(delivery.event, order), _body(delivery.event, order),
-                  settings.DEFAULT_FROM_EMAIL, [recipient])
-    except Exception as error:
-        delivery.status = "FAILED"
-        delivery.last_error = str(error)[:MAX_ERROR_LENGTH]
-        delay = RETRY_DELAY_MINUTES[min(delivery.attempts - 1, len(RETRY_DELAY_MINUTES) - 1)]
-        delivery.next_retry_at = timezone.now() + timezone.timedelta(minutes=delay)
-        logger.warning("Notification delivery failed: order=%s event=%s error=%s", order.order_number, delivery.event, error)
-    else:
-        delivery.status = "SENT"
-        delivery.sent_at = timezone.now()
-        delivery.last_error = None
-        delivery.next_retry_at = None
-    delivery.save(update_fields=["status", "attempts", "last_error", "next_retry_at", "sent_at", "updated_at"])
-    return delivery
+        with transaction.atomic():
+            delivery = NotificationDelivery.objects.select_for_update(
+                skip_locked=engine.endswith("postgresql")
+            ).get(id=delivery_id)
+            order = delivery.order
+            if delivery.status == "SENT":
+                return delivery
+            eligible = False
+            if trigger == "manual":
+                eligible = delivery.status == "FAILED"
+            elif trigger == "initial":
+                eligible = delivery.status == "PENDING" and delivery.attempts == 0
+            elif delivery.status == "PENDING":
+                eligible = delivery.attempts == 0 and delivery.updated_at <= now - timezone.timedelta(minutes=STALE_PENDING_MINUTES)
+            else:
+                eligible = delivery.status == "FAILED" and delivery.attempts < 5 and delivery.next_retry_at and delivery.next_retry_at <= now
+            if not eligible:
+                return delivery
+            delivery.attempts += 1
+            try:
+                recipient = _recipient_email(order)
+                if not recipient:
+                    raise ValueError("El pedido no tiene correo de contacto.")
+                if send_mail(_subject(delivery.event, order), _body(delivery.event, order),
+                             settings.DEFAULT_FROM_EMAIL, [recipient]) == 0:
+                    raise RuntimeError("No recipients accepted by email backend.")
+            except Exception as error:
+                delivery.status = "FAILED"
+                delivery.last_error = str(error)[:MAX_ERROR_LENGTH]
+                delivery.next_retry_at = (now + timezone.timedelta(minutes=RETRY_DELAY_MINUTES[delivery.attempts - 1])
+                                          if delivery.attempts < 5 else None)
+                logger.warning("Notification delivery failed: id=%s order=%s event=%s attempt=%s error=%s",
+                               delivery.id, order.order_number, delivery.event, delivery.attempts, error)
+                if delivery.exhausted:
+                    logger.error("Notification delivery exhausted: id=%s order=%s event=%s attempts=%s",
+                                 delivery.id, order.order_number, delivery.event, delivery.attempts)
+            else:
+                delivery.status, delivery.sent_at, delivery.last_error, delivery.next_retry_at = "SENT", now, None, None
+            delivery.save(update_fields=["status", "attempts", "last_error", "next_retry_at", "sent_at", "updated_at"])
+        return delivery
+    except Exception:
+        logger.exception("Unexpected error processing notification id=%s trigger=%s", delivery_id, trigger)
+        return None
 
 
 def retry_delivery(delivery_id):
-    """Retry one failed delivery now; other statuses are left untouched."""
-    delivery = NotificationDelivery.objects.get(id=delivery_id)
-    if delivery.status != "FAILED":
-        return delivery
-    delivery.next_retry_at = None
-    delivery.save(update_fields=["next_retry_at", "updated_at"])
-    return attempt_delivery(delivery.id)
+    """Retry one failed delivery now under the same locked path."""
+    return attempt_delivery(delivery_id, trigger="manual")
