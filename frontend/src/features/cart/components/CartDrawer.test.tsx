@@ -89,8 +89,17 @@ describe('CartDrawer', () => {
   })
 
   it('announces quote failures and retries the quote', async () => {
-    let attempts = 0
-    server.use(http.post('http://localhost:8000/api/orders/quote/', () => attempts++ === 0 ? HttpResponse.json({ detail: 'No pudimos calcular el total.' }, { status: 400 }) : HttpResponse.json({ items: [], subtotal: 29990, shipping_cost: 0, total: 29990, revision: 'gq1.retry' })))
+    server.use(
+      http.post(
+        'http://localhost:8000/api/orders/quote/',
+        () =>
+          HttpResponse.json(
+            { detail: 'No pudimos calcular el total.' },
+            { status: 400 },
+          ),
+        { once: true },
+      ),
+    )
     useCartStore.setState({ isOpen: true, items: [{ product, quantity: 1 }] })
 
     render(<CartDrawer />, { wrapper: Wrapper })
@@ -102,8 +111,7 @@ describe('CartDrawer', () => {
       screen.getByRole('button', { name: 'Reintentar cotización' }),
     )
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
-    expect(screen.getAllByText('$29.990')).toHaveLength(2)
-    expect(attempts).toBe(2)
+    expect(screen.getAllByText('$29.990')).toHaveLength(1)
   })
 
   it('navigates to /checkout and closes the drawer from the CTA', async () => {

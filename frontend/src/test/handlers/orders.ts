@@ -8,6 +8,10 @@ type CreateOrderInput = NonNullable<
   paths['/api/orders/']['post']['requestBody']
 >['content']['application/json']
 type OrderItem = components['schemas']['OrderItem']
+type GuestQuote = components['schemas']['GuestQuoteResponse']
+type GuestQuoteInput = NonNullable<
+  paths['/api/orders/quote/']['post']['requestBody']
+>['content']['application/json']
 
 let nextOrderId = 100
 
@@ -81,6 +85,30 @@ export const testOrder: Order = makeOrder(
 )
 
 export const orderHandlers = [
+  http.post('http://localhost:8000/api/orders/quote/', async ({ request }) => {
+    const body = (await request.json()) as GuestQuoteInput
+    const [item] = body.items
+
+    return HttpResponse.json(
+      {
+        items: [
+          {
+            product_id: item.product_id,
+            product_name: 'Vibrador de prueba',
+            quantity: item.quantity,
+            unit_price: 29990,
+            line_total: 29990,
+          },
+        ],
+        subtotal: 29990,
+        ...(body.comuna === undefined
+          ? {}
+          : { shipping_cost: 0, total: 29990 }),
+        revision: 'gq.test',
+      } satisfies GuestQuote,
+    )
+  }),
+
   http.post('http://localhost:8000/api/orders/', async ({ request }) => {
     const body = (await request.json()) as CreateOrderInput
     const order = makeOrder(body, [

@@ -1,11 +1,29 @@
 import { http, HttpResponse } from 'msw'
 
-const testRegions = [
+import type { operations } from '@/api/schema'
+
+type RegionsResponse =
+  operations['shipping_regions_list']['responses'][200]['content']['application/json']
+type RegionFixture = Pick<
+  RegionsResponse[number],
+  'id' | 'name' | 'ordinal_number'
+>
+type ComunasRequest = NonNullable<
+  operations['shipping_comunas_list']['parameters']['query']
+>
+type ComunasResponse =
+  operations['shipping_comunas_list']['responses'][200]['content']['application/json']
+type DispatchOptionsRequest =
+  operations['shipping_dispatch_options_retrieve']['parameters']['query']
+type DispatchOptionsResponse =
+  operations['shipping_dispatch_options_retrieve']['responses'][200]['content']['application/json']
+
+const testRegions: RegionFixture[] = [
   { id: 13, name: 'Región Metropolitana', ordinal_number: 7 },
   { id: 5, name: 'Valparaíso', ordinal_number: 4 },
 ]
 
-const testComunas = [
+const testComunas: ComunasResponse = [
   { id: 1, name: 'Santiago', shipping_cost: 3500, is_active: true },
   { id: 2, name: 'Providencia', shipping_cost: 3500, is_active: true },
   ...Array.from({ length: 10 }, (_, index) => ({
@@ -25,7 +43,10 @@ export const shippingHandlers = [
   http.get(/\/api\/shipping\/comunas\/$/, ({ request }) => {
     const url = new URL(request.url)
     const regionParam = url.searchParams.get('region')
-    const regionId = regionParam ? parseInt(regionParam, 10) : null
+    const query: ComunasRequest = {
+      region: regionParam ? parseInt(regionParam, 10) : undefined,
+    }
+    const regionId = query.region ?? null
 
     const filtered =
       regionId === null
@@ -45,18 +66,22 @@ export const shippingHandlers = [
 
   http.get(/\/api\/shipping\/dispatch-options\/$/, ({ request }) => {
     const url = new URL(request.url)
-    const comunaId = parseInt(url.searchParams.get('comuna') ?? '0', 10)
+    const query: DispatchOptionsRequest = {
+      comuna: parseInt(url.searchParams.get('comuna') ?? '0', 10),
+    }
+    const comunaId = query.comuna
 
     if (comunaId === 1) {
-      return HttpResponse.json({
+      const response: DispatchOptionsResponse = {
         comuna_id: comunaId,
         mode: 'santiago',
         dates: ['2026-08-25', '2026-08-27'],
         shipping_option: null,
-      })
+      }
+      return HttpResponse.json(response)
     }
 
-    return HttpResponse.json({
+    const response: DispatchOptionsResponse = {
       comuna_id: comunaId,
       mode: 'regional',
       dates: null,
@@ -64,10 +89,10 @@ export const shippingHandlers = [
         shipping_option_id: 7,
         key: 'chilexpress',
         carrier: 'Chilexpress',
-        tariff: 4900,
         min_lead_days: 2,
         max_lead_days: 4,
       },
-    })
+    }
+    return HttpResponse.json(response)
   }),
 ]

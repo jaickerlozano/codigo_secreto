@@ -5,14 +5,14 @@ import { formatCLP } from '@/lib/format'
 
 import type { UseCartResult } from '@/features/cart/hooks/useCart'
 
-type OrderSummaryCart = Pick<UseCartResult, 'items' | 'mode' | 'subtotal' | 'shippingCost' | 'total' | 'quoteIsLoading' | 'quoteIsError' | 'quoteError' | 'retryQuote'>
+type OrderSummaryCart = Pick<UseCartResult, 'items' | 'mode' | 'subtotal' | 'shippingCost' | 'total' | 'hasShippingDestination' | 'quoteIsLoading' | 'quoteIsError' | 'quoteError' | 'retryQuote'>
 
 interface OrderSummaryProps { cart: OrderSummaryCart }
 
 function quoteAmount(value: number | null, empty = 'Cotizando…') { return value === null ? empty : formatCLP(value) }
 
 export function OrderSummary({ cart }: OrderSummaryProps) {
-  const { items, mode, subtotal, shippingCost, total, quoteIsLoading, quoteIsError, quoteError, retryQuote } = cart
+  const { items, mode, subtotal, shippingCost, total, hasShippingDestination, quoteIsLoading, quoteIsError, quoteError, retryQuote } = cart
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -83,10 +83,12 @@ export function OrderSummary({ cart }: OrderSummaryProps) {
             <span className="text-muted-foreground">Envío</span>
             <span
               className={
-                shippingCost === 0 ? 'text-neon-lime' : 'text-foreground'
+                hasShippingDestination && shippingCost === 0 ? 'text-neon-lime' : 'text-foreground'
               }
             >
-              {shippingCost === 0 ? 'Gratis' : quoteAmount(shippingCost, 'Selecciona una comuna')}
+              {hasShippingDestination
+                ? (shippingCost === 0 ? 'Gratis' : quoteAmount(shippingCost))
+                : 'Selecciona una comuna'}
             </span>
           </div>
           <div className="flex justify-between border-t border-white/[0.06] pt-2.5 text-[15px] font-extrabold">

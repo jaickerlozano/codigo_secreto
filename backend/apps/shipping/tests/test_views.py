@@ -4,8 +4,9 @@ import pytest
 from django.utils import timezone
 from rest_framework import status
 
-from apps.shipping.models import Comuna, Region
+from apps.shipping.models import Comuna, Region, RegionalShippingOption
 from apps.shipping.services import resolve_shipping_price
+from apps.shipping.admin import RegionalShippingOptionAdmin
 
 
 pytestmark = pytest.mark.django_db
@@ -63,10 +64,11 @@ def test_list_regions_ordered_by_ordinal_number(api_client, region_factory):
 
 
 def test_region_detail_public(api_client, region_factory, comuna_factory):
-    """GET /api/shipping/regions/{id}/ is public and includes only active comunas."""
+    """GET /api/shipping/regions/{id}/ includes only active priced comunas."""
     region = region_factory(name="Región Detail")
-    active_comuna = comuna_factory(region=region, name="Comuna Activa", is_active=True)
+    active_comuna = comuna_factory(region=region, name="Comuna Activa", is_active=True, shipping_cost=2500)
     comuna_factory(region=region, name="Comuna Inactiva", is_active=False)
+    comuna_factory(region=region, name="Comuna Sin Precio", shipping_cost=0)
 
     response = api_client.get(f"/api/shipping/regions/{region.id}/")
 
@@ -111,8 +113,8 @@ def test_region_delete_not_allowed(api_client, region_factory):
 
 
 def test_list_comunas_public(api_client, comuna_factory):
-    """GET /api/shipping/comunas/ is public and returns active comunas."""
-    comuna = comuna_factory(name="Comuna Pública", is_active=True)
+    """GET /api/shipping/comunas/ returns active priced comunas."""
+    comuna = comuna_factory(name="Comuna Pública", is_active=True, shipping_cost=2500)
 
     response = api_client.get("/api/shipping/comunas/")
     assert response.status_code == status.HTTP_200_OK
@@ -134,6 +136,19 @@ def test_list_comunas_excludes_inactive(api_client, comuna_factory):
     ids = {item["id"] for item in comunas}
 
     assert inactive_comuna.id not in ids
+
+
+def test_list_comunas_excludes_zero_priced_and_inactive_comunas(api_client, comuna_factory):
+    zero_priced = comuna_factory(name="Comuna Sin Precio", shipping_cost=0)
+    inactive = comuna_factory(name="Comuna Inactiva", shipping_cost=2500, is_active=False)
+    eligible = comuna_factory(name="Comuna Disponible", shipping_cost=2500)
+
+    response = api_client.get("/api/shipping/comunas/")
+
+    ids = {item["id"] for item in response.json()}
+    assert eligible.id in ids
+    assert zero_priced.id not in ids
+    assert inactive.id not in ids
 
 
 def test_list_comunas_ordered_by_name(api_client, comuna_factory, region_factory):
@@ -195,11 +210,11 @@ def test_list_comunas_filtered_by_region(api_client, comuna_factory, region_fact
     region_a = region_factory(name="Región A")
     region_b = region_factory(name="Región B")
     created = [
-        comuna_factory(name=f"Comuna {index:02d}", region=region_a)
+        comuna_factory(name=f"Comuna {index:02d}", region=region_a, shipping_cost=2500)
         for index in range(12, 0, -1)
     ]
     inactive_comuna = comuna_factory(name="Comuna Inactiva", region=region_a, is_active=False)
-    other_region_comuna = comuna_factory(name="Comuna Otra Región", region=region_b)
+    other_region_comuna = comuna_factory(name="Comuna Otra Región", region=region_b, shipping_cost=2500)
 
     response = api_client.get(f"/api/shipping/comunas/?region={region_a.id}")
 
@@ -271,15 +286,15 @@ def test_dispatch_options_regional_exposes_one_applicable_option(
     assert selected["shipping_option_id"] == option.id
     assert selected["key"] == "regional"
     assert selected["carrier"] == "CS Logistics"
-    assert selected["tariff"] == 5500
+    assert "tariff" not in selected
     assert selected["min_lead_days"] == 2
     assert selected["max_lead_days"] == 5
 
 
-def test_dispatch_options_regional_tariff_matches_price_authority(
+def test_dispatch_options_regional_tariff_never_changes_comuna_price(
     api_client, comuna_factory, region_factory, regional_option_factory
 ):
-    """The advertised regional tariff equals the exclusive backend price authority."""
+    """Regional metadata excludes tariff while the comuna remains authoritative."""
     comuna = comuna_factory(
         region=region_factory(name="Valparaiso"), shipping_cost=9000
     )
@@ -289,8 +304,9 @@ def test_dispatch_options_regional_tariff_matches_price_authority(
 
     authority = resolve_shipping_price(comuna_id=comuna.id)
     assert response.status_code == status.HTTP_200_OK
-    assert authority.authority == "regional"
-    assert response.json()["shipping_option"]["tariff"] == authority.price
+    assert authority.authority == "comuna"
+    assert authority.price == comuna.shipping_cost
+    assert "tariff" not in response.json()["shipping_option"]
 
 
 def test_dispatch_options_requires_comuna_parameter(api_client):
@@ -323,18 +339,18 @@ def test_dispatch_options_inactive_comuna_fails_closed(api_client, comuna_factor
     assert response.json()["code"] == "delivery_unavailable"
 
 
-def test_dispatch_options_regional_without_configuration_fails_closed(
+def test_dispatch_options_regional_without_profile_remains_available(
     api_client, comuna_factory, region_factory
 ):
     comuna = comuna_factory(region=region_factory(name="Valparaiso"))
 
     response = _dispatch_options(api_client, comuna)
 
-    assert response.status_code == status.HTTP_404_NOT_FOUND
-    assert response.json()["code"] == "delivery_unavailable"
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["shipping_option"] is None
 
 
-def test_dispatch_options_ambiguous_regional_configuration_fails_closed_without_leaks(
+def test_dispatch_options_ambiguous_regional_profiles_hide_metadata_without_affecting_availability(
     api_client, comuna_factory, region_factory, regional_option_factory
 ):
     """Two active regional options fail closed; no configuration detail leaks."""
@@ -344,11 +360,15 @@ def test_dispatch_options_ambiguous_regional_configuration_fails_closed_without_
 
     response = _dispatch_options(api_client, comuna)
 
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["shipping_option"] is None
+
+
+def test_dispatch_options_zero_priced_comuna_fails_closed(api_client, comuna_factory):
+    response = _dispatch_options(api_client, comuna_factory(shipping_cost=0))
+
     assert response.status_code == status.HTTP_404_NOT_FOUND
-    body = response.json()
-    assert body["code"] == "delivery_configuration_invalid"
-    assert "Carrier One" not in str(body)
-    assert "Carrier Two" not in str(body)
+    assert response.json()["code"] == "delivery_unavailable"
 
 
 def test_dispatch_options_is_read_only(api_client, comuna_factory):
@@ -357,3 +377,16 @@ def test_dispatch_options_is_read_only(api_client, comuna_factory):
     response = api_client.post(DISPATCH_OPTIONS_URL, {"comuna": comuna.id})
 
     assert response.status_code == status.HTTP_405_METHOD_NOT_ALLOWED
+
+
+def test_public_schema_and_admin_hide_regional_tariff():
+    from django.contrib.admin.sites import AdminSite
+    from drf_spectacular.generators import SchemaGenerator
+
+    schema = SchemaGenerator().get_schema(request=None, public=True)
+    fields = schema["components"]["schemas"]["RegionalDispatchOption"]["properties"]
+    admin = RegionalShippingOptionAdmin(RegionalShippingOption, AdminSite())
+
+    assert "tariff" not in fields
+    assert "tariff" not in admin.list_display
+    assert "tariff" in admin.exclude

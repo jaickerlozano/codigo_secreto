@@ -85,12 +85,27 @@ class MyCartView(APIView):
         summary="Remover o disminuir producto del carrito",
         description="Recibe un product_id y la cantidad a quitar. Si la cantidad del carro llega a cero o menos, el ítem se elimina por completo.",
         tags=["Carrito"],
-        request=AddToCartSerializer, # Reutilizamos el mismo serializador para validar la entrada
+        parameters=[
+            OpenApiParameter(
+                name="product_id",
+                location=OpenApiParameter.QUERY,
+                required=True,
+                type=OpenApiTypes.INT,
+            ),
+            OpenApiParameter(
+                name="quantity",
+                location=OpenApiParameter.QUERY,
+                required=True,
+                type=OpenApiTypes.INT,
+            ),
+        ],
         responses={200: CartSerializer}
     )
     def delete(self, request):
         # 1. Validamos los datos de entrada (product_id y quantity a restar)
-        serializer = AddToCartSerializer(data=request.data)
+        serializer = AddToCartSerializer(
+            data=request.query_params if request.query_params else request.data
+        )
         serializer.is_valid(raise_exception=True)
 
         product_id = serializer.validated_data['product_id']

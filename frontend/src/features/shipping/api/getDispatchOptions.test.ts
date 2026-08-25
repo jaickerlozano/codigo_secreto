@@ -21,7 +21,6 @@ describe('getDispatchOptions', () => {
       shippingOptionId: 7,
       key: 'chilexpress',
       carrier: 'Chilexpress',
-      tariff: 4900,
       minLeadDays: 2,
       maxLeadDays: 4,
     })

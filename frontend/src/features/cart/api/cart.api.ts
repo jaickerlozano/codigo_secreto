@@ -16,8 +16,10 @@ function extractErrorMessage(error: unknown): string {
   return 'Ocurrió un error con el carrito. Inténtalo de nuevo.'
 }
 
-export async function getCart(): Promise<Cart> {
-  const { data, error } = await apiClient.GET('/api/cart/me/')
+export async function getCart(comunaId?: number | null): Promise<Cart> {
+  const { data, error } = await apiClient.GET('/api/cart/me/', {
+    params: comunaId == null ? undefined : { query: { comuna: comunaId } },
+  })
 
   if (error || !data) {
     throw new Error(extractErrorMessage(error))
@@ -39,10 +41,9 @@ export async function addToCart(input: AddToCartInput): Promise<Cart> {
 }
 
 export async function removeFromCart(input: AddToCartInput): Promise<Cart> {
-  // drf-spectacular no genera requestBody para DELETE, pero la vista lo requiere.
-  const { data, error } = (await apiClient.DELETE('/api/cart/me/', {
-    body: input,
-  } as never)) as { data: Cart | undefined; error: unknown }
+  const { data, error } = await apiClient.DELETE('/api/cart/me/', {
+    params: { query: input },
+  })
 
   if (error || !data) {
     throw new Error(extractErrorMessage(error))

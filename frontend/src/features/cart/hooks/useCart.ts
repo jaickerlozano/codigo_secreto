@@ -29,6 +29,7 @@ export interface UseCartResult {
   total: number | null
   freeShippingProgress: number
   freeShippingThreshold: number
+  hasShippingDestination: boolean
   quote: ReturnType<typeof useGuestQuote>['data'] | null
   quoteInput: Parameters<typeof useGuestQuote>[0]
   quoteIsLoading: boolean
@@ -57,7 +58,7 @@ export function useCart(
     error: cartError,
     isLoading: isCartLoading,
     refetch: refetchCart,
-  } = useCartItems({ enabled: mode === 'authenticated' })
+  } = useCartItems({ comunaId: options.comunaId, enabled: mode === 'authenticated' })
   const guestQuote = useGuestQuote(mode === 'guest' ? quoteInput : { items: [] })
   const addToCartMutation = useAddToCart()
   const removeFromCartMutation = useRemoveFromCart()
@@ -76,10 +77,15 @@ export function useCart(
   )
 
   const isAuthenticated = mode === 'authenticated'
+  const hasShippingDestination = options.comunaId != null
 
-  const subtotal = isAuthenticated ? (cartData?.subtotal ?? 0) : (guestQuote.data?.subtotal ?? null)
-  const shippingCost = isAuthenticated ? (cartData?.shipping_cost ?? 0) : (guestQuote.data?.shipping_cost ?? null)
-  const total = isAuthenticated ? (cartData?.total ?? 0) : (guestQuote.data?.total ?? null)
+  const subtotal = isAuthenticated ? (cartData?.subtotal ?? null) : (guestQuote.data?.subtotal ?? null)
+  const shippingCost = hasShippingDestination
+    ? (isAuthenticated ? (cartData?.shipping_cost ?? null) : (guestQuote.data?.shipping_cost ?? null))
+    : null
+  const total = hasShippingDestination
+    ? (isAuthenticated ? (cartData?.total ?? null) : (guestQuote.data?.total ?? null))
+    : null
   const freeShippingProgress = isAuthenticated
     ? (cartData?.free_shipping_progress ?? 0)
     : 0
@@ -169,6 +175,7 @@ export function useCart(
     total,
     freeShippingProgress,
     freeShippingThreshold,
+    hasShippingDestination,
     quote: isAuthenticated ? null : (guestQuote.data ?? null),
     quoteInput,
     quoteIsLoading: isAuthenticated ? false : guestQuote.isLoading || guestQuote.isFetching,

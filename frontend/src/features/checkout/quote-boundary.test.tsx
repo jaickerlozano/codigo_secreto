@@ -21,11 +21,24 @@ describe('PR07 quote boundary', () => {
   })
 
   it('keeps confirmation gated and exposes an accessible quote retry', () => {
-    const retry = vi.fn(); render(<OrderSummary cart={{ items: [], mode: 'guest', subtotal: null, shippingCost: null, total: null, quoteIsLoading: false, quoteIsError: true, quoteError: new Error('Quote unavailable'), retryQuote: retry }} />)
+    const retry = vi.fn(); render(<OrderSummary cart={{ items: [], mode: 'guest', subtotal: null, shippingCost: null, total: null, hasShippingDestination: false, quoteIsLoading: false, quoteIsError: true, quoteError: new Error('Quote unavailable'), retryQuote: retry }} />)
     expect(screen.getByRole('alert').textContent).toContain('Quote unavailable')
     screen.getByRole('button', { name: 'Reintentar cálculo' }).click()
     expect(retry).toHaveBeenCalledOnce()
     render(<StepReview data={data} subtotal={null} shippingCost={null} total={null} quoteReady={false} onEditStep={vi.fn()} onTermsChange={vi.fn()} onBack={vi.fn()} onConfirm={vi.fn()} />)
     expect(screen.getByRole('button', { name: 'Confirmar pedido' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('does not present an unselected destination as a confirmed free rate', () => {
+    render(<OrderSummary cart={{ items: [], mode: 'authenticated', subtotal: 10000, shippingCost: 0, total: 10000, hasShippingDestination: false, quoteIsLoading: false, quoteIsError: false, quoteError: null, retryQuote: vi.fn() }} />)
+
+    expect(screen.getByText('Selecciona una comuna')).toBeTruthy()
+    expect(screen.queryByText('Gratis')).toBeNull()
+  })
+
+  it('shows the authoritative quote returned for the selected destination', () => {
+    render(<OrderSummary cart={{ items: [], mode: 'authenticated', subtotal: 10000, shippingCost: 4900, total: 14900, hasShippingDestination: true, quoteIsLoading: false, quoteIsError: false, quoteError: null, retryQuote: vi.fn() }} />)
+
+    expect(screen.getByText('$4.900')).toBeTruthy()
   })
 })

@@ -80,4 +80,42 @@ describe('useCart', () => {
     expect(result.current.items).toEqual([])
     expect(quoteRequests).toBe(0)
   })
+
+  it('requests a destination-priced authenticated cart and rekeys when comuna changes', async () => {
+    const requestedComunas: string[] = []
+    server.use(
+      http.get('http://localhost:8000/api/cart/me/', ({ request }) => {
+        const comuna = new URL(request.url).searchParams.get('comuna')
+        requestedComunas.push(comuna ?? '')
+        const shippingCost = comuna === '83' ? 4900 : 6200
+
+        return HttpResponse.json({
+          id: 1,
+          created_at: '2026-07-09T00:00:00Z',
+          updated_at: '2026-07-09T00:00:00Z',
+          items: [],
+          monto_total_final: 29990 + shippingCost,
+          subtotal: 29990,
+          shipping_cost: shippingCost,
+          total: 29990 + shippingCost,
+          free_shipping_progress: 0,
+          free_shipping_threshold: 30000,
+        })
+      }),
+    )
+    useCartStore.setState({ mode: 'authenticated' })
+
+    const { result, rerender } = renderHook(
+      ({ comunaId }: { comunaId: number }) => useCart({ comunaId }),
+      { initialProps: { comunaId: 83 }, wrapper: Wrapper },
+    )
+
+    await waitFor(() => expect(result.current.shippingCost).toBe(4900))
+    expect(requestedComunas).toEqual(['83'])
+
+    rerender({ comunaId: 84 })
+
+    await waitFor(() => expect(result.current.shippingCost).toBe(6200))
+    expect(requestedComunas).toEqual(['83', '84'])
+  })
 })

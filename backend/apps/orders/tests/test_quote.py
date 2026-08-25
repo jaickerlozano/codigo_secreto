@@ -126,42 +126,39 @@ def test_quote_schema_is_explicitly_annotated():
     assert {"400", "429"} <= set(operation["responses"])
 
 
-def test_guest_quote_regional_delivery_uses_exact_regional_tariff(
+def test_guest_quote_regional_delivery_uses_exact_comuna_cost(
     product_factory, comuna_factory
 ):
     product = product_factory(price=2000)
     comuna = comuna_factory(
         region=RegionFactory(name="Valparaiso"), shipping_cost=9000
     )
-    RegionalShippingOptionFactory(key="regional", tariff=5500)
-
     quote = calculate_guest_quote(items((product.id, 2)), comuna_selector=comuna.id)
 
-    assert (quote.shipping_cost, quote.total, quote.comuna_id) == (5500, 9500, comuna.id)
+    assert (quote.shipping_cost, quote.total, quote.comuna_id) == (9000, 13000, comuna.id)
 
 
-def test_guest_quote_missing_regional_config_fails_closed(
+def test_guest_quote_zero_priced_comuna_fails_closed(
     product_factory, comuna_factory
 ):
     product = product_factory(price=2000)
-    comuna = comuna_factory(region=RegionFactory(name="Valparaiso"))
+    comuna = comuna_factory(region=RegionFactory(name="Valparaiso"), shipping_cost=0)
 
     with pytest.raises(GuestQuoteValidationError):
         calculate_guest_quote(items((product.id, 1)), comuna_selector=comuna.id)
 
 
-def test_regional_tariff_drift_refuses_creation_and_refreshes_quote(
+def test_comuna_price_drift_refuses_creation_and_refreshes_quote(
     api_client, product_factory, comuna_factory
 ):
     product = product_factory(price=1000)
     comuna = comuna_factory(
         region=RegionFactory(name="Valparaiso"), shipping_cost=9000
     )
-    regional = RegionalShippingOptionFactory(key="regional", tariff=5500)
     item_list = items((product.id, 1))
     revision = calculate_guest_quote(item_list, comuna_selector=comuna.id).revision
-    regional.tariff = 6000
-    regional.save(update_fields=["tariff"])
+    comuna.shipping_cost = 6000
+    comuna.save(update_fields=["shipping_cost"])
 
     response = api_client.post(
         "/api/orders/",
@@ -210,9 +207,29 @@ def test_authenticated_estimate_matches_charged_snapshot_regional(
     authenticated_client, user, cart_factory, cart_item_factory, product_factory, comuna_factory
 ):
     comuna = comuna_factory(region=RegionFactory(name="Valparaiso"), shipping_cost=9000)
-    option = RegionalShippingOptionFactory(key="regional", tariff=5500)
     _assert_estimate_matches_charged_snapshot(
         authenticated_client, user, cart_factory, cart_item_factory,
-        product_factory, comuna, 5500,
-        {"delivery_kind": "standard", "shipping_option_id": option.id},
+        product_factory, comuna, 9000,
+        {"delivery_kind": "standard"},
     )
+
+
+def test_profile_tariff_change_never_changes_quote_or_order_price(
+    api_client, product_factory, comuna_factory
+):
+    product = product_factory(price=1000)
+    comuna = comuna_factory(region=RegionFactory(name="Valparaiso"), shipping_cost=4200)
+    profile = RegionalShippingOptionFactory(key="regional", tariff=5500)
+    item_list = items((product.id, 1))
+    quote = calculate_guest_quote(item_list, comuna_selector=comuna.id)
+    profile.tariff = 9900
+    profile.save(update_fields=["tariff"])
+
+    response = api_client.post("/api/orders/", {
+        "guest_email": "guest@example.com", "guest_name": "Guest", "phone": "+56912345678",
+        "comuna": comuna.id, "shipping_address": "Street 1", "guest_items": item_list,
+        "confirmed_revision": quote.revision,
+    }, format="json")
+
+    assert response.status_code == status.HTTP_201_CREATED
+    assert response.json()["shipping_cost"] == comuna.shipping_cost

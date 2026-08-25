@@ -120,10 +120,12 @@ export const cartHandlers = [
     return HttpResponse.json(serverCart, { status: 201 })
   }),
 
-  http.delete('http://localhost:8000/api/cart/me/', async ({ request }) => {
-    const body = (await request.json()) as AddToCart
+  http.delete('http://localhost:8000/api/cart/me/', ({ request }) => {
+    const url = new URL(request.url)
+    const productId = Number(url.searchParams.get('product_id'))
+    const quantity = Number(url.searchParams.get('quantity'))
     const index = serverCart.items.findIndex(
-      (item) => item.product.id === body.product_id
+      (item) => item.product.id === productId
     )
 
     if (index < 0) {
@@ -138,12 +140,12 @@ export const cartHandlers = [
 
     const existing = serverCart.items[index]
     const currentQty = existing.quantity ?? 1
-    if (currentQty <= body.quantity) {
+    if (currentQty <= quantity) {
       serverCart.items = serverCart.items.filter(
-        (item) => item.product.id !== body.product_id
+        (item) => item.product.id !== productId
       )
     } else {
-      const newQuantity = currentQty - body.quantity
+      const newQuantity = currentQty - quantity
       serverCart.items[index] = {
         ...existing,
         quantity: newQuantity,

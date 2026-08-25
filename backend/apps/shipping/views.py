@@ -11,7 +11,6 @@ from .serializers import (
     DispatchOptionsSerializer,
 )
 from .services import (
-    SHIPPING_AUTHORITY_COMUNA,
     ShippingSnapshotResolutionError,
     future_dispatch_dates,
     resolve_regional_shipping_option,
@@ -20,7 +19,7 @@ from .services import (
 
 @extend_schema(
     summary="Listar regiones de Chile con sus comunas",
-    description="Devuelve el listado completo de las 16 regiones oficiales ordenadas de Norte a Sur, incluyendo sus comunas activas de forma anidada.",
+    description="Devuelve las 16 regiones oficiales ordenadas de Norte a Sur, incluyendo solo comunas activas con costo de envío positivo.",
     tags=["Despachos"]
 )
 class RegionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
@@ -35,14 +34,14 @@ class RegionViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.G
 
 @extend_schema(
     summary="Listar todas las comunas de Chile sueltas",
-    description="Devuelve el listado plano de todas las comunas de Chile. Permite ver sus costos de despacho individuales.",
+    description="Devuelve comunas activas con costo de envío positivo, aptas para cotizar y despachar.",
     tags=["Despachos"]
 )
 class ComunaViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     """
     Controlador de solo lectura para obtener las comunas de Chile de forma plana.
     """
-    queryset = Comuna.objects.filter(is_active=True)
+    queryset = Comuna.objects.filter(is_active=True, shipping_cost__gt=0)
     serializer_class = ComunaSerializer
     pagination_class = None
     permission_classes = [AllowAny]
@@ -51,7 +50,7 @@ class ComunaViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.G
 
 @extend_schema(
     summary="Opciones de despacho para una comuna",
-    description="Devuelve las opciones de despacho autoritativas para la comuna indicada: para Santiago, las próximas cuatro fechas de martes/jueves (excluyendo hoy); fuera de Santiago, la única opción regional configurada (transportista, tarifa y plazos). Si el destino o la configuración no están disponibles, falla cerrado con un error tipificado.",
+    description="Devuelve metadatos de despacho para una comuna elegible: para Santiago, las próximas cuatro fechas de martes/jueves; fuera de Santiago, el perfil regional si existe uno único. El precio se cotiza exclusivamente desde el costo de la comuna.",
     tags=["Despachos"],
     parameters=[OpenApiParameter(
         name="comuna", location=OpenApiParameter.QUERY, required=True,
@@ -83,12 +82,12 @@ class DispatchOptionsView(APIView):
 
         try:
             comuna = Comuna.objects.select_related("region").only(
-                "id", "is_active", "region__name"
+                "id", "is_active", "shipping_cost", "region__name"
             ).get(id=comuna_id)
         except Comuna.DoesNotExist:
             return self._unavailable()
 
-        if not comuna.is_active:
+        if not comuna.is_active or comuna.shipping_cost <= 0:
             return self._unavailable()
 
         try:
@@ -104,7 +103,7 @@ class DispatchOptionsView(APIView):
         if price is None:
             return self._unavailable()
 
-        if price.authority == SHIPPING_AUTHORITY_COMUNA:
+        if comuna.region.name == "Metropolitana de Santiago":
             return Response(DispatchOptionsSerializer({
                 "comuna_id": comuna_id,
                 "mode": "santiago",
@@ -112,9 +111,10 @@ class DispatchOptionsView(APIView):
                 "shipping_option": None,
             }).data)
 
-        regional = resolve_regional_shipping_option()
-        if regional is None:
-            return self._unavailable()
+        try:
+            regional = resolve_regional_shipping_option()
+        except ShippingSnapshotResolutionError:
+            regional = None
         return Response(DispatchOptionsSerializer({
             "comuna_id": comuna_id,
             "mode": "regional",
@@ -123,10 +123,9 @@ class DispatchOptionsView(APIView):
                 "shipping_option_id": regional.id,
                 "key": regional.key,
                 "carrier": regional.carrier,
-                "tariff": regional.tariff,
                 "min_lead_days": regional.min_lead_days,
                 "max_lead_days": regional.max_lead_days,
-            },
+            } if regional is not None else None,
         }).data)
 
     @staticmethod

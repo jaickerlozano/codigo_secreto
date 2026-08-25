@@ -35,7 +35,6 @@ export function mapApiDispatchOptions(
           shippingOptionId: api.shipping_option.shipping_option_id,
           key: api.shipping_option.key,
           carrier: api.shipping_option.carrier,
-          tariff: api.shipping_option.tariff,
           minLeadDays: api.shipping_option.min_lead_days,
           maxLeadDays: api.shipping_option.max_lead_days,
         }

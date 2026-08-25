@@ -4,7 +4,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from .services import calculate_cart_totals, FREE_SHIPPING_THRESHOLD
+from .services import calculate_cart_totals
 
 
 class CartItemSerializer(serializers.ModelSerializer):
@@ -68,11 +68,11 @@ class CartSerializer(serializers.ModelSerializer):
     def get_subtotal(self, obj):
         return self._cart_totals(obj)['subtotal']
 
-    @extend_schema_field(OpenApiTypes.INT)
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_shipping_cost(self, obj):
         return self._cart_totals(obj)['shipping_cost']
 
-    @extend_schema_field(OpenApiTypes.INT)
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_total(self, obj):
         return self._cart_totals(obj)['total']
 
@@ -82,7 +82,7 @@ class CartSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.INT)
     def get_free_shipping_threshold(self, obj):
-        return FREE_SHIPPING_THRESHOLD
+        return 0
 
 
 class AddToCartSerializer(serializers.Serializer):

@@ -84,6 +84,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/me/phone/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Actualizar teléfono del perfil autenticado
+         * @description Valida y normaliza el teléfono móvil chileno usado para el checkout.
+         */
+        patch: operations["auth_me_phone_partial_update"];
+        trace?: never;
+    };
     "/api/auth/register/": {
         parameters: {
             query?: never;
@@ -414,7 +434,7 @@ export interface paths {
         };
         /**
          * Listar todas las comunas de Chile sueltas
-         * @description Devuelve el listado plano de todas las comunas de Chile. Permite ver sus costos de despacho individuales.
+         * @description Devuelve comunas activas con costo de envío positivo, aptas para cotizar y despachar.
          */
         get: operations["shipping_comunas_list"];
         put?: never;
@@ -434,7 +454,7 @@ export interface paths {
         };
         /**
          * Listar todas las comunas de Chile sueltas
-         * @description Devuelve el listado plano de todas las comunas de Chile. Permite ver sus costos de despacho individuales.
+         * @description Devuelve comunas activas con costo de envío positivo, aptas para cotizar y despachar.
          */
         get: operations["shipping_comunas_retrieve"];
         put?: never;
@@ -454,7 +474,7 @@ export interface paths {
         };
         /**
          * Opciones de despacho para una comuna
-         * @description Devuelve las opciones de despacho autoritativas para la comuna indicada: para Santiago, las próximas cuatro fechas de martes/jueves (excluyendo hoy); fuera de Santiago, la única opción regional configurada (transportista, tarifa y plazos). Si el destino o la configuración no están disponibles, falla cerrado con un error tipificado.
+         * @description Devuelve metadatos de despacho para una comuna elegible: para Santiago, las próximas cuatro fechas de martes/jueves; fuera de Santiago, el perfil regional si existe uno único. El precio se cotiza exclusivamente desde el costo de la comuna.
          */
         get: operations["shipping_dispatch_options_retrieve"];
         put?: never;
@@ -474,7 +494,7 @@ export interface paths {
         };
         /**
          * Listar regiones de Chile con sus comunas
-         * @description Devuelve el listado completo de las 16 regiones oficiales ordenadas de Norte a Sur, incluyendo sus comunas activas de forma anidada.
+         * @description Devuelve las 16 regiones oficiales ordenadas de Norte a Sur, incluyendo solo comunas activas con costo de envío positivo.
          */
         get: operations["shipping_regions_list"];
         put?: never;
@@ -494,7 +514,7 @@ export interface paths {
         };
         /**
          * Listar regiones de Chile con sus comunas
-         * @description Devuelve el listado completo de las 16 regiones oficiales ordenadas de Norte a Sur, incluyendo sus comunas activas de forma anidada.
+         * @description Devuelve las 16 regiones oficiales ordenadas de Norte a Sur, incluyendo solo comunas activas con costo de envío positivo.
          */
         get: operations["shipping_regions_retrieve"];
         put?: never;
@@ -593,8 +613,8 @@ export interface components {
             readonly items: components["schemas"]["CartItem"][];
             readonly monto_total_final: number;
             readonly subtotal: number;
-            readonly shipping_cost: number;
-            readonly total: number;
+            readonly shipping_cost: number | null;
+            readonly total: number | null;
             readonly free_shipping_progress: number;
             readonly free_shipping_threshold: number;
         };
@@ -750,8 +770,7 @@ export interface components {
         Order: {
             readonly id: number;
             readonly order_number: string;
-            /** Teléfono de contacto */
-            phone: string;
+            phone?: string;
             comuna?: number;
             comuna_name?: string;
             readonly comuna_display: string;
@@ -816,8 +835,7 @@ export interface components {
             shipping_option_id?: number | null;
         };
         OrderCreate: {
-            /** Teléfono de contacto */
-            phone: string;
+            phone?: string;
             comuna?: number;
             comuna_name?: string;
             region_name?: string;
@@ -992,6 +1010,9 @@ export interface components {
              */
             readonly updated_at?: string;
         };
+        PatchedProfilePhone: {
+            phone?: string;
+        };
         PatchedSupplier: {
             readonly id?: number;
             /** Nombre */
@@ -1083,12 +1104,11 @@ export interface components {
             ordinal_number: number;
             readonly comunas: string;
         };
-        /** @description The one applicable regional shipping option for a non-Santiago comuna. */
+        /** @description The one applicable regional dispatch profile for a non-Santiago comuna. */
         RegionalDispatchOption: {
             readonly shipping_option_id: number;
             readonly key: string;
             readonly carrier: string;
-            readonly tariff: number;
             readonly min_lead_days: number;
             readonly max_lead_days: number;
         };
@@ -1264,6 +1284,31 @@ export interface operations {
             };
         };
     };
+    auth_me_phone_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedProfilePhone"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedProfilePhone"];
+                "multipart/form-data": components["schemas"]["PatchedProfilePhone"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserMe"];
+                };
+            };
+        };
+    };
     auth_register_create: {
         parameters: {
             query?: never;
@@ -1363,7 +1408,10 @@ export interface operations {
     };
     cart_me_destroy: {
         parameters: {
-            query?: never;
+            query: {
+                product_id: number;
+                quantity: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;

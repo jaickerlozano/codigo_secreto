@@ -30,16 +30,12 @@ class RegionalShippingSnapshot:
     id: int
     key: str
     carrier: str
-    tariff: int
     min_lead_days: int
     max_lead_days: int
 
 
-# Santiago comunas price exactly from Comuna.shipping_cost; every other region
-# prices exactly from the sole active RegionalShippingOption.tariff.
 SANTIAGO_REGION_NAME = "Metropolitana de Santiago"
 SHIPPING_AUTHORITY_COMUNA = "comuna"
-SHIPPING_AUTHORITY_REGIONAL = "regional"
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +88,9 @@ def resolve_comuna_shipping_snapshot(
             "Unable to resolve the requested shipping snapshot."
         )
 
-    queryset = Comuna.objects.select_related("region").filter(**filters)
+    queryset = Comuna.objects.select_related("region").filter(
+        **filters, is_active=True, shipping_cost__gt=0
+    )
     if for_update:
         queryset = queryset.select_for_update()
 
@@ -114,7 +112,10 @@ def resolve_comuna_shipping_snapshot(
 def resolve_regional_shipping_option(
     *, for_update: bool = False
 ) -> RegionalShippingSnapshot | None:
-    """Resolve the single active regional option; None when inactive, masks duplicates."""
+    """Resolve one active regional dispatch profile, masking ambiguity.
+
+    This is dispatch metadata only; it never participates in pricing.
+    """
     if for_update:
         _require_atomic_for_update()
 
@@ -122,7 +123,7 @@ def resolve_regional_shipping_option(
     if for_update:
         queryset = queryset.select_for_update()
 
-    options = list(queryset.only("id", "key", "carrier", "tariff", "min_lead_days", "max_lead_days"))
+    options = list(queryset.only("id", "key", "carrier", "min_lead_days", "max_lead_days"))
     if not options:
         return None
     if len(options) > 1:
@@ -132,8 +133,7 @@ def resolve_regional_shipping_option(
 
     option = options[0]
     return RegionalShippingSnapshot(
-        option.id, option.key, option.carrier, option.tariff,
-        option.min_lead_days, option.max_lead_days,
+        option.id, option.key, option.carrier, option.min_lead_days, option.max_lead_days,
     )
 
 
@@ -144,13 +144,7 @@ def resolve_shipping_price(
     region_name=None,
     for_update: bool = False,
 ) -> ShippingPriceSnapshot | None:
-    """Resolve the exclusive shipping price authority for a destination.
-
-    Santiago prices exactly from ``Comuna.shipping_cost``; any other region
-    prices exactly from the sole active regional tariff. Missing applicable
-    configuration returns None (delivery unavailable), ambiguity raises
-    ``ShippingSnapshotResolutionError``, and the two authorities never combine.
-    """
+    """Resolve the authoritative price for an eligible destination comuna."""
     comuna = resolve_comuna_shipping_snapshot(
         comuna_id=comuna_id,
         comuna_name=comuna_name,
@@ -160,13 +154,7 @@ def resolve_shipping_price(
     if comuna is None:
         return None
 
-    if comuna.region_name == SANTIAGO_REGION_NAME:
-        return ShippingPriceSnapshot(comuna.shipping_cost, comuna.id, SHIPPING_AUTHORITY_COMUNA)
-
-    regional = resolve_regional_shipping_option(for_update=for_update)
-    if regional is None:
-        return None
-    return ShippingPriceSnapshot(regional.tariff, comuna.id, SHIPPING_AUTHORITY_REGIONAL)
+    return ShippingPriceSnapshot(comuna.shipping_cost, comuna.id, SHIPPING_AUTHORITY_COMUNA)
 
 
 def future_dispatch_dates(*, from_date: date | None = None, limit: int = 4) -> tuple[date, ...]:
@@ -256,19 +244,17 @@ def resolve_delivery_snapshot(
     authority and return the fields to snapshot onto the Order, including the
     shipping price re-derived under the same locked resolution.
 
-    Santiago (``comuna`` authority): a standard date must be a future Tuesday
-    or Thursday; a special date must be strictly future; a regional option id
-    is never applicable. Regional (``regional`` authority): the submitted
-    option id must match the sole active option (stale otherwise) and its
-    carrier is snapshotted; requested dates never apply. An absent required
-    selection (Santiago date or regional option id) is rejected.
+    Santiago requires a valid requested dispatch date. For other regions,
+    price always comes from the eligible comuna; a regional profile is optional
+    metadata and, when supplied, must still be the sole active profile.
     """
     authority = resolve_shipping_price(comuna_id=comuna_id, for_update=for_update)
     if authority is None:
         raise DeliveryValidationError(
             "El envío no está disponible para la comuna indicada."
         )
-    if authority.authority == SHIPPING_AUTHORITY_COMUNA:
+    comuna = resolve_comuna_shipping_snapshot(comuna_id=comuna_id, for_update=for_update)
+    if comuna.region_name == SANTIAGO_REGION_NAME:
         if shipping_option_id is not None:
             raise DeliveryValidationError(
                 "La opción de envío regional no aplica para Santiago."
@@ -310,15 +296,16 @@ def resolve_delivery_snapshot(
         raise DeliveryValidationError(
             "La fecha de despacho no aplica para entregas regionales."
         )
-    if shipping_option_id is None:
-        raise DeliveryValidationError(
-            "Selecciona la opción de envío regional."
-        )
-    option = resolve_regional_shipping_option(for_update=for_update)
-    if option is None or shipping_option_id != option.id:
+    try:
+        option = resolve_regional_shipping_option(for_update=for_update)
+    except ShippingSnapshotResolutionError:
+        option = None
+    if shipping_option_id is not None and (option is None or shipping_option_id != option.id):
         raise StaleDeliveryOptionError(
             "La opción de envío seleccionada ya no está disponible."
         )
     return DeliverySnapshot(
-        DISPATCH_KIND_STANDARD, None, option.carrier, authority.price
+        DISPATCH_KIND_STANDARD, None,
+        option.carrier if option is not None else DEFAULT_CARRIER,
+        authority.price,
     )

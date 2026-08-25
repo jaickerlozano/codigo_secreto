@@ -29,9 +29,6 @@ class ComunaAdmin(admin.ModelAdmin):
 
 @admin.register(RegionalShippingOption)
 class RegionalShippingOptionAdmin(admin.ModelAdmin):
-    list_display = ('key', 'carrier', 'tariff_clp', 'min_lead_days', 'max_lead_days', 'is_active')
+    list_display = ('key', 'carrier', 'min_lead_days', 'max_lead_days', 'is_active')
     list_editable = ('is_active',)  # Permite activar/desactivar la opción regional directo desde la lista
-
-    def tariff_clp(self, obj):
-        return f"${obj.tariff:,}".replace(",", ".")
-    tariff_clp.short_description = "Tarifa de Envío"
+    exclude = ('tariff',)

@@ -47,7 +47,7 @@ def test_get_cart_empty(authenticated_client, user):
     assert data["shipping_cost"] == 0
     assert data["total"] == 0
     assert data["free_shipping_progress"] == 0
-    assert data["free_shipping_threshold"] == 30000
+    assert data["free_shipping_threshold"] == 0
 
 
 def test_get_cart_authenticated(authenticated_client, cart_with_items):
@@ -59,10 +59,10 @@ def test_get_cart_authenticated(authenticated_client, cart_with_items):
     assert len(data["items"]) == 2
     assert data["monto_total_final"] == 22000
     assert data["subtotal"] == 22000
-    assert data["shipping_cost"] == 3000
-    assert data["total"] == 25000
-    assert data["free_shipping_progress"] == pytest.approx((22000 / 30000) * 100)
-    assert data["free_shipping_threshold"] == 30000
+    assert data["shipping_cost"] is None
+    assert data["total"] is None
+    assert data["free_shipping_progress"] == 0
+    assert data["free_shipping_threshold"] == 0
 
 
 def test_get_cart_estimate_for_selected_comuna(authenticated_client, cart_with_items):
@@ -78,8 +78,8 @@ def test_get_cart_estimate_for_selected_comuna(authenticated_client, cart_with_i
 def test_get_cart_estimate_unavailable_delivery_fails_closed(
     authenticated_client, cart_with_items
 ):
-    """Sin configuración regional aplicable, el estimado queda no disponible."""
-    comuna = ComunaFactory(region=RegionFactory(name="Valparaiso"))
+    """Una comuna sin precio positivo no puede cotizarse."""
+    comuna = ComunaFactory(region=RegionFactory(name="Valparaiso"), shipping_cost=0)
 
     data = authenticated_client.get(f"/api/cart/me/?comuna={comuna.id}").json()
 
@@ -111,9 +111,9 @@ def test_add_new_product(authenticated_client, user, product_factory):
     assert data["items"][0]["quantity"] == 2
     assert data["monto_total_final"] == 20000
     assert data["subtotal"] == 20000
-    assert data["shipping_cost"] == 3000
-    assert data["total"] == 23000
-    assert data["free_shipping_threshold"] == 30000
+    assert data["shipping_cost"] is None
+    assert data["total"] is None
+    assert data["free_shipping_threshold"] == 0
 
 
 def test_add_existing_product(authenticated_client, cart_factory, cart_item_factory, product_factory, user):
@@ -174,6 +174,24 @@ def test_remove_partial_quantity(authenticated_client, cart_factory, cart_item_f
         "/api/cart/me/",
         _cart_payload(product.id, 2),
         format="json",
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    item = cart.items.get(product=product)
+    item.refresh_from_db()
+    assert item.quantity == 3
+
+
+def test_remove_partial_quantity_from_query_params(
+    authenticated_client, cart_factory, cart_item_factory, product_factory, user
+):
+    """DELETE /api/cart/me/ accepts the generated query contract."""
+    cart = cart_factory(user=user)
+    product = product_factory()
+    cart_item_factory(cart=cart, product=product, quantity=5)
+
+    response = authenticated_client.delete(
+        f"/api/cart/me/?product_id={product.id}&quantity=2"
     )
 
     assert response.status_code == status.HTTP_200_OK

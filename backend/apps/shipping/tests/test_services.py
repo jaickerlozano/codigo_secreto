@@ -108,9 +108,7 @@ def test_resolve_regional_option_returns_active_configuration(regional_option_fa
 
     snapshot = resolve_regional_shipping_option()
 
-    assert snapshot == RegionalShippingSnapshot(
-        option.id, "regional", "CS Logistics", 5500, 2, 5
-    )
+    assert snapshot == RegionalShippingSnapshot(option.id, "regional", "CS Logistics", 2, 5)
 
 
 def test_resolve_regional_option_returns_none_when_only_inactive(regional_option_factory):
@@ -227,7 +225,7 @@ def test_resolve_shipping_price_santiago_comuna_uses_exact_comuna_cost(
     assert (snapshot.price, snapshot.comuna_id, snapshot.authority) == (3500, comuna.id, "comuna")
 
 
-def test_resolve_shipping_price_regional_uses_exact_sole_active_tariff(
+def test_resolve_shipping_price_regional_uses_exact_comuna_cost(
     comuna_factory, region_factory, regional_option_factory
 ):
     comuna = comuna_factory(region=region_factory(name="Valparaiso"), shipping_cost=9000)
@@ -235,29 +233,25 @@ def test_resolve_shipping_price_regional_uses_exact_sole_active_tariff(
 
     snapshot = resolve_shipping_price(comuna_id=comuna.id)
 
-    # Exactly the regional tariff; the comuna cost is never added on top.
-    assert (snapshot.price, snapshot.comuna_id, snapshot.authority) == (5500, comuna.id, "regional")
+    assert (snapshot.price, snapshot.comuna_id, snapshot.authority) == (9000, comuna.id, "comuna")
 
 
-def test_resolve_shipping_price_missing_regional_config_fails_closed(
+def test_resolve_shipping_price_regional_needs_no_dispatch_profile(
     comuna_factory, region_factory
 ):
     comuna = comuna_factory(region=region_factory(name="Valparaiso"))
 
-    assert resolve_shipping_price(comuna_id=comuna.id) is None
+    assert resolve_shipping_price(comuna_id=comuna.id).price == comuna.shipping_cost
 
 
-def test_resolve_shipping_price_duplicate_regional_config_raises_masked(
+def test_resolve_shipping_price_duplicate_regional_profiles_do_not_change_price(
     comuna_factory, region_factory, regional_option_factory
 ):
     comuna = comuna_factory(region=region_factory(name="Valparaiso"))
     regional_option_factory(key="regional", carrier="Carrier One", tariff=3000)
     regional_option_factory(key="regional-alt", carrier="Carrier Two", tariff=4000)
 
-    with pytest.raises(LookupError) as error:
-        resolve_shipping_price(comuna_id=comuna.id)
-
-    assert "Carrier One" not in str(error.value) and "Carrier Two" not in str(error.value)
+    assert resolve_shipping_price(comuna_id=comuna.id).price == comuna.shipping_cost
 
 
 def test_resolve_shipping_price_no_selector_returns_none():
@@ -267,19 +261,15 @@ def test_resolve_shipping_price_no_selector_returns_none():
 def test_resolve_shipping_price_supports_name_and_region_selector(
     comuna_factory, region_factory, regional_option_factory
 ):
-    comuna_factory(name="Vina del Mar", region=region_factory(name="Valparaiso"))
-    regional_option_factory(key="regional", tariff=5500)
-
+    comuna_factory(name="Vina del Mar", region=region_factory(name="Valparaiso"), shipping_cost=4200)
     assert resolve_shipping_price(
         comuna_name="Vina del Mar", region_name="Valparaiso"
-    ).price == 5500
+    ).price == 4200
 
 
 def test_locked_shipping_price_requires_atomic_caller(
     comuna_factory, region_factory, regional_option_factory
 ):
     comuna = comuna_factory(region=region_factory(name="Valparaiso"))
-    regional_option_factory(key="regional", tariff=5500)
-
     with pytest.raises(RuntimeError, match="atomic"):
         resolve_shipping_price(comuna_id=comuna.id, for_update=True)

@@ -29,16 +29,20 @@ const MONTHS = [
 
 // A dispatch selection is valid only against the backend-provided options:
 // Santiago accepts a listed standard date or a future special date, regional
-// accepts exactly the active option id. Amounts are never computed here.
+// accepts the optional unique active profile id. Amounts are never computed here.
 export function isDispatchSelectionValid(
   selection: ShippingData,
   options: DispatchOptions
 ): boolean {
   if (options.mode === 'regional') {
+    if (options.shippingOption === null) {
+      return selection.deliveryKind === 'standard' &&
+        selection.shippingOptionId == null &&
+        selection.requestedDispatchDate == null
+    }
     return (
       selection.shippingOptionId !== undefined &&
       selection.shippingOptionId !== null &&
-      options.shippingOption !== null &&
       selection.shippingOptionId === options.shippingOption.shippingOptionId &&
       selection.requestedDispatchDate == null &&
       selection.deliveryKind !== 'special'

@@ -24,7 +24,6 @@ const regionalOptions: DispatchOptions = {
     shippingOptionId: 7,
     key: 'chilexpress',
     carrier: 'Chilexpress',
-    tariff: 4900,
     minLeadDays: 2,
     maxLeadDays: 4,
   },
@@ -86,6 +85,15 @@ describe('isDispatchSelectionValid', () => {
         regionalOptions
       )
     ).toBe(false)
+  })
+
+  it('accepts a regional delivery without a unique dispatch profile', () => {
+    expect(
+      isDispatchSelectionValid(
+        { deliveryKind: 'standard' },
+        { ...regionalOptions, shippingOption: null }
+      )
+    ).toBe(true)
   })
 })
 

@@ -1,30 +1,25 @@
-export interface Region {
-  id: number
-  name: string
-  ordinalNumber: number
-}
+import type { components } from '@/api/schema.d.ts'
 
-export interface Comuna {
-  id: number
-  name: string
-  shippingCost?: number
-  isActive?: boolean
-}
+type SnakeToCamel<Value extends string> =
+  Value extends `${infer Prefix}_${infer Suffix}`
+    ? `${Prefix}${Capitalize<SnakeToCamel<Suffix>>}`
+    : Value
 
-export type DispatchMode = 'santiago' | 'regional'
+type CamelCaseProperties<Value> = Value extends readonly (infer Item)[]
+  ? CamelCaseProperties<Item>[]
+  : Value extends object
+    ? {
+        [Key in keyof Value as Key extends string
+          ? SnakeToCamel<Key>
+          : Key]: CamelCaseProperties<Value[Key]>
+      }
+    : Value
 
-export interface RegionalDispatchOption {
-  shippingOptionId: number
-  key: string
-  carrier: string
-  tariff: number
-  minLeadDays: number
-  maxLeadDays: number
-}
-
-export interface DispatchOptions {
-  comunaId: number
-  mode: DispatchMode
-  dates: string[] | null
-  shippingOption: RegionalDispatchOption | null
-}
+export type Region = Omit<
+  CamelCaseProperties<components['schemas']['Region']>,
+  'comunas'
+>
+export type Comuna = CamelCaseProperties<components['schemas']['Comuna']>
+export type DispatchOptions = CamelCaseProperties<
+  components['schemas']['DispatchOptions']
+>

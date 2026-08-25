@@ -8,12 +8,11 @@ class ComunaSerializer(serializers.ModelSerializer):
 
 
 class RegionalDispatchOptionSerializer(serializers.Serializer):
-    """The one applicable regional shipping option for a non-Santiago comuna."""
+    """The one applicable regional dispatch profile for a non-Santiago comuna."""
 
     shipping_option_id = serializers.IntegerField(read_only=True)
     key = serializers.CharField(read_only=True)
     carrier = serializers.CharField(read_only=True)
-    tariff = serializers.IntegerField(read_only=True)
     min_lead_days = serializers.IntegerField(read_only=True)
     max_lead_days = serializers.IntegerField(read_only=True)
 
@@ -49,5 +48,5 @@ class RegionSerializer(serializers.ModelSerializer):
 
     def get_comunas(self, obj):
         # Filtramos para enviar al frontend solo las comunas donde sí hacemos despachos
-        comunas_activas = obj.comunas.filter(is_active=True)
+        comunas_activas = obj.comunas.filter(is_active=True, shipping_cost__gt=0)
         return ComunaSerializer(comunas_activas, many=True).data
