@@ -23,7 +23,7 @@ class OrderFactory(factory.django.DjangoModelFactory):
     user = factory.SubFactory(UserFactory)
     guest_email = factory.LazyAttribute(lambda o: None if o.user else f"{faker.uuid4()}@guest.test")
     guest_name = factory.LazyAttribute(lambda o: None if o.user else faker.name())
-    phone = factory.Faker("phone_number")
+    phone = factory.LazyFunction(lambda: faker.phone_number()[:20])
     comuna = factory.SubFactory(ComunaFactory)
     shipping_address = factory.Faker("street_address")
     apartment_office = factory.Faker("building_number")

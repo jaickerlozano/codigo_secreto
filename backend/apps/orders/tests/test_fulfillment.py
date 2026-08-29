@@ -85,7 +85,7 @@ class TestFulfillDispatch:
         order = fulfill_dispatch(order=paid_order, **DISPATCH_ARGS)
         delivery = NotificationDelivery.objects.get(order=order, event="dispatch")
         with mock.patch("apps.orders.notifications.send_mail", side_effect=RuntimeError("SMTP down")):
-            attempt_delivery(delivery.id)
+            attempt_delivery(delivery.id, trigger="initial")
         delivery.refresh_from_db()
         assert (delivery.status, delivery.attempts) == ("FAILED", 1)
         assert "SMTP down" in delivery.last_error
@@ -274,7 +274,7 @@ class TestFulfillmentAdmin:
         fulfill_dispatch(order=paid_order, **DISPATCH_ARGS)
         delivery = NotificationDelivery.objects.get(order=paid_order, event="dispatch")
         with mock.patch("apps.orders.notifications.send_mail", side_effect=RuntimeError("SMTP down")):
-            attempt_delivery(delivery.id)
+            attempt_delivery(delivery.id, trigger="initial")
 
         NotificationDeliveryAdmin(NotificationDelivery, AdminSite()).retry_failed(
             admin_request, NotificationDelivery.objects.filter(id=delivery.id))

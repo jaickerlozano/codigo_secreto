@@ -207,7 +207,7 @@ def test_guest_journey_purchase_approve_dispatch_and_notify(
 
     # 11. Email failure is contained: FAILED delivery, domain state persists.
     with mock.patch("apps.orders.notifications.send_mail", side_effect=RuntimeError("SMTP down")):
-        attempt_delivery(dispatch.id)
+        attempt_delivery(dispatch.id, trigger="initial")
     dispatch.refresh_from_db()
     assert (dispatch.status, dispatch.attempts, dispatch.next_retry_at is not None) == ("FAILED", 1, True)
     order.refresh_from_db()

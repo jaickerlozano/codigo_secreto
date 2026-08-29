@@ -138,12 +138,34 @@ class OrderAdmin(admin.ModelAdmin):
             self.message_user(request, f"{dispatched} pedido(s) despachado(s) correctamente.")
 
 
+class ExhaustedFilter(admin.SimpleListFilter):
+    title = 'agotado'
+    parameter_name = 'exhausted'
+
+    def lookups(self, request, model_admin):
+        return [('1', 'Sí'), ('0', 'No')]
+
+    def queryset(self, request, queryset):
+        if self.value() == '1':
+            return queryset.filter(status='FAILED', attempts__gte=5, next_retry_at__isnull=True)
+        if self.value() == '0':
+            return queryset.exclude(status='FAILED', attempts__gte=5, next_retry_at__isnull=True)
+
+
 @admin.register(NotificationDelivery)
 class NotificationDeliveryAdmin(admin.ModelAdmin):
-    list_display = ('order', 'event', 'status', 'attempts', 'next_retry_at', 'sent_at')
-    list_filter = ('status', 'event')
+    list_display = ('order', 'event', 'status', 'attempts', 'last_error_short', 'next_retry_at', 'sent_at', 'is_exhausted')
+    list_filter = ('status', 'event', ExhaustedFilter)
     readonly_fields = ('order', 'event', 'status', 'attempts', 'last_error', 'next_retry_at', 'sent_at', 'created_at', 'updated_at')
     actions = ('retry_failed',)
+
+    @admin.display(boolean=True, description='Agotado')
+    def is_exhausted(self, obj):
+        return obj.exhausted
+
+    @admin.display(description='Último error')
+    def last_error_short(self, obj):
+        return obj.last_error[:80] if obj.last_error else '-'
 
     @admin.action(description="Reintentar notificaciones fallidas")
     def retry_failed(self, request, queryset):

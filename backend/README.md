@@ -55,6 +55,62 @@ Para recrear desde cero:
 pipenv run python manage.py seed_products --reset
 ```
 
+## Notificaciones de cliente (`process_notifications`)
+
+El comando `process_notifications` reintenta los correos transaccionales fallidos (pago y despacho):
+
+```bash
+pipenv run python manage.py process_notifications --batch-size 100
+```
+
+Ejecutarlo como mínimo cada 5 minutos. Ejemplo con cron:
+
+```cron
+*/5 * * * * cd /ruta/al/proyecto/backend && /usr/local/bin/pipenv run python manage.py process_notifications >> /var/log/codigo-secreto/notifications.log 2>&1
+```
+
+O con systemd. Timer (`/etc/systemd/system/codigo-secreto-notifications.timer`):
+
+```ini
+[Unit]
+Description=Reintentar notificaciones cada 5 minutos
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+```
+
+Servicio (`/etc/systemd/system/codigo-secreto-notifications.service`):
+
+```ini
+[Unit]
+Description=Procesar notificaciones de Código Secreto
+
+[Service]
+Type=oneshot
+WorkingDirectory=/ruta/al/proyecto/backend
+EnvironmentFile=/ruta/al/proyecto/backend/.env
+ExecStart=/usr/local/bin/pipenv run python manage.py process_notifications
+```
+
+### Variables de entorno SMTP (producción)
+
+Con `DEBUG=False` el backend usa SMTP TLS; nunca cae a consola:
+
+```bash
+EMAIL_HOST=smtp.example.com
+EMAIL_PORT=587
+EMAIL_HOST_USER=no-reply@example.com
+EMAIL_HOST_PASSWORD=...
+EMAIL_USE_TLS=true
+DEFAULT_FROM_EMAIL="Código Secreto <no-reply@example.com>"
+```
+
+En desarrollo con `DEBUG=True` y `EMAIL_HOST` vacío o ausente, los correos se imprimen en consola.
+
 ## Schema de la API
 
 Genera el schema OpenAPI en `schema.yaml`:

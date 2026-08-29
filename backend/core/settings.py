@@ -116,12 +116,16 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
+def _resolve_database_config(database_url):
+    if database_url:
+        return environ.Env.db_url_config(database_url)
+    return {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
     }
-}
+
+
+DATABASES = {'default': _resolve_database_config(env('DATABASE_URL', default=None))}
 
 
 # Password validation

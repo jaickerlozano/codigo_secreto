@@ -6,7 +6,7 @@ import logging
 
 from django.conf import settings
 from django.core.mail import send_mail
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 
 from .models import NotificationDelivery
@@ -52,12 +52,19 @@ def attempt_delivery(delivery_id, trigger="automatic", now=None):
     """Send one delivery under row lock; failures are recorded and never raised."""
     now = now or timezone.now()
     engine = settings.DATABASES["default"]["ENGINE"]
+    is_sqlite = engine.endswith("sqlite3")
     try:
         with transaction.atomic():
             delivery = NotificationDelivery.objects.select_for_update(
                 skip_locked=engine.endswith("postgresql")
             ).get(id=delivery_id)
             order = delivery.order
+            if is_sqlite:
+                # SQLite ignores FOR UPDATE; force a write lock and re-read so
+                # concurrent writers serialize before SMTP and see SENT.
+                NotificationDelivery.objects.filter(pk=delivery.pk).update(attempts=models.F("attempts"))
+                delivery = NotificationDelivery.objects.get(id=delivery_id)
+                order = delivery.order
             if delivery.status == "SENT":
                 return delivery
             eligible = False

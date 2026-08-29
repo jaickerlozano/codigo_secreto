@@ -1,9 +1,20 @@
 import pytest
+from rest_framework.throttling import SimpleRateThrottle
 
 from apps.carts.tests.factories import CartFactory, CartItemFactory
 from apps.orders.tests.factories import OrderFactory, OrderItemFactory
 from apps.products.tests.factories import ProductFactory
 from apps.shipping.tests.factories import ComunaFactory
+
+
+def reset_order_throttle_cache():
+    """Clear test-client throttle history between order test cases."""
+    SimpleRateThrottle.cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_order_throttle_cache_between_tests():
+    reset_order_throttle_cache()
 
 
 @pytest.fixture
