@@ -24,8 +24,9 @@ export interface Product {
   sku: string | null
   stock: number
   image: string | null
+  imageOriginal?: string | null
   /** Gallery images array from ProductImage model. */
-  images: Array<{ id: number; image: string }>
+  images: Array<{ id: number; image: string; imageOriginal?: string | null }>
 }
 
 export interface Category {

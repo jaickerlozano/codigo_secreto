@@ -1995,6 +1995,11 @@ components:
           title: Descripción
         image:
           type: string
+          nullable: true
+          readOnly: true
+        image_original:
+          type: string
+          nullable: true
           readOnly: true
         images:
           type: array
@@ -2115,6 +2120,11 @@ components:
           title: Descripción
         image:
           type: string
+          nullable: true
+          readOnly: true
+        image_original:
+          type: string
+          nullable: true
           readOnly: true
         images:
           type: array
@@ -2172,6 +2182,7 @@ components:
       - experience_level
       - id
       - image
+      - image_original
       - images
       - name
       - price
@@ -2186,10 +2197,16 @@ components:
           readOnly: true
         image:
           type: string
+          nullable: true
+          readOnly: true
+        image_original:
+          type: string
+          nullable: true
           readOnly: true
       required:
       - id
       - image
+      - image_original
     Quote:
       type: object
       properties:

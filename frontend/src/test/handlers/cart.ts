@@ -24,6 +24,7 @@ const testProduct: components['schemas']['Product'] = {
   price: 29990,
   stock: 10,
   image: '',
+  image_original: '',
   images: [],
   sku: '101',
   icon: '✦',
