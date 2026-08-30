@@ -69,7 +69,7 @@ export function ProductModal({
           transition={{ duration: 0.26, ease: [0.4, 0, 0.2, 1] }}
         >
           <div className="grid sm:grid-cols-2">
-            <div className="max-h-[50vh] overflow-hidden sm:max-h-[60vh]">
+            <div data-testid="product-modal-gallery" className="min-w-0">
               <ProductGallery product={product} />
             </div>
 
