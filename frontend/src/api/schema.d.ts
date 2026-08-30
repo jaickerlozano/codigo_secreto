@@ -981,7 +981,8 @@ export interface components {
             price?: number;
             /** Descripción */
             description?: string | null;
-            readonly image?: string;
+            readonly image?: string | null;
+            readonly image_original?: string | null;
             readonly images?: components["schemas"]["ProductImage"][];
             /** Gradiente */
             gradient?: string;
@@ -1046,7 +1047,8 @@ export interface components {
             price: number;
             /** Descripción */
             description?: string | null;
-            readonly image: string;
+            readonly image: string | null;
+            readonly image_original: string | null;
             readonly images: components["schemas"]["ProductImage"][];
             /** Gradiente */
             gradient?: string;
@@ -1077,7 +1079,8 @@ export interface components {
         };
         ProductImage: {
             readonly id: number;
-            readonly image: string;
+            readonly image: string | null;
+            readonly image_original: string | null;
         };
         Quote: {
             items: components["schemas"]["GuestOrderItem"][];

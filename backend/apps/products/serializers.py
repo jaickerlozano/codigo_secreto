@@ -1,27 +1,32 @@
 from rest_framework import serializers
 from .models import Product, Supplier, Category, StockMovement, ProductImage, Favorite
 from django.core.exceptions import ValidationError as DjangoValidationError
+from .images import (
+    delivery_width_for_serializer_context,
+    product_image_original_url,
+    product_image_url,
+)
 
 #   NUEVO SERIALIZADOR: Formatea de forma individual las fotos secundarias de la galería
 class ProductImageSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
+    image_original = serializers.SerializerMethodField()
 
     class Meta:
         model = ProductImage
-        fields = ['id', 'image']
+        fields = ['id', 'image', 'image_original']
 
-    def get_image(self, obj):
-        if not obj.image:
-            return None
-        url = obj.image.url
-        # Aplicamos exactamente la misma lógica inteligente de optimización para Cloudinary
-        if 'res.cloudinary.com' in url:
-            if '/upload/' in url:
-                url = url.replace('/upload/', '/upload/f_auto,q_auto,w_1000/')
-            if not url.endswith('.webp') and not url.endswith('.png') and not url.endswith('.jpg'):
-                url = f"{url}.webp"
-            return url
-        return url
+    def get_image(self, obj) -> str | None:
+        return product_image_url(
+            obj.image,
+            max_width=delivery_width_for_serializer_context(self.context),
+        )
+
+    def get_image_original(self, obj) -> str | None:
+        return product_image_original_url(
+            obj.image,
+            max_width=delivery_width_for_serializer_context(self.context),
+        )
 
 
 class CategoryNameField(serializers.PrimaryKeyRelatedField):
@@ -33,6 +38,7 @@ class CategoryNameField(serializers.PrimaryKeyRelatedField):
 
 class ProductSerializer(serializers.ModelSerializer):
     image = serializers.SerializerMethodField()
+    image_original = serializers.SerializerMethodField()
     
     # CONEXIÓN CON EL ARRAY: Anidamos la galería usando el relacionado 'images' del modelo.
     # Marcamos many=True porque es una lista, y read_only=True para proteger la integridad.
@@ -46,7 +52,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         # ADICIÓN: Incluimos 'images' explícitamente en el listado de campos para React
         fields = [
-            'id', 'name', 'sku', 'price', 'description', 'image',
+            'id', 'name', 'sku', 'price', 'description', 'image', 'image_original',
             'images',  # <--- Inyectamos el array aquí
             'gradient', 'icon', 'badge', 'features', 
             'category', 'stock', 'experience_level',
@@ -58,17 +64,17 @@ class ProductSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             self.fields['current_stock'].read_only = True
 
-    def get_image(self, obj):
-        if not obj.image:
-            return None
-        url = obj.image.url
-        if 'res.cloudinary.com' in url:
-            if '/upload/' in url:
-                url = url.replace('/upload/', '/upload/f_auto,q_auto,w_1000/')
-            if not url.endswith('.webp') and not url.endswith('.png') and not url.endswith('.jpg'):
-                url = f"{url}.webp"
-            return url
-        return url
+    def get_image(self, obj) -> str | None:
+        return product_image_url(
+            obj.image,
+            max_width=delivery_width_for_serializer_context(self.context),
+        )
+
+    def get_image_original(self, obj) -> str | None:
+        return product_image_original_url(
+            obj.image,
+            max_width=delivery_width_for_serializer_context(self.context),
+        )
 
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:

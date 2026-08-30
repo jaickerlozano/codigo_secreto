@@ -13,7 +13,7 @@ from .filters import ProductFilter
 
 # Create your views here.
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.select_related('category', 'supplier').all()
+    queryset = Product.objects.select_related('category', 'supplier').prefetch_related('images')
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ProductFilter

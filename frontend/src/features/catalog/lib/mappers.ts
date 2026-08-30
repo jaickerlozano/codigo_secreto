@@ -35,6 +35,8 @@ export function mapApiProduct(
         .map((img) => ({
           id: Number(img?.id ?? 0),
           image: typeof img?.image === 'string' ? img.image.trim() : '',
+          imageOriginal:
+            typeof img?.image_original === 'string' ? img.image_original.trim() : null,
         }))
         .filter((img) => Boolean(img.image))
     : []
@@ -62,6 +64,8 @@ export function mapApiProduct(
     sku: raw.sku ?? null,
     stock: raw.stock ?? raw.current_stock ?? 0,
     image: primaryImage,
+    imageOriginal:
+      typeof raw.image_original === 'string' ? raw.image_original.trim() : null,
     badge: (raw.badge as Product['badge']) ?? undefined,
     images: apiImages,
   }
