@@ -1,7 +1,10 @@
 # backend/apps/products/admin.py
 from django.contrib import admin
+from django.core.exceptions import ValidationError
 from .models import Product, Supplier, Category, StockMovement, ProductImage, Favorite # 💡 Agregamos ProductImage
 from django.utils.html import format_html
+
+from .images import normalize_uploaded_image
 
 # 💡 ESTA ES LA CLAVE: Define las casillas de carga masiva en línea para la galería
 class ProductImageInline(admin.TabularInline):
@@ -52,6 +55,29 @@ class ProductAdmin(admin.ModelAdmin):
 
     # 💡 INYECTAMOS LA GALERÍA AQUÍ: Esto dibuja las filas de carga justo debajo de los fieldsets
     inlines = [ProductImageInline]
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        if request.method == "POST":
+            self._normalize_uploaded_images(request)
+        return super().changeform_view(request, object_id, form_url, extra_context)
+
+    def _normalize_uploaded_images(self, request):
+        for field_name, uploads in request.FILES.lists():
+            if field_name != "image" and not (
+                field_name.startswith("images-") and field_name.endswith("-image")
+            ):
+                continue
+
+            normalized_uploads = []
+            for upload in uploads:
+                try:
+                    normalized = normalize_uploaded_image(upload)
+                except ValidationError:
+                    normalized_uploads.append(upload)
+                else:
+                    normalized._product_image_normalized = True
+                    normalized_uploads.append(normalized)
+            request.FILES.setlist(field_name, normalized_uploads)
 
     def price_clp(self, obj):
         return f"${obj.price:,}".replace(",", ".")
