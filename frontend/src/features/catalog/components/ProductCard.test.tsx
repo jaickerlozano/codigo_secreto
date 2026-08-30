@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createMemoryRouter, RouterProvider } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -49,5 +49,68 @@ describe('ProductCard', () => {
         screen.getByRole('button', { name: /Agregar al carrito/i }),
       ),
     ).toBe(true)
+  })
+
+  it('uses the shared uncropped studio stage for AI cutouts', () => {
+    const product = {
+      ...mockProduct,
+      image: 'https://cdn.example.test/cutout.webp',
+      imageOriginal: 'https://cdn.example.test/original.webp',
+      isOnSale: true,
+    }
+
+    renderWithRouter(
+      <ProductCard
+        product={product}
+        onAddToCart={vi.fn()}
+        onQuickView={vi.fn()}
+      />,
+    )
+
+    const image = screen.getByRole('img', { name: product.name })
+    expect(image.className).toContain('object-contain')
+    expect(screen.getByTestId('product-card-media-stage').parentElement?.className).toContain(
+      'aspect-square'
+    )
+    expect(screen.getByTestId('product-card-media-stage').getAttribute('style')).toContain(
+      'background-color: rgb(25, 19, 41)'
+    )
+    expect(screen.getByText('Oferta')).toBeTruthy()
+  })
+
+  it('falls back to the uncropped original before showing an accessible placeholder', async () => {
+    const product = {
+      ...mockProduct,
+      image: 'https://cdn.example.test/cutout.webp',
+      imageOriginal: 'https://cdn.example.test/original.webp',
+    }
+
+    renderWithRouter(
+      <ProductCard
+        product={product}
+        onAddToCart={vi.fn()}
+        onQuickView={vi.fn()}
+      />,
+    )
+
+    const stage = screen.getByTestId('product-card-media-stage')
+    const studioCanvas = stage.getAttribute('style')
+
+    fireEvent.error(screen.getByRole('img', { name: product.name }))
+    await waitFor(() =>
+      expect(screen.getByRole('img', { name: product.name }).getAttribute('src')).toBe(
+        product.imageOriginal,
+      ),
+    )
+    expect(screen.getByRole('img', { name: product.name }).className).toContain(
+      'object-contain'
+    )
+    expect(stage.getAttribute('style')).toBe(studioCanvas)
+    expect(stage.querySelector('img[aria-hidden="true"]')).toBeNull()
+
+    fireEvent.error(screen.getByRole('img', { name: product.name }))
+    await waitFor(() =>
+      expect(screen.getByRole('img', { name: product.name }).tagName).toBe('DIV'),
+    )
   })
 })

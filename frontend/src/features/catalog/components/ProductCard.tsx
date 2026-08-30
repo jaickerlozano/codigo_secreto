@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { motion } from 'motion/react'
 import { Check, Eye } from 'lucide-react'
@@ -7,6 +7,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
 
 import type { Product } from '../types'
+import { ProductMediaStage } from './ProductMediaStage'
 import { StarRating } from './StarRating'
 
 interface ProductCardProps {
@@ -33,14 +34,14 @@ export function ProductCard({
   onQuickView,
 }: ProductCardProps) {
   const [added, setAdded] = useState(false)
+  const [isUsingOriginal, setIsUsingOriginal] = useState(false)
+  const [imageError, setImageError] = useState(false)
   const prefersReduced = useReducedMotion()
 
-  const discount =
-    product.originalPrice && product.originalPrice > 0
-      ? Math.round(
-          (1 - product.price / product.originalPrice) * 100,
-        )
-      : 0
+  useEffect(() => {
+    setIsUsingOriginal(false)
+    setImageError(false)
+  }, [product.id, product.image, product.imageOriginal])
 
   const activeBadge = product.badge ??
     (product.isNew ? 'new' : product.isOnSale ? 'discount' : undefined)
@@ -59,6 +60,18 @@ export function ProductCard({
     onQuickView(product)
   }
 
+  const handleImageError = () => {
+    if (
+      !isUsingOriginal &&
+      product.imageOriginal &&
+      product.imageOriginal !== product.image
+    ) {
+      setIsUsingOriginal(true)
+      return
+    }
+    setImageError(true)
+  }
+
   return (
     <motion.article
       whileHover={prefersReduced ? undefined : { scale: 1.02 }}
@@ -74,29 +87,17 @@ export function ProductCard({
       <div
         className={`relative flex aspect-square items-center justify-center overflow-hidden bg-gradient-to-br ${product.gradient}`}
       >
-        {product.image ? (
-          <img
-            src={product.image}
-            alt={product.name}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <>
-            <span
-              className="select-none text-7xl opacity-[0.18]"
-              aria-hidden="true"
-            >
-              {product.icon}
-            </span>
-            <div
-              className="absolute inset-0 opacity-[0.06]"
-              style={{
-                backgroundImage: 'var(--circuit-overlay)',
-              }}
-              aria-hidden="true"
-            />
-          </>
-        )}
+        <ProductMediaStage
+          imageUrl={product.image}
+          originalImageUrl={product.imageOriginal}
+          isUsingOriginal={isUsingOriginal}
+          showPlaceholder={imageError}
+          icon={product.icon}
+          alt={product.name}
+          onImageError={handleImageError}
+          stageTestId="product-card-media-stage"
+          className="absolute inset-0"
+        />
         <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-black/60 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
           <button
             type="button"
@@ -116,7 +117,7 @@ export function ProductCard({
           )}
           {activeBadge === 'discount' && (
             <span className="rounded-full bg-neon-magenta px-2 py-0.5 text-[9px] font-bold uppercase text-background">
-              -{discount}%
+              Oferta
             </span>
           )}
           {activeBadge === 'popular' && (
