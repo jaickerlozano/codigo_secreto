@@ -40,4 +40,27 @@ describe('ProductModal', () => {
       screen.getByRole('button', { name: /Agregar al carrito/i }),
     ).toBeDefined()
   })
+
+  it('does not clip the gallery with a modal-specific viewport wrapper', () => {
+    const product = {
+      ...mockProduct,
+      image: 'https://cdn.example.test/cutout.webp',
+      imageOriginal: 'https://cdn.example.test/original.webp',
+    }
+
+    render(
+      <ProductModal
+        product={product}
+        isOpen={true}
+        onClose={vi.fn()}
+        onAddToCart={vi.fn()}
+      />,
+    )
+
+    const galleryStage = screen.getByTestId('product-gallery-stage')
+    const galleryWrapper = screen.getByTestId('product-modal-gallery')
+    expect(galleryStage.className).toContain('max-h-[calc(100dvh-8rem)]')
+    expect(galleryWrapper.className).not.toContain('overflow-hidden')
+    expect(galleryWrapper.className).not.toContain('max-h-[')
+  })
 })
