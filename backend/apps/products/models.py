@@ -1,10 +1,44 @@
 from django.conf import settings
 from django.db import models, transaction
-from django.core.exceptions import ValidationError 
+from django.core.exceptions import ValidationError
+
+from .images import normalize_uploaded_image
+
+
+class ProductImageNormalizationMixin:
+    """Normalize only newly assigned product images before their first storage save."""
+
+    image_normalization_field = "image"
+
+    def clean(self):
+        super().clean()
+        self._normalize_pending_image()
+
+    def save(self, *args, **kwargs):
+        self._normalize_pending_image()
+        return super().save(*args, **kwargs)
+
+    def _normalize_pending_image(self):
+        image = getattr(self, self.image_normalization_field)
+        if (
+            not image
+            or image._committed
+            or getattr(image, "_product_image_normalized", False)
+            or getattr(getattr(image, "file", None), "_product_image_normalized", False)
+        ):
+            return
+
+        try:
+            normalized = normalize_uploaded_image(image)
+        except ValidationError as error:
+            raise ValidationError({self.image_normalization_field: error.messages}) from error
+
+        setattr(self, self.image_normalization_field, normalized)
+        getattr(self, self.image_normalization_field)._product_image_normalized = True
 
 # Create your models here.
 
-class Product(models.Model):
+class Product(ProductImageNormalizationMixin, models.Model):
     name = models.CharField(max_length=255, verbose_name='nombre')
     description = models.TextField(null=True, blank=True, verbose_name='descripción')
     category = models.ForeignKey('Category', on_delete=models.CASCADE, related_name='products', verbose_name='categoría')
@@ -127,7 +161,7 @@ class StockMovement(models.Model):
         verbose_name = 'Movimiento de Stock' 
 
 
-class ProductImage(models.Model):
+class ProductImage(ProductImageNormalizationMixin, models.Model):
     product = models.ForeignKey(
         'Product', 
         on_delete=models.CASCADE, 
