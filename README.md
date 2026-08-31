@@ -56,6 +56,10 @@ VITE_API_URL=http://localhost:8000
 VITE_SUPPORT_PHONE=56912345678
 ```
 
+## Production security
+
+Production environment formats, ownership, validation evidence, and release gates are documented in [Production security](docs/production-security.md). The runbook intentionally contains no secrets or assigned production API hostname.
+
 ## Regenerar tipos del API
 
 Cuando cambien los serializers del backend:
