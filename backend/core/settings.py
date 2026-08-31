@@ -389,7 +389,7 @@ SIMPLE_JWT = {
     "JWT_AUTH_COOKIE": "access_token",  # Nombre de la cookie del token de acceso
     "JWT_AUTH_REFRESH_COOKIE": "refresh_token",
     "JWT_AUTH_HTTPONLY": True,
-    "JWT_COOKIE_SECURE": False,  # Dev: True en producción con HTTPS
+    "JWT_COOKIE_SECURE": bool(PRODUCTION_CONFIGURATION),
     "JWT_COOKIE_SAMESITE": "Lax",
     "JWT_COOKIE_PATH": "/",
 }
@@ -425,9 +425,15 @@ CSRF_TRUSTED_ORIGINS = list(PRODUCTION_CONFIGURATION["CSRF_TRUSTED_ORIGINS"]) if
 # Cookie settings para cross-origin localhost (puerto 5173 -> 8000)
 # "Lax" permite cookies en navegación cross-origin (top-level)
 CSRF_COOKIE_SAMESITE = "Lax"
-CSRF_COOKIE_SECURE = False          # True solo en producción con HTTPS
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SECURE = bool(PRODUCTION_CONFIGURATION)
+CSRF_COOKIE_DOMAIN = PRODUCTION_CONFIGURATION["csrf_cookie_domain"] if PRODUCTION_CONFIGURATION else None
+SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
-SESSION_COOKIE_SECURE = False       # True solo en producción con HTTPS
+SESSION_COOKIE_SECURE = bool(PRODUCTION_CONFIGURATION)
+SESSION_COOKIE_DOMAIN = None
+GUEST_ORDER_ACCESS_COOKIE_SECURE = bool(PRODUCTION_CONFIGURATION)
+GUEST_ORDER_ACCESS_COOKIE_SAMESITE = "Strict"
 
 # Configura el almacenamiento de archivos multimedia para que apunte a Cloudinary
 STORAGES = {

@@ -1,4 +1,7 @@
+import json
+
 import pytest
+from django.test import override_settings
 from django.urls import reverse
 from django.utils.crypto import get_random_string
 from rest_framework.test import APIClient
@@ -7,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from apps.authentication.models import User
 from apps.authentication.tests.factories import UserFactory
 from apps.carts.models import Cart
+from core.tests.test_security_settings import run_production_script
 
 pytestmark = pytest.mark.django_db
 
@@ -17,6 +21,56 @@ LOGOUT_URL = "/api/auth/logout/"
 REFRESH_URL = "/api/auth/token/refresh/"
 ME_URL = "/api/auth/me/"
 PROFILE_PHONE_URL = "/api/auth/me/phone/"
+
+PRODUCTION_AUTH_COOKIE_SNAPSHOT = """
+import json
+import os
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
+
+import django
+
+django.setup()
+
+from django.conf import settings
+from django.test import Client
+from rest_framework.response import Response
+
+from apps.authentication.views import _set_jwt_cookie
+
+response = Response()
+_set_jwt_cookie(response, "access_token", "test-token")
+jwt_cookie = response.cookies["access_token"]
+
+csrf_response = Client().get(
+    "/api/auth/csrf/",
+    HTTP_HOST="api.example.test",
+    HTTP_X_FORWARDED_PROTO="https",
+)
+assert csrf_response.status_code == 204
+csrf_cookie = csrf_response.cookies["csrftoken"]
+
+print(json.dumps({
+    "jwt": {
+        "httponly": bool(jwt_cookie["httponly"]),
+        "secure": bool(jwt_cookie["secure"]),
+        "samesite": jwt_cookie["samesite"],
+        "host_only": not bool(jwt_cookie["domain"]),
+    },
+    "csrf": {
+        "httponly": bool(csrf_cookie["httponly"]),
+        "secure": bool(csrf_cookie["secure"]),
+        "samesite": csrf_cookie["samesite"],
+        "domain": csrf_cookie["domain"],
+    },
+    "session": {
+        "httponly": settings.SESSION_COOKIE_HTTPONLY,
+        "secure": settings.SESSION_COOKIE_SECURE,
+        "samesite": settings.SESSION_COOKIE_SAMESITE,
+        "host_only": settings.SESSION_COOKIE_DOMAIN is None,
+    },
+}))
+"""
 
 
 def test_register_endpoint_success(api_client):
@@ -103,8 +157,36 @@ def test_login_sets_cookies_and_no_tokens_in_body(api_client):
     assert "csrftoken" in response.cookies
     assert response.cookies["access_token"]["httponly"] is True
     assert response.cookies["refresh_token"]["httponly"] is True
+    assert not bool(response.cookies["access_token"]["secure"])
     assert response.cookies["access_token"]["samesite"] == "Lax"
+    assert not bool(response.cookies["access_token"]["domain"])
     assert response.cookies["access_token"]["path"] == "/"
+
+
+def test_production_auth_cookie_boundary_is_secure_and_host_only():
+    result = run_production_script(PRODUCTION_AUTH_COOKIE_SNAPSHOT)
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "jwt": {
+            "httponly": True,
+            "secure": True,
+            "samesite": "Lax",
+            "host_only": True,
+        },
+        "csrf": {
+            "httponly": False,
+            "secure": True,
+            "samesite": "Lax",
+            "domain": ".example.test",
+        },
+        "session": {
+            "httponly": True,
+            "secure": True,
+            "samesite": "Lax",
+            "host_only": True,
+        },
+    }
 
 
 def test_login_wrong_password(api_client):
@@ -353,6 +435,55 @@ def test_cookie_auth_unsafe_with_csrf_accepted(api_client, user):
     )
     assert response.status_code == 200
     assert response.data["ok"] is True
+
+
+@pytest.mark.urls("apps.authentication.tests.urls")
+@override_settings(CSRF_TRUSTED_ORIGINS=["https://app.example.test"])
+def test_cookie_authenticated_mutation_rejects_untrusted_origin(api_client, user):
+    """A valid CSRF token cannot authorize a cookie mutation from an untrusted origin."""
+    csrf_token = get_random_string(32)
+    refresh = RefreshToken.for_user(user)
+    api_client.cookies["access_token"] = str(refresh.access_token)
+    api_client.cookies["csrftoken"] = csrf_token
+    api_client.handler.enforce_csrf_checks = True
+
+    response = api_client.post(
+        ECHO_UNSAFE_URL,
+        {},
+        format="json",
+        HTTP_X_CSRFTOKEN=csrf_token,
+        HTTP_ORIGIN="https://untrusted.example.test",
+    )
+
+    assert response.status_code == 403
+
+
+@override_settings(
+    ALLOWED_HOSTS=["testserver"],
+    SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https"),
+    SECURE_SSL_REDIRECT=True,
+)
+def test_request_boundary_rejects_untrusted_host_and_non_https_forwarding(api_client):
+    """Only an allowlisted host with the expected proxy HTTPS signal reaches the view."""
+    trusted = api_client.get(
+        CSRF_URL,
+        HTTP_HOST="testserver",
+        HTTP_X_FORWARDED_PROTO="https",
+    )
+    untrusted_host = api_client.get(
+        CSRF_URL,
+        HTTP_HOST="untrusted.example.test",
+        HTTP_X_FORWARDED_PROTO="https",
+    )
+    non_https_forwarding = api_client.get(
+        CSRF_URL,
+        HTTP_HOST="testserver",
+        HTTP_X_FORWARDED_PROTO="http",
+    )
+
+    assert trusted.status_code == 204
+    assert untrusted_host.status_code == 400
+    assert non_https_forwarding.status_code == 301
 
 
 @pytest.mark.urls("apps.authentication.tests.urls")
