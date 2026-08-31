@@ -1,4 +1,5 @@
 import hashlib
+import json
 
 import pytest
 from django.utils import timezone
@@ -7,9 +8,54 @@ from rest_framework import status
 from apps.orders.models import Order
 from apps.orders.services import calculate_guest_quote
 from apps.shipping.services import future_dispatch_dates
+from core.tests.test_security_settings import run_production_script
 
 
 pytestmark = pytest.mark.django_db
+
+
+PRODUCTION_GUEST_COOKIE_SNAPSHOT = """
+import json
+import os
+from unittest.mock import patch
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "core.settings")
+
+import django
+
+django.setup()
+
+from rest_framework.test import APIRequestFactory
+
+from apps.orders.views import OrderViewSet
+
+request = APIRequestFactory().post(
+    "/api/orders/by-order-number/CS-123/access/",
+    {},
+    format="json",
+    HTTP_X_ORDER_CAPABILITY="capability",
+)
+with (
+    patch("apps.orders.views.authorize_order_access", return_value=object()),
+    patch("apps.orders.views.issue_guest_access_cookie", return_value="signed-capability"),
+):
+    response = OrderViewSet.as_view({"post": "access"})(
+        request,
+        order_number="CS-123",
+    )
+
+cookie = response.cookies["guest_order_access"]
+print(json.dumps({
+    "status": response.status_code,
+    "cookie": {
+        "httponly": bool(cookie["httponly"]),
+        "secure": bool(cookie["secure"]),
+        "samesite": cookie["samesite"],
+        "host_only": not bool(cookie["domain"]),
+        "path": cookie["path"],
+    },
+}))
+"""
 
 
 def _order_payload(comuna, **overrides):
@@ -238,6 +284,7 @@ def test_secure_guest_access_boundaries(api_client, order_factory):
     exchange = _exchange(api_client, order, raw)
     cookie = exchange.cookies['guest_order_access']
     assert exchange.status_code == 204 and cookie['httponly'] and cookie['samesite'] == 'Strict'
+    assert not bool(cookie['secure']) and not bool(cookie['domain'])
     assert raw not in cookie.value
     _use_guest_cookie(api_client, exchange)
     assert api_client.get(f"/api/orders/by-order-number/{order.order_number}/").status_code == 200
@@ -262,6 +309,22 @@ def test_secure_guest_access_boundaries(api_client, order_factory):
         else:
             candidate.revoke_guest_access()
         assert _exchange(api_client, candidate, token).status_code == 404
+
+
+def test_production_guest_access_cookie_is_secure_strict_and_host_only():
+    result = run_production_script(PRODUCTION_GUEST_COOKIE_SNAPSHOT)
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == {
+        "status": status.HTTP_204_NO_CONTENT,
+        "cookie": {
+            "httponly": True,
+            "secure": True,
+            "samesite": "Strict",
+            "host_only": True,
+            "path": "/",
+        },
+    }
 
 
 def test_owner_and_staff_can_retrieve_order_by_number(authenticated_client, staff_client, order_factory, user):

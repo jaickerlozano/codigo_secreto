@@ -50,6 +50,13 @@ print(json.dumps({
     "debug": settings.DEBUG,
     "log": settings.LOGGING["root"]["level"],
     "deploy": [settings.SECURE_SSL_REDIRECT, settings.SECURE_HSTS_SECONDS, settings.SECURE_CONTENT_TYPE_NOSNIFF, settings.X_FRAME_OPTIONS],
+    "cookies": [settings.SESSION_COOKIE_SECURE, settings.CSRF_COOKIE_SECURE],
+    "boundary": {
+        "jwt": [settings.SIMPLE_JWT["JWT_AUTH_HTTPONLY"], settings.SIMPLE_JWT["JWT_COOKIE_SECURE"], settings.SIMPLE_JWT["JWT_COOKIE_SAMESITE"]],
+        "csrf": [settings.CSRF_COOKIE_HTTPONLY, settings.CSRF_COOKIE_SECURE, settings.CSRF_COOKIE_SAMESITE, settings.CSRF_COOKIE_DOMAIN],
+        "session": [settings.SESSION_COOKIE_HTTPONLY, settings.SESSION_COOKIE_SECURE, settings.SESSION_COOKIE_SAMESITE, settings.SESSION_COOKIE_DOMAIN],
+        "guest": [settings.GUEST_ORDER_ACCESS_COOKIE_SECURE, settings.GUEST_ORDER_ACCESS_COOKIE_SAMESITE],
+    },
     "proxy": [settings.SECURE_PROXY_SSL_HEADER, settings.SECURE_SSL_REDIRECT, settings.USE_X_FORWARDED_HOST],
     "headers": [settings.SECURE_HSTS_INCLUDE_SUBDOMAINS, settings.SECURE_CONTENT_TYPE_NOSNIFF, settings.X_FRAME_OPTIONS, settings.SECURE_REFERRER_POLICY],
     "storage": [settings.STORAGES["default"]["BACKEND"], settings.STORAGES["staticfiles"]["BACKEND"]],
@@ -72,6 +79,20 @@ def import_settings(configuration):
         [sys.executable, "-c", SNAPSHOT_COMMAND],
         cwd=BACKEND_ROOT,
         env=environment,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def run_production_script(script):
+    return subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=BACKEND_ROOT,
+        env=os.environ | VALID_CONFIGURATION | {
+            "DJANGO_SETTINGS_MODULE": "core.settings",
+            "PIPENV_DONT_LOAD_ENV": "1",
+        },
         text=True,
         capture_output=True,
         check=False,
@@ -152,6 +173,13 @@ def test_production_import_fails_closed_and_applies_deploy_controls():
         "debug": False,
         "log": "INFO",
         "deploy": [True, 3600, True, "DENY"],
+        "cookies": [True, True],
+        "boundary": {
+            "jwt": [True, True, "Lax"],
+            "csrf": [False, True, "Lax", ".example.test"],
+            "session": [True, True, "Lax", None],
+            "guest": [True, "Strict"],
+        },
         "proxy": [["HTTP_X_FORWARDED_PROTO", "https"], True, False],
         "headers": [True, True, "DENY", "same-origin"],
         "storage": [
@@ -172,6 +200,13 @@ def test_local_modes_preserve_localhost_and_sqlite_fallbacks(environment):
     assert snapshot["allowed"] == ["localhost", "127.0.0.1"]
     assert snapshot["database"] == "django.db.backends.sqlite3"
     assert snapshot["deploy"] == [False, 0, False, "DENY"]
+    assert snapshot["cookies"] == [False, False]
+    assert snapshot["boundary"] == {
+        "jwt": [True, False, "Lax"],
+        "csrf": [False, False, "Lax", None],
+        "session": [True, False, "Lax", None],
+        "guest": [False, "Strict"],
+    }
     assert snapshot["proxy"] == [None, False, False]
     assert snapshot["headers"] == [False, False, "DENY", "same-origin"]
     assert snapshot["storage"] == [
