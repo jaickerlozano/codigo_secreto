@@ -1,10 +1,49 @@
+import ast
+import inspect
+
 import pytest
 from django.core.exceptions import ValidationError
 
+from apps.products import services as product_services
 from apps.products.models import Product, StockMovement
 
 
 pytestmark = pytest.mark.django_db
+
+
+_INVENTORY_MANAGER_WRITES = frozenset(
+    {"create", "bulk_create", "bulk_update", "get_or_create", "update", "update_or_create"}
+)
+
+
+def _reservation_and_movement_manager_writes(module):
+    tree = ast.parse(inspect.getsource(module))
+    writes = []
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+            continue
+        manager = node.func.value
+        if not (
+            node.func.attr in _INVENTORY_MANAGER_WRITES
+            and isinstance(manager, ast.Attribute)
+            and manager.attr == "objects"
+            and isinstance(manager.value, ast.Name)
+            and manager.value.id
+            in {"InventoryReservation", "InventoryReservationLine", "StockMovement"}
+        ):
+            continue
+        writes.append(f"{manager.value.id}.objects.{node.func.attr}")
+
+    return sorted(writes)
+
+
+def test_product_services_own_reservation_and_movement_persistence():
+    assert _reservation_and_movement_manager_writes(product_services) == [
+        "InventoryReservation.objects.create",
+        "InventoryReservationLine.objects.bulk_create",
+        "StockMovement.objects.create",
+    ]
 
 
 def test_stock_in_movement(product_factory, stock_movement_factory):

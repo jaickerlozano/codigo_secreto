@@ -11,6 +11,7 @@ from django.db import IntegrityError, transaction
 
 from apps.orders.models import Order
 from apps.orders.notifications import schedule_delivery
+from apps.products.services import InventoryReservationError, commit as commit_inventory
 from apps.shipping.services import (
     DISPATCH_KIND_SPECIAL,
     evaluate_requested_dispatch_date,
@@ -169,10 +170,23 @@ def approve_payment(*, order, transaction_id):
             raise PaymentApprovalError()
         if order.status != "PENDING":
             raise PaymentStateError(order.get_status_display())
-        attempt.status = "APPROVED"
-        attempt.save(update_fields=["status", "updated_at"])
-        order.status = "PAID"
-        order.save(update_fields=["status", "updated_at"])
-        _clear_purchased_cart_quantities(order)
-        schedule_delivery(order, "payment_confirmation")
-        return attempt, order
+        try:
+            reservation = commit_inventory(order_id=order.id)
+        except InventoryReservationError:
+            if order.items.exists():
+                raise
+            reservation = None
+        if reservation is None or reservation.status == "COMMITTED":
+            attempt.status = "APPROVED"
+            attempt.save(update_fields=["status", "updated_at"])
+            order.status = "PAID"
+            order.save(update_fields=["status", "updated_at"])
+            _clear_purchased_cart_quantities(order)
+            schedule_delivery(order, "payment_confirmation")
+            return attempt, order
+        if reservation.release_reason == "EXPIRED":
+            order.status = "CANCELLED"
+            order.save(update_fields=["status", "updated_at"])
+        else:
+            raise PaymentApprovalError()
+    raise PaymentStateError(order.get_status_display())
