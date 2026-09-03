@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from .models import NotificationDelivery, Order, OrderItem
 from .notifications import retry_delivery
-from .services import InvalidFulfillmentError, fulfill_dispatch
+from .services import PendingCancellationError, InvalidFulfillmentError, cancel_pending_order, fulfill_dispatch
 
 
 class OrderItemInline(admin.TabularInline):
@@ -43,7 +43,7 @@ class OrderAdmin(admin.ModelAdmin):
         # Campos de ciclo de vida: solo cambian mediante la acción de despacho
         'status', 'dispatched_at',
     )
-    actions = ('revoke_guest_access', 'rotate_guest_access', 'dispatch_orders')
+    actions = ('revoke_guest_access', 'rotate_guest_access', 'cancel_pending_orders', 'dispatch_orders')
 
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
         context["show_save_and_dispatch"] = bool(
@@ -111,6 +111,17 @@ class OrderAdmin(admin.ModelAdmin):
             )
         else:
             self.message_user(request, "No se seleccionaron pedidos.")
+
+    @admin.action(description="Cancel pending orders")
+    def cancel_pending_orders(self, request, queryset):
+        cancelled = 0
+        for order in queryset:
+            try:
+                cancel_pending_order(order_id=order.id)
+                cancelled += 1
+            except PendingCancellationError:
+                continue
+        self.message_user(request, f"{cancelled} pending order(s) cancelled.")
 
     def buyer_display(self, obj):
         # Muestra el nombre real ya sea que compre un cliente registrado o un invitado
