@@ -590,6 +590,40 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/orders/by-order-number/{order_number}/cancel/:
+    post:
+      operationId: orders_by_order_number_cancel_create
+      parameters:
+      - in: header
+        name: X-Order-Capability
+        schema:
+          type: string
+      - in: path
+        name: order_number
+        schema:
+          type: string
+          title: Número de pedido
+          description: 'Identificador público del pedido (ej: CS-XXXXXXX).'
+        required: true
+      tags:
+      - orders
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+        '404':
+          description: No response body
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteError'
+          description: ''
   /api/orders/quote/:
     post:
       operationId: orders_quote_create

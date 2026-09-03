@@ -5,9 +5,13 @@ PENDING->APPROVED / PENDING->PAID transition, and selective authenticated
 cart clearing. HTTP-level acceptance lives here (real URL wiring); the
 service keeps the state machine.
 """
+from datetime import timedelta
+
 import pytest
 from django.core import mail
+from django.db import transaction
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -16,7 +20,9 @@ from apps.carts.models import Cart
 from apps.carts.tests.factories import CartFactory, CartItemFactory
 from apps.orders.tests.factories import OrderItemFactory
 from apps.payments.models import Transaction
-from apps.payments.services import approve_payment
+from apps.payments.services import PaymentApprovalError, PaymentStateError, approve_payment
+from apps.products.models import InventoryReservation, StockMovement
+from apps.products.services import ReservationLineInput, inspect, reserve
 from apps.products.tests.factories import ProductFactory
 
 
@@ -45,6 +51,13 @@ def _approve(client, transaction):
     return client.post(f"/api/payments/{transaction.id}/mock-approve/")
 
 
+def _reserve_for_payment(order, product, quantity=2):
+    if not order.items.exists(): OrderItemFactory(order=order, product=product, quantity=quantity, price=product.price)
+    with transaction.atomic():
+        reserve(order_id=order.id, lines=(ReservationLineInput(product.id, quantity),),
+                expires_at=timezone.now() + timedelta(minutes=15))
+
+
 class TestApprovePaymentService:
     """Service state machine: approve exactly once, replay idempotently."""
 
@@ -63,6 +76,7 @@ class TestApprovePaymentService:
         cart_item_factory(cart=cart, product=product, quantity=2)
         order = order_factory(user=user, status="PENDING", subtotal=2000, shipping_cost=0, total=2000)
         OrderItemFactory(order=order, product=product, quantity=2, price=1000)
+        _reserve_for_payment(order, product)
         attempt = transaction_factory(order=order)
 
         first = approve_payment(order=order, transaction_id=attempt.id)
@@ -92,6 +106,51 @@ class TestApprovePaymentService:
         assert order.order_number in mail.outbox[0].subject
         assert "$30.000" in mail.outbox[0].body
 
+    def test_approval_commits_once_and_rejection_retains_an_active_hold(
+            self, order_factory, transaction_factory, product_factory, mock_payment_enabled):
+        approved_product = product_factory(current_stock=4, supplier__phone="56912345678")
+        approved_order = order_factory(status="PENDING", total=2000)
+        _reserve_for_payment(approved_order, approved_product)
+        approved_attempt = transaction_factory(order=approved_order)
+
+        first = approve_payment(order=approved_order, transaction_id=approved_attempt.id)
+        second = approve_payment(order=approved_order, transaction_id=approved_attempt.id)
+
+        assert (first[0].status, first[1].status) == ("APPROVED", "PAID")
+        assert (second[0].status, second[1].status) == ("APPROVED", "PAID")
+        assert StockMovement.objects.filter(product=approved_product, movement_type="OUT", quantity=2).count() == 1
+
+        rejected_product = product_factory(current_stock=4, supplier__phone="56912345678")
+        rejected_order = order_factory(status="PENDING", total=2000)
+        _reserve_for_payment(rejected_order, rejected_product)
+        rejected_attempt = transaction_factory(order=rejected_order, status="REJECTED")
+        with pytest.raises(PaymentApprovalError):
+            approve_payment(order=rejected_order, transaction_id=rejected_attempt.id)
+        with transaction.atomic():
+            held = inspect(order_id=rejected_order.id)
+        assert held.status == "ACTIVE"
+        assert StockMovement.objects.filter(product=rejected_product).count() == 0
+
+    def test_expired_reservation_cancels_without_approval(
+            self, order_factory, transaction_factory, product_factory, mock_payment_enabled):
+        product = product_factory(current_stock=4, supplier__phone="56912345678")
+        order = order_factory(status="PENDING", total=2000)
+        _reserve_for_payment(order, product)
+        attempt = transaction_factory(order=order)
+        InventoryReservation.objects.filter(order_id=order.id).update(
+            expires_at=timezone.now() - timedelta(seconds=1)
+        )
+
+        with pytest.raises(PaymentStateError):
+            approve_payment(order=order, transaction_id=attempt.id)
+
+        order.refresh_from_db()
+        attempt.refresh_from_db()
+        reservation = InventoryReservation.objects.get(order_id=order.id)
+        assert (order.status, attempt.status) == ("CANCELLED", "PENDING")
+        assert (reservation.status, reservation.release_reason) == ("RELEASED", "EXPIRED")
+        assert StockMovement.objects.filter(product=product).count() == 0
+
 
 class TestMockApproveView:
     """Approval acceptance through the real URL stack."""
@@ -117,6 +176,7 @@ class TestMockApproveView:
         cart_item_factory(cart=cart, product=product, quantity=2)
         order = order_factory(user=user, status="PENDING", subtotal=2000, shipping_cost=0, total=2000)
         OrderItemFactory(order=order, product=product, quantity=2, price=1000)
+        _reserve_for_payment(order, product)
         attempt = transaction_factory(order=order)
 
         first, second = _approve(authenticated_client, attempt), _approve(authenticated_client, attempt)
@@ -255,6 +315,7 @@ class TestMockApproveView:
         cart_item_factory(cart=cart, product=unrelated, quantity=3)
         order = order_factory(user=user, status="PENDING", subtotal=2000, shipping_cost=0, total=2000)
         OrderItemFactory(order=order, product=bought, quantity=2, price=1000)
+        _reserve_for_payment(order, bought)
         attempt = transaction_factory(order=order)
 
         response = _approve(authenticated_client, attempt)
@@ -272,6 +333,7 @@ class TestMockApproveView:
         cart_item_factory(cart=cart, product=product, quantity=5)
         order = order_factory(user=user, status="PENDING", subtotal=2000, shipping_cost=0, total=2000)
         OrderItemFactory(order=order, product=product, quantity=2, price=1000)
+        _reserve_for_payment(order, product)
         attempt = transaction_factory(order=order)
 
         response = _approve(authenticated_client, attempt)
@@ -289,6 +351,7 @@ class TestMockApproveView:
         purchased = product_factory(price=1000)
         order = order_factory(user=user, status="PENDING", subtotal=2000, shipping_cost=0, total=2000)
         OrderItemFactory(order=order, product=purchased, quantity=2, price=1000)
+        _reserve_for_payment(order, purchased)
         attempt = transaction_factory(order=order)
 
         response = _approve(authenticated_client, attempt)
