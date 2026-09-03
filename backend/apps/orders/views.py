@@ -23,7 +23,10 @@ from .services import (
     CheckoutKeyConflictError,
     GuestQuoteRevisionStale,
     GuestQuoteValidationError,
+    InsufficientAvailableStock,
+    PendingCancellationError,
     authorize_order_access,
+    cancel_pending_order,
     calculate_guest_quote,
     issue_guest_access_cookie,
 )
@@ -45,7 +48,7 @@ class OrderViewSet(mixins.CreateModelMixin,
         o consultar el estado de un pedido por su número de orden.
         Pero exige estar Autenticado para ver la lista de pedidos del historial.
         """
-        if self.action in ('create', 'by_order_number', 'access', 'quote'):
+        if self.action in ('create', 'by_order_number', 'access', 'cancel', 'quote'):
             return [AllowAny()]
         return [IsAuthenticated()]
 
@@ -54,7 +57,7 @@ class OrderViewSet(mixins.CreateModelMixin,
             self.throttle_scope = 'order_create'
         elif self.action == 'quote':
             self.throttle_scope = 'order_quote'
-        elif self.action in ('by_order_number', 'access'):
+        elif self.action in ('by_order_number', 'access', 'cancel'):
             self.throttle_scope = 'order_lookup'
         else:
             self.throttle_scope = None
@@ -95,6 +98,11 @@ class OrderViewSet(mixins.CreateModelMixin,
             return Response({
                 'code': 'checkout_key_conflict',
                 'detail': 'The checkout key cannot be reused for a different purchase.',
+            }, status=status.HTTP_409_CONFLICT)
+        except InsufficientAvailableStock:
+            return Response({
+                'code': 'inventory_unavailable',
+                'detail': 'The requested inventory is no longer available.',
             }, status=status.HTTP_409_CONFLICT)
         except StaleDeliveryOptionError as error:
             return Response({
@@ -183,3 +191,36 @@ class OrderViewSet(mixins.CreateModelMixin,
             samesite=getattr(settings, "GUEST_ORDER_ACCESS_COOKIE_SAMESITE", "Strict"), path="/",
         )
         return response
+
+    @extend_schema(
+        request=None,
+        parameters=[
+            OpenApiParameter(
+                name=CAPABILITY_HEADER,
+                location=OpenApiParameter.HEADER,
+                required=False,
+                type=OpenApiTypes.STR,
+            ),
+        ],
+        responses={200: OrderSerializer, 404: None, 409: QuoteErrorSerializer},
+    )
+    @action(detail=False, methods=['post'], url_path='by-order-number/(?P<order_number>[^/.]+)/cancel')
+    def cancel(self, request, order_number=None):
+        if request.user.is_authenticated and request.user.is_staff:
+            return self._masked_not_found()
+        order = authorize_order_access(
+            order_number,
+            user=request.user,
+            capability=request.headers.get(CAPABILITY_HEADER),
+            access_cookie=request.COOKIES.get(GUEST_ACCESS_COOKIE_NAME),
+        )
+        if order is None:
+            return self._masked_not_found()
+        try:
+            order = cancel_pending_order(order_id=order.id)
+        except PendingCancellationError:
+            return Response({
+                'code': 'order_not_pending',
+                'detail': 'Only pending orders can be cancelled.',
+            }, status=status.HTTP_409_CONFLICT)
+        return Response(self.get_serializer(order).data)
