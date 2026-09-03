@@ -14,10 +14,55 @@ pipenv run python manage.py runserver
 
 El servidor queda disponible en `http://localhost:8000`.
 
-## Base de datos
+## Database
 
-Por defecto el desarrollo local usa SQLite (`DATABASE_URL=sqlite:///db.sqlite3` en `.env`).
-Para producción se recomienda PostgreSQL; solo hay que ajustar `DATABASE_URL`.
+Ordinary local development uses SQLite (`DATABASE_URL=sqlite:///db.sqlite3` in
+the ignored `backend/.env`). PostgreSQL is required for tests marked `pg_only`,
+which exercise real row locking and concurrent transactions.
+
+### Development PostgreSQL container
+
+The repository's root `compose.yaml` provides a development-only PostgreSQL 16
+container. It is bound to `127.0.0.1` and stores its data in the named
+`postgres_data` volume. It is not a production deployment configuration.
+
+From the repository root, create the ignored local Docker environment file and
+replace the password placeholder with an alphanumeric development-only value:
+
+```bash
+cp docker/postgres.env.example docker/postgres.env
+```
+
+Use that same local password in the ignored `backend/.env` when setting Django's
+database URL:
+
+```env
+DATABASE_URL=postgresql://codigo_secreto:replace-with-a-local-alphanumeric-password@127.0.0.1:5432/codigo_secreto
+```
+
+Start the database and wait for its healthcheck before running Django commands:
+
+```bash
+docker compose up -d --wait postgres
+```
+
+Stop the container while preserving the named volume:
+
+```bash
+docker compose down
+```
+
+With the container healthy and `DATABASE_URL` set, run migrations and the
+PostgreSQL-only concurrency tests from `backend/`:
+
+```bash
+pipenv run python manage.py migrate
+pipenv run pytest -m pg_only
+```
+
+Production uses its own managed PostgreSQL service and a `DATABASE_URL` injected
+by the approved secret manager. Never reuse this container, its credentials, or
+its local environment files for production.
 
 ## Aplicaciones
 
