@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models, transaction
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 
 from .images import normalize_uploaded_image
 
@@ -143,6 +144,13 @@ class StockMovement(models.Model):
 
             # 2. Ejecuto la validación de negocio con el stock real y fresco de la base de datos
             if self.movement_type == 'OUT':
+                held = InventoryReservationLine.objects.filter(
+                    product_id=product.id,
+                    reservation__status="ACTIVE",
+                    reservation__expires_at__gt=timezone.now(),
+                ).aggregate(total=models.Sum("quantity"))["total"] or 0
+                if self.quantity > product.current_stock - held:
+                    raise ValidationError({"quantity": "Insufficient available stock."})
                 # Restamos directamente en memoria (es seguro gracias a select_for_update)
                 product.current_stock -= self.quantity
             else:
@@ -159,6 +167,44 @@ class StockMovement(models.Model):
         ordering = ['-timestamp']
         verbose_name_plural = 'Movimientos de Stock'
         verbose_name = 'Movimiento de Stock' 
+
+
+class InventoryReservation(models.Model):
+    STATUS_CHOICES = (("ACTIVE", "Active"), ("RELEASED", "Released"), ("COMMITTED", "Committed"))
+    RELEASE_REASONS = (("EXPIRED", "Expired"), ("CANCELLED", "Cancelled"))
+    order_id = models.PositiveBigIntegerField(unique=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    expires_at = models.DateTimeField()
+    transitioned_at = models.DateTimeField(null=True, blank=True)
+    release_reason = models.CharField(max_length=10, choices=RELEASE_REASONS, null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["status", "expires_at"], name="products_res_status_expiry")]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(status__in=["ACTIVE", "RELEASED", "COMMITTED"]) & (
+                    models.Q(status="ACTIVE", transitioned_at__isnull=True, release_reason__isnull=True)
+                    | models.Q(status="RELEASED", transitioned_at__isnull=False, release_reason__isnull=False, release_reason__in=["EXPIRED", "CANCELLED"])
+                    | models.Q(status="COMMITTED", transitioned_at__isnull=False, release_reason__isnull=True)
+                ),
+                name="products_reservation_terminal_metadata",
+            )
+        ]
+
+
+class InventoryReservationLine(models.Model):
+    reservation = models.ForeignKey(InventoryReservation, on_delete=models.CASCADE, related_name="lines")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="reservation_lines")
+    quantity = models.PositiveIntegerField()
+    stock_movement = models.OneToOneField(
+        StockMovement, on_delete=models.PROTECT, related_name="reservation_line", null=True, blank=True
+    )
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(quantity__gt=0), name="products_reservation_line_positive_quantity"),
+            models.UniqueConstraint(fields=("reservation", "product"), name="products_reservation_line_product_unique"),
+        ]
 
 
 class ProductImage(ProductImageNormalizationMixin, models.Model):
