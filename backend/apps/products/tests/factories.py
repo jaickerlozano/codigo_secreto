@@ -20,7 +20,7 @@ class SupplierFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f"Proveedor {n}")
     contact = factory.Faker("name")
     email = factory.LazyAttribute(lambda o: f"{faker.uuid4()}@supplier.test")
-    phone = factory.Faker("phone_number")
+    phone = factory.Sequence(lambda n: f"+569{n:08d}")
     address = factory.Faker("street_address")
 
 
