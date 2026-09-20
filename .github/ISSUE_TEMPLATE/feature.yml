@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a new capability or meaningful enhancement.
+title: "[Feature]: "
+labels:
+  - type:feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for proposing an improvement. Provide enough detail to evaluate the request safely.
+  - type: textarea
+    id: intent-problem
+    attributes:
+      label: Intent and problem
+      description: Describe the user need, the problem to solve, and the intended outcome.
+      placeholder: Explain who is affected, what is difficult today, and the desired result.
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-scope
+    attributes:
+      label: Proposed scope
+      description: Describe the capability, boundaries, and notable exclusions.
+      placeholder: Include the expected behavior and identify what is out of scope.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that must be true for this request to be complete.
+      placeholder: |
+        - Given ..., when ..., then ...
+        - Given ..., when ..., then ...
+    validations:
+      required: true
+  - type: textarea
+    id: risks-and-rollback
+    attributes:
+      label: Risks and rollback
+      description: Identify material risks, dependencies, mitigations, and how the change could be safely reversed.
+      placeholder: Describe operational, security, data, compatibility, or delivery risks and the rollback approach.
+    validations:
+      required: true
