@@ -188,3 +188,6 @@ cookies*.txt
 
 # Artefactos SDD huérfanos
 sdd_*.md
+
+# Durable local PostgreSQL validation evidence
+backend/.ordinary-validation-evidence/
