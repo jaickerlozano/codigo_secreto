@@ -81,6 +81,8 @@ def product_image_delivery_urls(
         return ProductImageDelivery(transformed=None, original=None)
 
     url = image_field.url
+    if getattr(getattr(image_field, "storage", None), "preserve_delivery_url", False):
+        return ProductImageDelivery(transformed=url, original=url)
     if not _is_cloudinary_delivery_url(url):
         return ProductImageDelivery(transformed=url, original=url)
 

@@ -6,6 +6,10 @@ import { defineConfig } from 'vitest/config'
 
 // https://vite.dev/config/
 export default defineConfig({
+  envDir: process.env.LOCAL_NO_DOTENV === '1' ? false : undefined,
+  // Expose LOCAL_-prefixed variables to test code (src/test/setup.ts) so the
+  // strict-MSW switch works without Node types leaking into the app tsconfig.
+  envPrefix: ['VITE_', 'LOCAL_'],
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -13,6 +17,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: 'localhost',
     port: 5173,
     proxy: {
       '/api': {
