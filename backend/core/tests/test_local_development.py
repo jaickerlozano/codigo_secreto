@@ -35,6 +35,16 @@ def test_missing_namespace_uses_existing_placeholder(settings):
     assert LocalReferenceStorage().url("products/example.webp") is None
 
 
+def test_writable_mode_is_explicit_opt_in(tmp_path):
+    path = tmp_path / "postgres.env"
+    path.write_text("POSTGRES_DB=test\nPOSTGRES_USER=test\nPOSTGRES_PASSWORD='synthetic'\n")
+    readonly = local_database(path)
+    assert "default_transaction_read_only=on" in readonly["OPTIONS"]["options"]
+    writable = local_database(path, read_only=False)
+    assert "options" not in writable["OPTIONS"]
+    assert writable["OPTIONS"]["connect_timeout"] == 5
+
+
 def test_public_reference_is_not_transformed(settings):
     settings.LOCAL_CLOUDINARY_NAMESPACE = "synthetic-namespace"
     storage = LocalReferenceStorage()

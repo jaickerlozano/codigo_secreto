@@ -5,7 +5,7 @@ import shlex
 from django.core.exceptions import ImproperlyConfigured
 
 
-def local_database(path):
+def local_database(path, *, read_only=True):
     keys = {"POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"}
     values = {}
     try:
@@ -20,10 +20,13 @@ def local_database(path):
             raise ValueError
     except (OSError, ValueError):
         raise ImproperlyConfigured("Invalid local PostgreSQL configuration") from None
+    options = {"connect_timeout": 5}
+    if read_only:
+        options["options"] = "-c default_transaction_read_only=on"
     return {
         "ENGINE": "django.db.backends.postgresql",
         "HOST": "127.0.0.1", "PORT": "5432",
         "NAME": values["POSTGRES_DB"], "USER": values["POSTGRES_USER"],
         "PASSWORD": values["POSTGRES_PASSWORD"],
-        "OPTIONS": {"options": "-c default_transaction_read_only=on", "connect_timeout": 5},
+        "OPTIONS": options,
     }

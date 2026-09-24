@@ -1,4 +1,4 @@
-"""Explicit local profile: existing catalog is read-only, tests are disposable."""
+"""Explicit local profile: catalog is read-only unless opted in; tests are disposable."""
 
 import os
 from pathlib import Path
@@ -33,4 +33,10 @@ if os.environ.get("LOCAL_TEST_DATABASE") == "1":
     STORAGES["default"] = {"BACKEND": "django.core.files.storage.InMemoryStorage"}
     EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 else:
-    DATABASES = {"default": local_database(Path(__file__).resolve().parents[2] / "docker/postgres.env")}
+    # Manual checkout testing needs an explicit LOCAL_ALLOW_WRITES=1 opt-in;
+    # the catalog connection stays read-only by default.
+    LOCAL_ALLOW_WRITES = os.environ.get("LOCAL_ALLOW_WRITES") == "1"
+    DATABASES = {"default": local_database(
+        Path(__file__).resolve().parents[2] / "docker/postgres.env",
+        read_only=not LOCAL_ALLOW_WRITES,
+    )}
