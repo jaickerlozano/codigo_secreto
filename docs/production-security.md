@@ -82,6 +82,33 @@ Do not release until all items are complete:
 
 If the deployment cannot provide a controlled shared parent, stop rollout. A different cross-site CSRF architecture requires a separate specification and implementation change.
 
+## Managed PostgreSQL release contract
+
+This provider-neutral contract proves a supplied PostgreSQL target before starting application replicas. It does not select a database provider, deployment topology, or CI workflow.
+
+### Prerequisites
+
+- The secret custodian injects `DATABASE_URL` outside source control; operators must not print or paste it into command history or evidence.
+- Validation uses a separate, empty, disposable PostgreSQL database and requires the explicit `--ack-disposable` flag.
+- Release and startup use the approved target, a safe release ID, and writable owner-only paths for JSON result files.
+
+### Required execution order
+
+Run `validate → release-migrate → startup-check → server start`. The same release ID and migration-result file must flow from migration into startup approval:
+
+```bash
+cd backend
+python -m core.managed_postgresql_runtime validate --ack-disposable --result /secure-path/validation.json
+python -m core.managed_postgresql_runtime release-migrate --release-id <release-id> --result /secure-path/migration.json
+python -m core.managed_postgresql_runtime startup-check --release-id <release-id> --migration-result /secure-path/migration.json --result /secure-path/startup.json
+```
+
+Start the server only when `startup-check` exits `0`. It validates canonical successful migration evidence for the same release ID, target reference, and migration graph, then confirms no migration is pending and runs Django's deployment check under the release lock.
+
+### Failure and evidence handling
+
+Any nonzero command result, missing or malformed evidence, stale graph, target mismatch, lock timeout, pending migration, or deployment-check error blocks the release: replicas **must not start**. Keep the bounded JSON files with release evidence under access controls; they contain credential-redacted target references and stage outcomes, never a database URL or password. Do not attempt to repair evidence, bypass a failed check, or substitute a local/shared target—correct the target or release state, then rerun the failed command.
+
 ## Rollback
 
 Roll back code and the validated environment snapshot together while preserving HTTPS. Do not weaken cookie, origin, proxy, or documentation-boundary controls to make a release proceed; correct the supplied topology or evidence first.

@@ -15,7 +15,13 @@ env = environ.Env(
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-environ.Env.read_env(BASE_DIR / '.env')
+
+def _should_read_dotenv(value):
+    return value != "0"
+
+
+if _should_read_dotenv(os.environ.get("DJANGO_READ_DOTENV")):
+    environ.Env.read_env(BASE_DIR / '.env')
 
 PRODUCTION_ENVIRONMENT = "production"
 REQUIRED_PRODUCTION_SETTINGS = """

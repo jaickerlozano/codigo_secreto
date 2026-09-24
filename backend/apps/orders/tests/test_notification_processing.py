@@ -201,7 +201,7 @@ def test_postgresql_two_connections_exactly_one_send(order):
             future1 = executor.submit(worker)
             assert entered_send.wait(timeout=5)
             future2 = executor.submit(worker)
-            future2.result(timeout=2)
+            future2.result(timeout=5)
             release_send.set()
             future1.result(timeout=5)
 

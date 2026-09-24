@@ -1,12 +1,15 @@
 import random
 
 import factory
+from django.contrib.auth.hashers import make_password
 from faker import Faker
 
 from apps.authentication.models import CustomerProfile, User
 
 # Faker instance reused for deterministic-but-realistic fake data.
 faker = Faker()
+TEST_PASSWORD = "TestPass123!"
+TEST_PASSWORD_HASH = make_password(TEST_PASSWORD)
 
 
 def calculate_rut_verifier_digit(rut_body: int) -> str:
@@ -76,7 +79,7 @@ class UserFactory(factory.django.DjangoModelFactory):
     is_active = True
     is_staff = False
 
-    password = factory.PostGenerationMethodCall("set_password", "TestPass123!")
+    password = TEST_PASSWORD_HASH
 
 
 class CustomerProfileFactory(factory.django.DjangoModelFactory):

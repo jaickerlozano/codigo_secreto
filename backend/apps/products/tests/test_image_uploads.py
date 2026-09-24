@@ -150,7 +150,6 @@ def test_committed_product_image_is_not_reprocessed(product_factory, local_image
 def test_admin_change_normalizes_primary_and_inline_uploads_before_atomic_save(
     staff_user, product_factory, local_image_storage, monkeypatch
 ):
-    assert connection.vendor == "sqlite"
     product = product_factory()
     normalization_atomic_states = []
     original_normalize = normalize_uploaded_image

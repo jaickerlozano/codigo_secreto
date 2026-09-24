@@ -1,8 +1,23 @@
 import pytest
+import os
+import socket
 from rest_framework.test import APIClient
 
 from apps.authentication.models import User
 from apps.authentication.tests.factories import UserFactory
+
+
+if __import__("os").environ.get("MANAGED_POSTGRESQL_RUNTIME") == "1":
+    pytest_plugins = ["core.managed_postgresql_runtime.pytest_plugin"]
+
+
+@pytest.fixture(autouse=True)
+def offline_local_tests(monkeypatch):
+    if os.environ.get("LOCAL_TEST_DATABASE") == "1":
+        def deny_network(*args, **kwargs):
+            raise AssertionError("Network access is forbidden in isolated local tests")
+        monkeypatch.setattr(socket.socket, "connect", deny_network)
+        monkeypatch.setattr(socket.socket, "connect_ex", deny_network)
 
 
 @pytest.fixture
@@ -45,7 +60,7 @@ def pytest_collection_modifyitems(config, items):
     from django.conf import settings
 
     engine = settings.DATABASES["default"].get("ENGINE", "")
-    if "postgresql" not in engine:
+    if "postgresql" not in engine and __import__("os").environ.get("MANAGED_POSTGRESQL_RUNTIME") != "1":
         skip = pytest.mark.skip(reason="pg_only: PostgreSQL required")
         for item in items:
             if "pg_only" in item.keywords:
