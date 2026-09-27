@@ -75,4 +75,5 @@ env -i PATH=/home/jaicker/.nvm/versions/node/v20.20.0/bin:/usr/bin:/bin HOME=/ho
   - `c7bd612` feat(dev): add local-only development profile with read-only catalog (7 files).
   - `f88b14b` docs(odd): record local development readiness tasks and verification evidence.
   - `2f0f02b` feat(dev): add explicit LOCAL_ALLOW_WRITES opt-in for catalog writes — checkout testing needs writes; default stays read-only (12 focused tests, full suite 661 passed).
-- Next step: user supplies the public Cloudinary cloud name (optional, for real images via `LOCAL_CLOUDINARY_NAMESPACE`), runs the manual browser smoke, and decides push/merge to main.
+  - `a1eb6a3` docs(odd): record local image reconciliation outcome.
+- Next step: user runs the manual browser smoke, simulates local mock purchases, and decides push/merge to main. Three products now use their verified Cloudinary image sets; the other 41 remain placeholders until real images are uploaded.

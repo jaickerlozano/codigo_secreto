@@ -54,4 +54,4 @@ The guarded transaction revalidated both before-state hashes, acquired `SHARE RO
 - [x] Before-state persisted in this file and Engram observation #1138.
 - [x] Guarded local PostgreSQL apply completed.
 - [x] Direct API and frontend proxy verify three primary URLs and eight gallery URLs.
-- [ ] Documentation committed with outcome and rollback evidence.
+- [x] Documentation committed with outcome and rollback evidence: `a1eb6a3`.
