@@ -73,5 +73,6 @@ env -i PATH=/home/jaicker/.nvm/versions/node/v20.20.0/bin:/usr/bin:/bin HOME=/ho
 - Work-unit commits (branch `feat/managed-postgresql-runtime`, not pushed; push/PR/merge remain user decisions):
   - `03bdb3d` fix(runtime): harden managed PostgreSQL test support — the reviewed pre-existing baseline (10 files).
   - `c7bd612` feat(dev): add local-only development profile with read-only catalog (7 files).
-  - This document is committed separately with the recorded evidence.
+  - `f88b14b` docs(odd): record local development readiness tasks and verification evidence.
+  - `2f0f02b` feat(dev): add explicit LOCAL_ALLOW_WRITES opt-in for catalog writes — checkout testing needs writes; default stays read-only (12 focused tests, full suite 661 passed).
 - Next step: user supplies the public Cloudinary cloud name (optional, for real images via `LOCAL_CLOUDINARY_NAMESPACE`), runs the manual browser smoke, and decides push/merge to main.
