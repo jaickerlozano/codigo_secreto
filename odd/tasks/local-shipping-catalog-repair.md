@@ -40,4 +40,4 @@ The guarded local transaction revalidated the before-state hash, locked only `sh
 - [x] Before-state persisted in this file and Engram observation #1145.
 - [x] Guarded local tariff update completed.
 - [x] API verifies all 16 regions expose eligible communes.
-- [ ] Documentation committed with outcome and rollback evidence.
+- [x] Documentation committed with outcome and rollback evidence: `085acd6`.
