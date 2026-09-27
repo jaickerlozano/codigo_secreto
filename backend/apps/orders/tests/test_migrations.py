@@ -9,12 +9,13 @@ from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.utils import timezone
 
-from apps.orders.tests.factories import OrderFactory
+from apps.shipping.tests.factories import ComunaFactory
 
 BASELINE = ("orders", "0004_order_guest_access_digest_and_more")
 TARGET = ("orders", "0005_order_checkout_delivery_fields")
 BASELINE_0006 = ("orders", "0006_notificationdelivery")
 TARGET_0007 = ("orders", "0007_notificationdelivery_due_index")
+TARGET_0009 = ("orders", "0009_order_delivered_at")
 INDEX_NAME = "orders_notif_status_next_retry"
 
 NEW_COLUMNS = (
@@ -77,9 +78,19 @@ def test_orders_0007_adds_due_index_and_is_reversible():
         executor.migrate([TARGET_0007])
         assert INDEX_NAME in _index_names("orders_notificationdelivery")
 
-        order = OrderFactory()
+        order_model = executor.loader.project_state([TARGET_0007]).apps.get_model("orders", "Order")
+        comuna = ComunaFactory()
+        order = order_model.objects.create(
+            phone="+56912345678",
+            comuna_id=comuna.id,
+            shipping_address="Example 123",
+            subtotal=1000,
+            shipping_cost=1000,
+            total=2000,
+            status="CANCELLED",
+        )
         created = NotificationDelivery.objects.create(
-            order=order,
+            order_id=order.id,
             event="payment_confirmation",
             status="FAILED",
             attempts=1,
@@ -96,4 +107,22 @@ def test_orders_0007_adds_due_index_and_is_reversible():
         assert INDEX_NAME in _index_names("orders_notificationdelivery")
         assert NotificationDelivery.objects.filter(pk=created.pk).exists()
     finally:
-        MigrationExecutor(connection).migrate([TARGET_0007])
+        MigrationExecutor(connection).migrate([TARGET_0009])
+
+
+@pytest.mark.django_db(transaction=True)
+def test_orders_0009_adds_delivered_timestamp_and_is_reversible():
+    try:
+        executor = MigrationExecutor(connection)
+        executor.migrate([TARGET_0007])
+        assert "delivered_at" not in _table_columns("orders_order")
+
+        executor = MigrationExecutor(connection)
+        executor.migrate([TARGET_0009])
+        assert "delivered_at" in _table_columns("orders_order")
+
+        executor = MigrationExecutor(connection)
+        executor.migrate([TARGET_0007])
+        assert "delivered_at" not in _table_columns("orders_order")
+    finally:
+        MigrationExecutor(connection).migrate([TARGET_0009])

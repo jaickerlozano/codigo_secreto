@@ -139,6 +139,12 @@ class Order(models.Model):
         verbose_name='fecha estimada de entrega',
         help_text='Fecha estimada de entrega registrada por el staff al despachar.',
     )
+    delivered_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='fecha de entrega',
+        help_text='Momento en que el pedido fue marcado como entregado.',
+    )
 
     # 4. Control de Estado y Fechas
     status = models.CharField(max_length=15, choices=STATUS_CHOICES, default='PENDING', verbose_name='estado del pedido')

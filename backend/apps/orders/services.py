@@ -449,22 +449,33 @@ class InvalidFulfillmentError(ValueError): """The order cannot be dispatched in 
 
 
 def fulfill_dispatch(*, order, carrier=None, estimated_delivery_date=None, tracking_number=None):
-    """Transition an approved PAID order to SHIPPED with truthful fields: carrier
-    and estimated date required (tracking optional), validation failures leave
-    the order untouched, success schedules the dispatch email after commit."""
+    """Transition a PAID order to SHIPPED and schedule its dispatch notification."""
     with transaction.atomic():
         order = Order.objects.select_for_update().get(id=order.id)
         if order.status != "PAID":
             raise InvalidFulfillmentError("El pedido no está listo para despacho.")
         if not isinstance(carrier, str) or not carrier.strip():
             raise InvalidFulfillmentError("El transportista es obligatorio.")
-        if estimated_delivery_date is None:
+        effective_delivery_date = estimated_delivery_date or order.requested_dispatch_date
+        if effective_delivery_date is None:
             raise InvalidFulfillmentError("La fecha estimada de entrega es obligatoria.")
         order.carrier = carrier.strip()
         order.tracking_number = tracking_number.strip() if isinstance(tracking_number, str) and tracking_number.strip() else None
-        order.estimated_delivery_date = estimated_delivery_date
+        order.estimated_delivery_date = effective_delivery_date
         order.dispatched_at = timezone.now()
         order.status = "SHIPPED"
         order.save(update_fields=["carrier", "tracking_number", "estimated_delivery_date", "dispatched_at", "status", "updated_at"])
         schedule_delivery(order, "dispatch")
+        return order
+
+
+def transition_order_to_delivered(*, order):
+    """Atomically transition a shipped order to delivered without changing dispatch data."""
+    with transaction.atomic():
+        order = Order.objects.select_for_update().get(id=order.id)
+        if order.status != "SHIPPED":
+            raise InvalidFulfillmentError("El pedido no está despachado.")
+        order.status = "DELIVERED"
+        order.delivered_at = timezone.now()
+        order.save(update_fields=["status", "delivered_at", "updated_at"])
         return order

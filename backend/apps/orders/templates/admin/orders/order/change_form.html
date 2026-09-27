@@ -7,4 +7,9 @@
       <input type="submit" value="Guardar y despachar" name="_save_and_dispatch">
     </div>
   {% endif %}
+  {% if show_mark_delivered %}
+    <div class="submit-row">
+      <input type="submit" value="Marcar como entregado" name="_mark_delivered">
+    </div>
+  {% endif %}
 {% endblock %}
