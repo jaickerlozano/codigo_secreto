@@ -55,4 +55,4 @@ Revert the dedicated work-unit commit to remove the migration, delivery timestam
 
 - [x] FUL-ADMIN-01 through FUL-ADMIN-03 authorized and tracked before source changes.
 - [x] Implementation and verification complete. Reversible migration tests restore `0009`; their historical pending test row is cancelled so the existing `0008` inventory backfill can safely replay.
-- [ ] Commit evidence pending.
+- [x] Work-unit commit: `dcd69b4` (`feat(orders): complete fulfillment admin transitions`).
