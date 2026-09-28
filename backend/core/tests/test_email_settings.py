@@ -24,6 +24,8 @@ EMAIL_SETTINGS = (
     "EMAIL_HOST_USER",
     "EMAIL_HOST_PASSWORD",
     "DEFAULT_FROM_EMAIL",
+    "SECRET_EMAIL",
+    "SECRET_KEY_EMAIL",
 )
 
 
@@ -100,6 +102,35 @@ def test_local_settings_preserve_explicit_smtp_configuration():
         "EMAIL_HOST_PASSWORD": "test-password",
         "DEFAULT_FROM_EMAIL": "notifications@example.test",
     }
+
+
+def test_local_settings_use_authorized_aliases_when_standard_credentials_are_absent():
+    local_settings = load_local_email_settings(
+        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+        EMAIL_HOST="smtp.example.test",
+        SECRET_EMAIL="alias-sender@example.test",
+        SECRET_KEY_EMAIL="alias-password",
+    )
+
+    assert local_settings["EMAIL_HOST_USER"] == "alias-sender@example.test"
+    assert local_settings["EMAIL_HOST_PASSWORD"] == "alias-password"
+    assert local_settings["DEFAULT_FROM_EMAIL"] == "alias-sender@example.test"
+
+
+def test_local_settings_prioritize_standard_credentials_over_authorized_aliases():
+    local_settings = load_local_email_settings(
+        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+        EMAIL_HOST="smtp.example.test",
+        EMAIL_HOST_USER="standard-user",
+        EMAIL_HOST_PASSWORD="standard-password",
+        DEFAULT_FROM_EMAIL="standard-sender@example.test",
+        SECRET_EMAIL="alias-sender@example.test",
+        SECRET_KEY_EMAIL="alias-password",
+    )
+
+    assert local_settings["EMAIL_HOST_USER"] == "standard-user"
+    assert local_settings["EMAIL_HOST_PASSWORD"] == "standard-password"
+    assert local_settings["DEFAULT_FROM_EMAIL"] == "standard-sender@example.test"
 
 
 def test_local_test_database_forces_locmem_email_backend():

@@ -12,6 +12,7 @@ After a guest customer completes a purchase, send a confirmation email containin
 - Excluded until mapped: any production email provider configuration, remote delivery, `backend/.env`, Cloudinary, Neon, payments, tariff/catalog/image changes, and unrelated frontend work.
 - Approved SMTP extension: configure Django email only through explicitly supplied environment settings. The future Gmail SMTP sender is authorized by the account holder, but no credential exists yet; this work must remain local and must not read or modify any real `.env`, authenticate to, connect to, or send through Gmail/SMTP.
 - Account-holder extension: payment-confirmation email for an authenticated order may include the normal frontend order route without a ticket or fragment. Existing authenticated backend authorization remains the boundary; an order number alone must not disclose an order to an unauthenticated recipient.
+- Authorized secret-variable names for this local Gmail test are limited to `SECRET_EMAIL` and `SECRET_KEY_EMAIL`; their user-provided values must remain opaque and must never be read, printed, committed, or otherwise exposed.
 
 ## Work items
 
@@ -25,6 +26,10 @@ After a guest customer completes a purchase, send a confirmation email containin
 - [x] GUEST-TRACK-08 — Run required local verification and commit this SMTP/account-holder extension as one work unit.
 - [x] GUEST-TRACK-10 — Add isolated `core.settings_local` integration coverage for console fallback, explicit SMTP preservation, and the test-only locmem override without loading dotenv files or making network connections.
 - [ ] GUEST-TRACK-09 — Perform a credential-gated live Gmail SMTP verification only after the account holder adds credentials locally and explicitly authorizes the connection.
+- [x] GUEST-TRACK-11 — Add local-only Gmail environment alias support: use `SECRET_EMAIL` and `SECRET_KEY_EMAIL` only as fallbacks when the standard SMTP credential variables are absent; keep all values opaque.
+- [x] GUEST-TRACK-12 — Bootstrap the local writable Django runtime on loopback with the explicitly authorized Gmail SMTP configuration, without logging or exposing dotenv values.
+- [x] GUEST-TRACK-13 — Add and run safe configuration tests proving standard SMTP credentials take precedence over the authorized aliases without SMTP network access.
+- [ ] GUEST-TRACK-14 — Perform the manually triggered checkout/live-email confirmation after local bootstrap; no agent-initiated SMTP delivery is allowed.
 
 ## Final evidence and constraints
 
@@ -69,3 +74,9 @@ After a guest customer completes a purchase, send a confirmation email containin
 - During the correction, a formatter invocation incidentally loaded `.env` variables. It did not inspect, modify, or expose them. Every verification command used the dotenv guards above, and no secret or value is recorded here.
 - Live Gmail verification remains pending under GUEST-TRACK-09. It requires the account holder to add an app password locally and a further explicit authorization before the first SMTP send.
 - Rollback boundary: revert `f7e8826`, `41b2487`, and this docs-only evidence commit independently as applicable. Reverting `f7e8826` removes the SMTP contract validation and account-holder route-only links; reverting `41b2487` removes only the isolated settings-local coverage correction; reverting this commit removes only its evidence update.
+- GUEST-TRACK-11 through GUEST-TRACK-13: local development now resolves `SECRET_EMAIL` as the username and sender fallback and `SECRET_KEY_EMAIL` as the password fallback only when the matching standard SMTP variable is absent. Explicit standard SMTP values retain precedence. Production continues to require the standard variables and never uses the local aliases.
+- Local dotenv configuration: `backend/.env` was updated opaquely, without printing values, to contain exactly one active assignment for each non-secret Gmail TLS field and the frontend origin. The two authorized secret variable names were normalized to dotenv assignment syntax without logging their values. `backend/.env` remains untracked and is excluded from the commit.
+- Required verification, from `backend/`: `LOCAL_TEST_DATABASE=1 PIPENV_DONT_LOAD_ENV=1 DJANGO_READ_DOTENV=0 DJANGO_SETTINGS_MODULE=core.settings_local pipenv run pytest apps/orders core/tests` — `349 passed, 1 skipped in 21.43s`. The test run uses the locmem backend and did not connect to SMTP.
+- Local runtime: the previous loopback Django server was stopped, then `core.settings_local` was restarted on `127.0.0.1:8000` with `LOCAL_ALLOW_WRITES=1`, dotenv guards, and an in-process opaque dotenv loader. A credential-free settings check confirmed SMTP selected, host/sender/username/password configured, port `587`, TLS enabled, and writable mode enabled. The server's standard output and error are discarded, so bearer tickets are not persisted in a log.
+- No Gmail authentication, SMTP connection, or email delivery was initiated. GUEST-TRACK-14 and GUEST-TRACK-09 remain pending the user's manual checkout and live-email confirmation.
+- Rollback boundary for this local extension: stop the loopback server, remove the six non-secret local SMTP/origin assignments from `backend/.env` (the user-provided secret assignments remain), and revert the work-unit commit to remove alias resolution, tests, and tracker evidence.

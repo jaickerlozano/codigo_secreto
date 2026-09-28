@@ -178,6 +178,15 @@ def production_or_env(setting, default=None):
     return PRODUCTION_CONFIGURATION[setting] if PRODUCTION_CONFIGURATION else env(setting, default=default)
 
 
+def production_or_email_alias(setting, alias):
+    """Use a local credential alias only when the standard setting is absent."""
+    if PRODUCTION_CONFIGURATION:
+        return PRODUCTION_CONFIGURATION[setting]
+    if setting in os.environ:
+        return env(setting)
+    return os.environ.get(alias, "")
+
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = production_or_env("DEBUG", False)
 
@@ -209,9 +218,9 @@ EMAIL_BACKEND = _resolve_email_backend(
 )
 EMAIL_PORT = production_or_env("EMAIL_PORT", 587)
 EMAIL_USE_TLS = production_or_env("EMAIL_USE_TLS", True)
-EMAIL_HOST_USER = production_or_env("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = production_or_env("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = production_or_env("DEFAULT_FROM_EMAIL", "")
+EMAIL_HOST_USER = production_or_email_alias("EMAIL_HOST_USER", "SECRET_EMAIL")
+EMAIL_HOST_PASSWORD = production_or_email_alias("EMAIL_HOST_PASSWORD", "SECRET_KEY_EMAIL")
+DEFAULT_FROM_EMAIL = production_or_email_alias("DEFAULT_FROM_EMAIL", "SECRET_EMAIL")
 LOG_LEVEL = production_or_env("LOG_LEVEL", "INFO")
 LOGGING = {
     "version": 1,
