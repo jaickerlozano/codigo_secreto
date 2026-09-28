@@ -161,6 +161,8 @@ class Order(models.Model):
     guest_access_expires_at = models.DateTimeField(null=True, blank=True, verbose_name='fecha de expiración del acceso')
     guest_access_revoked_at = models.DateTimeField(null=True, blank=True, verbose_name='fecha de revocación del acceso')
     guest_access_version = models.PositiveIntegerField(default=0, verbose_name='versión del acceso')
+    guest_email_access_version = models.PositiveIntegerField(default=1, verbose_name='versión del enlace de correo')
+    guest_email_access_revoked_at = models.DateTimeField(null=True, blank=True, verbose_name='fecha de revocación del enlace de correo')
 
     def save(self, *args, **kwargs):
         if not self.order_number:
@@ -204,6 +206,17 @@ class Order(models.Model):
         """Revoke the current capability and issue a new one."""
         self.revoke_guest_access()
         return self.issue_guest_access()
+
+    def revoke_guest_email_access(self):
+        """Revoke every email-channel tracking ticket for this guest order."""
+        self.guest_email_access_revoked_at = timezone.now()
+        self.save(update_fields=['guest_email_access_revoked_at', 'updated_at'])
+
+    def bump_guest_email_access_version(self):
+        """Invalidate previously issued email-channel tracking tickets."""
+        self.guest_email_access_version += 1
+        self.guest_email_access_revoked_at = None
+        self.save(update_fields=['guest_email_access_version', 'guest_email_access_revoked_at', 'updated_at'])
 
     def __str__(self):
         return f"Pedido #{self.id} - {self.get_status_display()} (${self.total:,})"

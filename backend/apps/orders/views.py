@@ -26,6 +26,7 @@ from .services import (
     InsufficientAvailableStock,
     PendingCancellationError,
     authorize_order_access,
+    authorize_order_email_access,
     cancel_pending_order,
     calculate_guest_quote,
     issue_guest_access_cookie,
@@ -177,6 +178,8 @@ class OrderViewSet(mixins.CreateModelMixin,
             order_number,
             capability=raw_token,
         )
+        if order is None:
+            order = authorize_order_email_access(order_number, raw_token)
         if order is None:
             return self._masked_not_found()
 

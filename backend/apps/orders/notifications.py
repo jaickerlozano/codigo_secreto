@@ -34,7 +34,20 @@ def _body(event, order):
         return (f"Hola, tu pedido {order.order_number} fue despachado con {order.carrier}.{tracking}\n"
                 f"Fecha estimada de entrega: {order.estimated_delivery_date:%d/%m/%Y}.")
     total = f"${order.total:,}".replace(",", ".")
-    return (f"Hola, tu pago por {total} del pedido {order.order_number} fue confirmado. Ya estamos preparando tu despacho.")
+    body = f"Hola, tu pago por {total} del pedido {order.order_number} fue confirmado. Ya estamos preparando tu despacho."
+    if order.user_id is None:
+        from .services import issue_guest_email_access_ticket
+
+        ticket = issue_guest_email_access_ticket(order)
+        if ticket:
+            body += f"\n\nSigue tu pedido: {settings.ORDER_TRACKING_PUBLIC_ORIGIN}/order/{order.order_number}#access={ticket}"
+    return body
+
+
+def _safe_delivery_error(error):
+    """Keep operational diagnostics unless an exception includes the email ticket."""
+    message = str(error)[:MAX_ERROR_LENGTH]
+    return "Email delivery failed." if "#access=" in message else message
 
 
 def schedule_delivery(order, event):
@@ -88,11 +101,11 @@ def attempt_delivery(delivery_id, trigger="automatic", now=None):
                     raise RuntimeError("No recipients accepted by email backend.")
             except Exception as error:
                 delivery.status = "FAILED"
-                delivery.last_error = str(error)[:MAX_ERROR_LENGTH]
+                delivery.last_error = _safe_delivery_error(error)
                 delivery.next_retry_at = (now + timezone.timedelta(minutes=RETRY_DELAY_MINUTES[delivery.attempts - 1])
-                                          if delivery.attempts < 5 else None)
-                logger.warning("Notification delivery failed: id=%s order=%s event=%s attempt=%s error=%s",
-                               delivery.id, order.order_number, delivery.event, delivery.attempts, error)
+                                           if delivery.attempts < 5 else None)
+                logger.warning("Notification delivery failed: id=%s order=%s event=%s attempt=%s",
+                               delivery.id, order.order_number, delivery.event, delivery.attempts)
                 if delivery.exhausted:
                     logger.error("Notification delivery exhausted: id=%s order=%s event=%s attempts=%s",
                                  delivery.id, order.order_number, delivery.event, delivery.attempts)

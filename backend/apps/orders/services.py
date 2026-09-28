@@ -7,7 +7,7 @@ from django.core import signing
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.orders.models import Order, OrderItem
+from apps.orders.models import GUEST_ACCESS_VALIDITY_DAYS, Order, OrderItem
 from apps.orders.notifications import schedule_delivery
 from apps.products.services import (
     InsufficientAvailableStock,
@@ -28,6 +28,9 @@ from apps.shipping.services import (
 GUEST_ACCESS_COOKIE_NAME = "guest_order_access"
 GUEST_ACCESS_COOKIE_MAX_AGE = 60 * 60
 GUEST_ACCESS_COOKIE_SALT = "orders.guest-access"
+GUEST_EMAIL_ACCESS_SALT = "orders.guest-email-access"
+GUEST_EMAIL_ACCESS_PURPOSE = "guest-order-email-tracking"
+GUEST_EMAIL_ACCESS_MAX_AGE = GUEST_ACCESS_VALIDITY_DAYS * 24 * 60 * 60
 GUEST_QUOTE_REVISION_SALT = "orders.guest-quote"
 GUEST_QUOTE_REVISION_MAX_AGE = 15 * 60
 GUEST_QUOTE_VERSION = "gq1"
@@ -164,6 +167,44 @@ def issue_guest_access_cookie(order):
     return signing.dumps({"order_number": order.order_number,
         "version": order.guest_access_version,
         "expires_at": int(order.guest_access_expires_at.timestamp())}, salt=GUEST_ACCESS_COOKIE_SALT)
+
+
+def issue_guest_email_access_ticket(order):
+    """Create a timestamped email-only capability without storing its raw value."""
+    if order.user_id is not None:
+        return None
+    return signing.dumps({
+        "order_id": order.id,
+        "purpose": GUEST_EMAIL_ACCESS_PURPOSE,
+        "version": order.guest_email_access_version,
+    }, salt=GUEST_EMAIL_ACCESS_SALT)
+
+
+def verify_guest_email_access_ticket(order, ticket):
+    """Validate an email-channel capability for exactly one unrevoked guest order."""
+    try:
+        payload = signing.loads(ticket, salt=GUEST_EMAIL_ACCESS_SALT, max_age=GUEST_EMAIL_ACCESS_MAX_AGE)
+    except signing.BadSignature:
+        return False
+    return bool(
+        order.user_id is None
+        and order.guest_email_access_revoked_at is None
+        and isinstance(payload, dict)
+        and payload == {
+            "order_id": order.id,
+            "purpose": GUEST_EMAIL_ACCESS_PURPOSE,
+            "version": order.guest_email_access_version,
+        }
+    )
+
+
+def authorize_order_email_access(order_number, ticket):
+    """Return a guest order for a valid email ticket, otherwise mask failure."""
+    try:
+        order = Order.objects.get(order_number=order_number)
+    except Order.DoesNotExist:
+        return None
+    return order if ticket and verify_guest_email_access_ticket(order, ticket) else None
 
 
 def authorize_order_access(order_number=None, *, order_id=None, user=None, capability=None, access_cookie=None):

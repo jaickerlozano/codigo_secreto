@@ -16,6 +16,7 @@ TARGET = ("orders", "0005_order_checkout_delivery_fields")
 BASELINE_0006 = ("orders", "0006_notificationdelivery")
 TARGET_0007 = ("orders", "0007_notificationdelivery_due_index")
 TARGET_0009 = ("orders", "0009_order_delivered_at")
+TARGET_0010 = ("orders", "0010_order_guest_email_access")
 INDEX_NAME = "orders_notif_status_next_retry"
 
 NEW_COLUMNS = (
@@ -107,7 +108,7 @@ def test_orders_0007_adds_due_index_and_is_reversible():
         assert INDEX_NAME in _index_names("orders_notificationdelivery")
         assert NotificationDelivery.objects.filter(pk=created.pk).exists()
     finally:
-        MigrationExecutor(connection).migrate([TARGET_0009])
+        MigrationExecutor(connection).migrate([TARGET_0010])
 
 
 @pytest.mark.django_db(transaction=True)
@@ -125,4 +126,20 @@ def test_orders_0009_adds_delivered_timestamp_and_is_reversible():
         executor.migrate([TARGET_0007])
         assert "delivered_at" not in _table_columns("orders_order")
     finally:
+        MigrationExecutor(connection).migrate([TARGET_0010])
+
+
+@pytest.mark.django_db(transaction=True)
+def test_orders_0010_adds_email_access_revocation_fields_and_is_reversible():
+    try:
         MigrationExecutor(connection).migrate([TARGET_0009])
+        columns = _table_columns("orders_order")
+        assert "guest_email_access_version" not in columns
+        assert "guest_email_access_revoked_at" not in columns
+
+        MigrationExecutor(connection).migrate([TARGET_0010])
+        columns = _table_columns("orders_order")
+        assert "guest_email_access_version" in columns
+        assert "guest_email_access_revoked_at" in columns
+    finally:
+        MigrationExecutor(connection).migrate([TARGET_0010])
