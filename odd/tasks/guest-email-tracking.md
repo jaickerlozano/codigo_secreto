@@ -16,7 +16,7 @@ After a guest customer completes a purchase, send a confirmation email containin
 - [x] GUEST-TRACK-01 — Map the existing order confirmation, notification/email delivery, guest capability, and tracking-route flow.
 - [x] GUEST-TRACK-02 — Add a secure tracking URL to the appropriate guest confirmation email without changing account-holder behavior unnecessarily.
 - [x] GUEST-TRACK-03 — Add focused backend and frontend/contract tests for generation, delivery, access exchange, and invalid/missing capabilities.
-- [ ] GUEST-TRACK-04 — Run applicable local verification, document results, and commit the completed work unit.
+- [x] GUEST-TRACK-04 — Run applicable local verification, document results, and commit the completed work unit.
 
 ## Current evidence and constraints
 
@@ -41,5 +41,5 @@ After a guest customer completes a purchase, send a confirmation email containin
 - Required command, from `backend/`: `PIPENV_DONT_LOAD_ENV=1 DJANGO_READ_DOTENV=0 DJANGO_SETTINGS_MODULE=core.settings_local pipenv run python manage.py test apps.orders` — passed process checks but discovered 0 tests because this suite is pytest-based.
 - Effective local suite, from `backend/`: `LOCAL_TEST_DATABASE=1 PIPENV_DONT_LOAD_ENV=1 DJANGO_READ_DOTENV=0 DJANGO_SETTINGS_MODULE=core.settings_local pipenv run pytest apps/orders` — 210 passed, 1 skipped in 12.51s. The `LOCAL_TEST_DATABASE=1` override is required because the local profile otherwise intentionally opens PostgreSQL read-only and pytest cannot create its disposable database.
 - Frontend build: N/A; no frontend source or test changed. Narrow frontend test: N/A for the same reason; its existing fragment/header/cleanup contract test remains unchanged.
-- Delivery evidence: 102 tracked changed lines before the new migration and focused test files; the final work-unit line count and commit hash are recorded after commit. No external delivery occurred; tests used mocks and locmem.
-- Rollback boundary: revert only the guest-email tracking-link implementation work-unit commit (model fields, migration `0010`, signing/exchange/notification behavior, tests, and this tracker). The tracker follow-up record can be reverted independently.
+- Delivery evidence: implementation work-unit commit `4fdf814` contains 254 additions and 16 deletions (270 changed lines) across code, migration, tests, and this tracker. No external delivery occurred; tests used mocks and locmem.
+- Rollback boundary: revert `4fdf814` to remove the guest-email tracking-link implementation (model fields, migration `0010`, signing/exchange/notification behavior, tests, and its tracker evidence). This tracker follow-up record can be reverted independently.
