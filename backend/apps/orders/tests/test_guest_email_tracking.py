@@ -46,7 +46,10 @@ def test_payment_confirmation_includes_email_ticket_only_for_guest_orders(guest_
     }
     assert f"http://localhost:5173/order/{guest_order.order_number}#access={ticket}" in _body("payment_confirmation", guest_order)
     assert "#access=" not in _body("dispatch", guest_order)
-    assert "#access=" not in _body("payment_confirmation", OrderFactory())
+    account_order = OrderFactory()
+    account_body = _body("payment_confirmation", account_order)
+    assert f"http://localhost:5173/order/{account_order.order_number}" in account_body
+    assert "#access=" not in account_body
 
 
 def test_email_ticket_exchanges_only_through_the_existing_header_and_returns_no_body(guest_order):

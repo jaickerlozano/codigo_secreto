@@ -41,6 +41,8 @@ def _body(event, order):
         ticket = issue_guest_email_access_ticket(order)
         if ticket:
             body += f"\n\nSigue tu pedido: {settings.ORDER_TRACKING_PUBLIC_ORIGIN}/order/{order.order_number}#access={ticket}"
+    else:
+        body += f"\n\nSigue tu pedido: {settings.ORDER_TRACKING_PUBLIC_ORIGIN}/order/{order.order_number}"
     return body
 
 

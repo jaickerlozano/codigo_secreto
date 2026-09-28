@@ -18,11 +18,19 @@ if os.environ.get("ENVIRONMENT") == "production":
 os.environ.update({
     "ENVIRONMENT": "development", "DEBUG": "True", "DATABASE_URL": "sqlite:///:memory:",
     "SECRET_KEY": "local-development-only-not-a-production-secret-0000000000",
-    "PAYMENT_PROVIDER": "mock", "EMAIL_HOST": "", "EMAIL_HOST_USER": "",
-    "EMAIL_HOST_PASSWORD": "", "EMAIL_BACKEND": "django.core.mail.backends.console.EmailBackend",
+    "PAYMENT_PROVIDER": "mock",
     "CLOUDINARY_CLOUD_NAME": "", "CLOUDINARY_API_KEY": "",
     "CLOUDINARY_API_SECRET": "", "CLOUDINARY_UPLOAD_PRESET": "",
 })
+for setting, default in {
+    "EMAIL_HOST": "",
+    "EMAIL_PORT": "587",
+    "EMAIL_USE_TLS": "True",
+    "EMAIL_HOST_USER": "",
+    "EMAIL_HOST_PASSWORD": "",
+    "DEFAULT_FROM_EMAIL": "",
+}.items():
+    os.environ.setdefault(setting, default)
 
 from .settings import *  # noqa: E402,F403
 

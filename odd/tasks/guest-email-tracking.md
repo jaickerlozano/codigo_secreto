@@ -10,6 +10,8 @@ After a guest customer completes a purchase, send a confirmation email containin
 - The link must use the existing capability-based guest access model; never expose a lookup by order number alone, credentials, tokens, or personally identifiable data in logs.
 - The feature must work after the customer leaves the checkout confirmation page or uses another browser/device.
 - Excluded until mapped: any production email provider configuration, remote delivery, `backend/.env`, Cloudinary, Neon, payments, tariff/catalog/image changes, and unrelated frontend work.
+- Approved SMTP extension: configure Django email only through explicitly supplied environment settings. The future Gmail SMTP sender is authorized by the account holder, but no credential exists yet; this work must remain local and must not read or modify any real `.env`, authenticate to, connect to, or send through Gmail/SMTP.
+- Account-holder extension: payment-confirmation email for an authenticated order may include the normal frontend order route without a ticket or fragment. Existing authenticated backend authorization remains the boundary; an order number alone must not disclose an order to an unauthenticated recipient.
 
 ## Work items
 
@@ -17,6 +19,11 @@ After a guest customer completes a purchase, send a confirmation email containin
 - [x] GUEST-TRACK-02 — Add a secure tracking URL to the appropriate guest confirmation email without changing account-holder behavior unnecessarily.
 - [x] GUEST-TRACK-03 — Add focused backend and frontend/contract tests for generation, delivery, access exchange, and invalid/missing capabilities.
 - [x] GUEST-TRACK-04 — Run applicable local verification, document results, and commit the completed work unit.
+- [x] GUEST-TRACK-05 — Add environment-backed SMTP settings with safe local fallback and fail-closed production behavior.
+- [x] GUEST-TRACK-06 — Add the capability-free authenticated account-holder payment-confirmation order link.
+- [x] GUEST-TRACK-07 — Add focused SMTP configuration and guest/account-holder email-body tests without network delivery.
+- [x] GUEST-TRACK-08 — Run required local verification and commit this SMTP/account-holder extension as one work unit.
+- [ ] GUEST-TRACK-09 — Perform a credential-gated live Gmail SMTP verification only after the account holder adds credentials locally and explicitly authorizes the connection.
 
 ## Final evidence and constraints
 
@@ -30,13 +37,15 @@ After a guest customer completes a purchase, send a confirmation email containin
 - GUEST-TRACK-02 (direct implementation evidence) route/trigger: commit `4fdf814` adds the guest-only signed email capability and injects it into the `payment_confirmation` delivery path that payment approval triggers; account-holder behavior remains unchanged.
 - GUEST-TRACK-03 (direct test evidence) route/trigger: commit `4fdf814` adds backend coverage for signed-ticket generation, guest delivery, header exchange, invalid capability handling, revocation, retry stability, and redaction; the unchanged frontend contract test remains the proof for fragment-to-header exchange and fragment cleanup.
 - GUEST-TRACK-04 (direct evidence update) route/trigger: this tracker records the completed implementation and verification evidence below, while deployment must apply the pending migration through the normal process.
+- GUEST-TRACK-05 through GUEST-TRACK-08 (delegated route/trigger evidence): this extension spans Django settings and local-settings behavior, order notification rendering/delivery, and focused configuration/notification tests. The exact remote authorization boundary is local-only work: do not read, create, or modify real `.env` files; do not access, authenticate to, connect to, or send through Gmail/SMTP. Live verification is deferred to GUEST-TRACK-09 after credentials are added by the account holder and a new explicit authorization is provided.
 - Email-link constraints: use a separate signed email-channel capability with its own Order version/revocation state; never persist or log its raw ticket, do not rotate opaque guest capability tokens on delivery retries, and use only local/locmem or mocked delivery.
 
 ## Implementation evidence
 
 - Implementation: `Order` now holds a separate email-link version and revocation timestamp. Django timestamp signing uses the purpose-specific `orders.guest-email-access` salt and the existing 90-day guest policy. Only the header exchange action accepts this ticket, then issues the existing Strict HttpOnly cookie; opaque capability behavior is unchanged.
-- Delivery: only guest `payment_confirmation` bodies receive `ORDER_TRACKING_PUBLIC_ORIGIN/order/<order-number>#access=<ticket>`. The production value is the already validated HTTPS `FRONTEND_ORIGIN`; the local default is `http://localhost:5173`. Account-holder and dispatch emails remain unchanged. Retry creates a current signed ticket without rotating either version, and ticket-bearing delivery exceptions are redacted from persisted errors and logs.
-- Tests: `test_guest_email_tracking.py` covers signed payload creation, guest-only placement, header-only exchange with empty response, masked tampering/expiry/revocation/foreign-ticket failures, version invalidation, retry stability, and error redaction. Existing `frontend/src/features/orders/api/orders.api.test.ts` remains the contract proof that fragment-only values go to `X-Order-Capability`, are removed, and query/path proofs are not exchanged; no frontend source changed.
+- Delivery: guest `payment_confirmation` bodies retain `ORDER_TRACKING_PUBLIC_ORIGIN/order/<order-number>#access=<ticket>`. Authenticated account-holder bodies include the same normal route without a ticket or fragment; the existing owner/staff authorization and masked 404 remain the access boundary. Dispatch emails remain unchanged. Retry creates a current signed ticket without rotating either version, and ticket-bearing delivery exceptions are redacted from persisted errors and logs.
+- SMTP configuration: the supported production contract now requires `EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USE_TLS=True`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, and `DEFAULT_FROM_EMAIL`. Development retains console delivery when SMTP is absent; `settings_local` preserves explicitly supplied SMTP values, while `LOCAL_TEST_DATABASE=1` always uses locmem. Production rejects absent, console, or non-TLS email configuration during settings load.
+- Tests: `test_guest_email_tracking.py` covers signed payload creation, guest/account-holder link separation, header-only exchange with empty response, masked tampering/expiry/revocation/foreign-ticket failures, version invalidation, retry stability, and error redaction. `core/tests/test_email_settings.py` and `core/tests/test_security_settings.py` cover explicit backend selection, safe fallback, and production rejection. Existing `frontend/src/features/orders/api/orders.api.test.ts` remains the contract proof that fragment-only values go to `X-Order-Capability`, are removed, and query/path proofs are not exchanged; no frontend source changed.
 
 ## Verification and rollback
 
@@ -46,4 +55,9 @@ After a guest customer completes a purchase, send a confirmation email containin
 - Frontend build: N/A; no frontend source or test changed. Narrow frontend test: N/A for the same reason; its existing fragment/header/cleanup contract test remains unchanged.
 - Native assessment against base `c85bb47` and committed work reported risk `medium`, 9 paths, 272 changed lines, and `review_due: false` with `review_due_reason: under_budget`. RDD is disabled, so review remains intentionally unmanaged; no review was invoked or enabled.
 - Pending operational action: apply migration `0010_order_guest_email_access` during the normal deployment process.
-- Rollback boundary: revert `4fdf814` to remove the guest-email tracking-link implementation (model fields, migration `0010`, signing/exchange/notification behavior, and tests). Revert this evidence-only tracker commit independently if its documentation must be removed.
+- Required verification, from `backend/`: `LOCAL_TEST_DATABASE=1 PIPENV_DONT_LOAD_ENV=1 DJANGO_READ_DOTENV=0 DJANGO_SETTINGS_MODULE=core.settings_local pipenv run pytest apps/orders core/tests` — `344 passed, 1 skipped in 20.02s`. The full target includes the new settings tests, so no narrower settings command was needed. No SMTP network connection was attempted.
+- Frontend build: N/A; no frontend source changed, because the existing `/order/:orderNumber` route already enforces authenticated authorization through the backend.
+- Delivery forecast: one Conventional Commit work unit, under the 400-line review budget; final changed-line count and commit hash are recorded in the delivery report because a commit cannot contain its own hash.
+- RDD remains disabled and unmanaged (`clone_local`); no RDD review was invoked or enabled.
+- Pending user action: add the documented Gmail TLS variables to the untracked local `.env`, then explicitly authorize GUEST-TRACK-09 before any live SMTP verification. The app password must never be committed, logged, or supplied to an agent.
+- Rollback boundary: revert this extension commit to remove SMTP contract validation, local SMTP preservation, account-holder route-only links, tests, and documentation without changing the prior guest ticket implementation. Revert `4fdf814` separately only to remove the earlier guest-email capability feature.
