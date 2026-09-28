@@ -30,6 +30,7 @@ After a guest customer completes a purchase, send a confirmation email containin
 - [x] GUEST-TRACK-12 — Bootstrap the local writable Django runtime on loopback with the explicitly authorized Gmail SMTP configuration, without logging or exposing dotenv values.
 - [x] GUEST-TRACK-13 — Add and run safe configuration tests proving standard SMTP credentials take precedence over the authorized aliases without SMTP network access.
 - [ ] GUEST-TRACK-14 — Perform the manually triggered checkout/live-email confirmation after local bootstrap; no agent-initiated SMTP delivery is allowed.
+- [x] GUEST-TRACK-15 — Treat empty standard SMTP username and sender variables as absent so the authorized local aliases resolve; preserve nonempty standard precedence and production validation.
 
 ## Final evidence and constraints
 
@@ -80,3 +81,7 @@ After a guest customer completes a purchase, send a confirmation email containin
 - Local runtime: the previous loopback Django server was stopped, then `core.settings_local` was restarted on `127.0.0.1:8000` with `LOCAL_ALLOW_WRITES=1`, dotenv guards, and an in-process opaque dotenv loader. A credential-free settings check confirmed SMTP selected, host/sender/username/password configured, port `587`, TLS enabled, and writable mode enabled. The server's standard output and error are discarded, so bearer tickets are not persisted in a log.
 - No Gmail authentication, SMTP connection, or email delivery was initiated. GUEST-TRACK-14 and GUEST-TRACK-09 remain pending the user's manual checkout and live-email confirmation.
 - Rollback boundary for this local extension: stop the loopback server, remove the six non-secret local SMTP/origin assignments from `backend/.env` (the user-provided secret assignments remain), and revert the work-unit commit to remove alias resolution, tests, and tracker evidence.
+- GUEST-TRACK-15: `production_or_email_alias` now treats an empty local standard variable as absent, so `SECRET_EMAIL` supplies the username and sender fallback while `SECRET_KEY_EMAIL` supplies the password fallback. Nonempty standard variables retain precedence; production still reads only validated standard settings.
+- Required verification, from `backend/`: `LOCAL_TEST_DATABASE=1 PIPENV_DONT_LOAD_ENV=1 DJANGO_READ_DOTENV=0 DJANGO_SETTINGS_MODULE=core.settings_local pipenv run pytest apps/orders core/tests` — `350 passed, 1 skipped in 25.84s`. The settings subprocess uses synthetic sentinels, the locmem test backend, and never opens an SMTP connection.
+- RDD remains clone-local disabled and unmanaged; no review was invoked or enabled. Controlled SMTP verification remains pending under GUEST-TRACK-09 and GUEST-TRACK-14 and requires a new explicit authorization.
+- Rollback boundary for GUEST-TRACK-15: revert this work-unit commit to remove only the empty-value alias fallback, its regression test, and this tracker evidence; nonempty standard precedence and production validation remain as before.

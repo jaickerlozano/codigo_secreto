@@ -182,7 +182,7 @@ def production_or_email_alias(setting, alias):
     """Use a local credential alias only when the standard setting is absent."""
     if PRODUCTION_CONFIGURATION:
         return PRODUCTION_CONFIGURATION[setting]
-    if setting in os.environ:
+    if os.environ.get(setting):
         return env(setting)
     return os.environ.get(alias, "")
 

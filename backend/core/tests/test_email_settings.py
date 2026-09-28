@@ -117,6 +117,21 @@ def test_local_settings_use_authorized_aliases_when_standard_credentials_are_abs
     assert local_settings["DEFAULT_FROM_EMAIL"] == "alias-sender@example.test"
 
 
+def test_local_settings_use_authorized_aliases_when_standard_credentials_are_empty():
+    local_settings = load_local_email_settings(
+        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
+        EMAIL_HOST="smtp.example.test",
+        EMAIL_HOST_USER="",
+        DEFAULT_FROM_EMAIL="",
+        SECRET_EMAIL="alias-sender@example.test",
+        SECRET_KEY_EMAIL="alias-password",
+    )
+
+    assert local_settings["EMAIL_HOST_USER"] == "alias-sender@example.test"
+    assert local_settings["EMAIL_HOST_PASSWORD"] == "alias-password"
+    assert local_settings["DEFAULT_FROM_EMAIL"] == "alias-sender@example.test"
+
+
 def test_local_settings_prioritize_standard_credentials_over_authorized_aliases():
     local_settings = load_local_email_settings(
         EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
