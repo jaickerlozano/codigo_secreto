@@ -7,7 +7,7 @@ from django.core import signing
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.orders.models import Order, OrderItem
+from apps.orders.models import GUEST_ACCESS_VALIDITY_DAYS, Order, OrderItem
 from apps.orders.notifications import schedule_delivery
 from apps.products.services import (
     InsufficientAvailableStock,
@@ -28,6 +28,9 @@ from apps.shipping.services import (
 GUEST_ACCESS_COOKIE_NAME = "guest_order_access"
 GUEST_ACCESS_COOKIE_MAX_AGE = 60 * 60
 GUEST_ACCESS_COOKIE_SALT = "orders.guest-access"
+GUEST_EMAIL_ACCESS_SALT = "orders.guest-email-access"
+GUEST_EMAIL_ACCESS_PURPOSE = "guest-order-email-tracking"
+GUEST_EMAIL_ACCESS_MAX_AGE = GUEST_ACCESS_VALIDITY_DAYS * 24 * 60 * 60
 GUEST_QUOTE_REVISION_SALT = "orders.guest-quote"
 GUEST_QUOTE_REVISION_MAX_AGE = 15 * 60
 GUEST_QUOTE_VERSION = "gq1"
@@ -164,6 +167,44 @@ def issue_guest_access_cookie(order):
     return signing.dumps({"order_number": order.order_number,
         "version": order.guest_access_version,
         "expires_at": int(order.guest_access_expires_at.timestamp())}, salt=GUEST_ACCESS_COOKIE_SALT)
+
+
+def issue_guest_email_access_ticket(order):
+    """Create a timestamped email-only capability without storing its raw value."""
+    if order.user_id is not None:
+        return None
+    return signing.dumps({
+        "order_id": order.id,
+        "purpose": GUEST_EMAIL_ACCESS_PURPOSE,
+        "version": order.guest_email_access_version,
+    }, salt=GUEST_EMAIL_ACCESS_SALT)
+
+
+def verify_guest_email_access_ticket(order, ticket):
+    """Validate an email-channel capability for exactly one unrevoked guest order."""
+    try:
+        payload = signing.loads(ticket, salt=GUEST_EMAIL_ACCESS_SALT, max_age=GUEST_EMAIL_ACCESS_MAX_AGE)
+    except signing.BadSignature:
+        return False
+    return bool(
+        order.user_id is None
+        and order.guest_email_access_revoked_at is None
+        and isinstance(payload, dict)
+        and payload == {
+            "order_id": order.id,
+            "purpose": GUEST_EMAIL_ACCESS_PURPOSE,
+            "version": order.guest_email_access_version,
+        }
+    )
+
+
+def authorize_order_email_access(order_number, ticket):
+    """Return a guest order for a valid email ticket, otherwise mask failure."""
+    try:
+        order = Order.objects.get(order_number=order_number)
+    except Order.DoesNotExist:
+        return None
+    return order if ticket and verify_guest_email_access_ticket(order, ticket) else None
 
 
 def authorize_order_access(order_number=None, *, order_id=None, user=None, capability=None, access_cookie=None):
@@ -449,22 +490,33 @@ class InvalidFulfillmentError(ValueError): """The order cannot be dispatched in 
 
 
 def fulfill_dispatch(*, order, carrier=None, estimated_delivery_date=None, tracking_number=None):
-    """Transition an approved PAID order to SHIPPED with truthful fields: carrier
-    and estimated date required (tracking optional), validation failures leave
-    the order untouched, success schedules the dispatch email after commit."""
+    """Transition a PAID order to SHIPPED and schedule its dispatch notification."""
     with transaction.atomic():
         order = Order.objects.select_for_update().get(id=order.id)
         if order.status != "PAID":
             raise InvalidFulfillmentError("El pedido no está listo para despacho.")
         if not isinstance(carrier, str) or not carrier.strip():
             raise InvalidFulfillmentError("El transportista es obligatorio.")
-        if estimated_delivery_date is None:
+        effective_delivery_date = estimated_delivery_date or order.requested_dispatch_date
+        if effective_delivery_date is None:
             raise InvalidFulfillmentError("La fecha estimada de entrega es obligatoria.")
         order.carrier = carrier.strip()
         order.tracking_number = tracking_number.strip() if isinstance(tracking_number, str) and tracking_number.strip() else None
-        order.estimated_delivery_date = estimated_delivery_date
+        order.estimated_delivery_date = effective_delivery_date
         order.dispatched_at = timezone.now()
         order.status = "SHIPPED"
         order.save(update_fields=["carrier", "tracking_number", "estimated_delivery_date", "dispatched_at", "status", "updated_at"])
         schedule_delivery(order, "dispatch")
+        return order
+
+
+def transition_order_to_delivered(*, order):
+    """Atomically transition a shipped order to delivered without changing dispatch data."""
+    with transaction.atomic():
+        order = Order.objects.select_for_update().get(id=order.id)
+        if order.status != "SHIPPED":
+            raise InvalidFulfillmentError("El pedido no está despachado.")
+        order.status = "DELIVERED"
+        order.delivered_at = timezone.now()
+        order.save(update_fields=["status", "delivered_at", "updated_at"])
         return order

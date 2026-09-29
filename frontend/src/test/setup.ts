@@ -44,7 +44,7 @@ export const server = setupServer(...handlers)
 
 beforeAll(() =>
   server.listen({
-    onUnhandledRequest: 'warn',
+    onUnhandledRequest: import.meta.env.LOCAL_NO_DOTENV === '1' ? 'error' : 'warn',
   }),
 )
 

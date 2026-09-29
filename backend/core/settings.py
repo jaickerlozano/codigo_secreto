@@ -15,14 +15,20 @@ env = environ.Env(
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-environ.Env.read_env(BASE_DIR / '.env')
+
+def _should_read_dotenv(value):
+    return value != "0"
+
+
+if _should_read_dotenv(os.environ.get("DJANGO_READ_DOTENV")):
+    environ.Env.read_env(BASE_DIR / '.env')
 
 PRODUCTION_ENVIRONMENT = "production"
 REQUIRED_PRODUCTION_SETTINGS = """
 ENVIRONMENT SECRET_KEY DEBUG FRONTEND_ORIGIN API_HOSTNAME ALLOWED_HOSTS
 CORS_ALLOWED_ORIGINS CSRF_TRUSTED_ORIGINS COOKIE_TOPOLOGY COOKIE_SITE_DOMAIN
 TLS_TERMINATION NUM_PROXIES SECURE_HSTS_SECONDS DATABASE_URL LOG_LEVEL
-EMAIL_HOST EMAIL_PORT EMAIL_HOST_USER EMAIL_HOST_PASSWORD DEFAULT_FROM_EMAIL
+EMAIL_BACKEND EMAIL_HOST EMAIL_PORT EMAIL_USE_TLS EMAIL_HOST_USER EMAIL_HOST_PASSWORD DEFAULT_FROM_EMAIL
 CLOUDINARY_CLOUD_NAME CLOUDINARY_API_KEY CLOUDINARY_API_SECRET CLOUDINARY_UPLOAD_PRESET
 """.split()
 PUBLIC_SUFFIXES = {
@@ -132,6 +138,10 @@ def validate_production_configuration(configuration):
     if values["LOG_LEVEL"].upper() not in {"INFO", "WARNING", "ERROR", "CRITICAL"}:
         errors.append("LOG_LEVEL must be INFO, WARNING, ERROR, or CRITICAL.")
     hostname(values["EMAIL_HOST"], "EMAIL_HOST")
+    if values["EMAIL_BACKEND"] != "django.core.mail.backends.smtp.EmailBackend":
+        errors.append("EMAIL_BACKEND must be django.core.mail.backends.smtp.EmailBackend in production.")
+    if values["EMAIL_USE_TLS"].lower() not in {"true", "1", "yes"}:
+        errors.append("EMAIL_USE_TLS must be enabled in production.")
     if "@" not in values["DEFAULT_FROM_EMAIL"]:
         errors.append("DEFAULT_FROM_EMAIL must be a valid email address.")
     if errors:
@@ -143,6 +153,7 @@ def validate_production_configuration(configuration):
         "NUM_PROXIES": proxies,
         "SECURE_HSTS_SECONDS": hsts_seconds,
         "EMAIL_PORT": email_port,
+        "EMAIL_USE_TLS": True,
         "LOG_LEVEL": values["LOG_LEVEL"].upper(),
         "csrf_cookie_domain": f".{parent}",
     })
@@ -167,6 +178,15 @@ def production_or_env(setting, default=None):
     return PRODUCTION_CONFIGURATION[setting] if PRODUCTION_CONFIGURATION else env(setting, default=default)
 
 
+def production_or_email_alias(setting, alias):
+    """Use a local credential alias only when the standard setting is absent."""
+    if PRODUCTION_CONFIGURATION:
+        return PRODUCTION_CONFIGURATION[setting]
+    if os.environ.get(setting):
+        return env(setting)
+    return os.environ.get(alias, "")
+
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = production_or_env("DEBUG", False)
 
@@ -180,27 +200,27 @@ SUPPORT_WHATSAPP_PHONE = env("SUPPORT_WHATSAPP_PHONE", default="56953716242")
 def _resolve_email_backend(debug, email_host, email_backend=None):
     """Deterministic backend precedence for development and production.
 
-    DEBUG with a blank SMTP host forces the console backend; every other
-    configuration uses env-driven TLS SMTP and never silently falls back to
-    console in production.
+    An explicitly selected backend wins in development. Without one, a blank
+    SMTP host keeps DEBUG on console while an SMTP host selects Django SMTP.
+    Production validation rejects console delivery before settings load.
     """
+    if email_backend:
+        return email_backend
     if debug and not email_host:
         return "django.core.mail.backends.console.EmailBackend"
-    if email_backend and "console" in email_backend:
-        return "django.core.mail.backends.smtp.EmailBackend"
-    return email_backend or "django.core.mail.backends.smtp.EmailBackend"
+    return "django.core.mail.backends.smtp.EmailBackend"
 
 
 # Email for transactional notifications; env-driven, no secrets in the repo
 EMAIL_HOST = production_or_env("EMAIL_HOST", "")
 EMAIL_BACKEND = _resolve_email_backend(
-    DEBUG, EMAIL_HOST, env("EMAIL_BACKEND", default=None)
+    DEBUG, EMAIL_HOST, production_or_env("EMAIL_BACKEND", None)
 )
 EMAIL_PORT = production_or_env("EMAIL_PORT", 587)
-EMAIL_USE_TLS = True if PRODUCTION_CONFIGURATION else env("EMAIL_USE_TLS", default=True)
-EMAIL_HOST_USER = production_or_env("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = production_or_env("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = production_or_env("DEFAULT_FROM_EMAIL", "Código Secreto <no-reply@codigosecreto.cl>")
+EMAIL_USE_TLS = production_or_env("EMAIL_USE_TLS", True)
+EMAIL_HOST_USER = production_or_email_alias("EMAIL_HOST_USER", "SECRET_EMAIL")
+EMAIL_HOST_PASSWORD = production_or_email_alias("EMAIL_HOST_PASSWORD", "SECRET_KEY_EMAIL")
+DEFAULT_FROM_EMAIL = production_or_email_alias("DEFAULT_FROM_EMAIL", "SECRET_EMAIL")
 LOG_LEVEL = production_or_env("LOG_LEVEL", "INFO")
 LOGGING = {
     "version": 1,
@@ -434,6 +454,10 @@ SESSION_COOKIE_SECURE = bool(PRODUCTION_CONFIGURATION)
 SESSION_COOKIE_DOMAIN = None
 GUEST_ORDER_ACCESS_COOKIE_SECURE = bool(PRODUCTION_CONFIGURATION)
 GUEST_ORDER_ACCESS_COOKIE_SAMESITE = "Strict"
+ORDER_TRACKING_PUBLIC_ORIGIN = (
+    PRODUCTION_CONFIGURATION["FRONTEND_ORIGIN"]
+    if PRODUCTION_CONFIGURATION else "http://localhost:5173"
+)
 
 # Configura el almacenamiento de archivos multimedia para que apunte a Cloudinary
 STORAGES = {

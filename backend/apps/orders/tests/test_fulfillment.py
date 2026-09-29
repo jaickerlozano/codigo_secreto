@@ -17,7 +17,7 @@ from django.urls import reverse
 from apps.orders.admin import NotificationDeliveryAdmin, OrderAdmin
 from apps.orders.models import NotificationDelivery, Order
 from apps.orders.notifications import attempt_delivery, retry_delivery
-from apps.orders.services import InvalidFulfillmentError, fulfill_dispatch
+from apps.orders.services import InvalidFulfillmentError, fulfill_dispatch, transition_order_to_delivered
 
 pytestmark = pytest.mark.django_db
 
@@ -72,6 +72,34 @@ class TestFulfillDispatch:
         assert paid_order.status == "PAID"
         assert not NotificationDelivery.objects.filter(order=paid_order).exists()
 
+    def test_dispatch_uses_requested_date_when_staff_leaves_date_blank(self, paid_order):
+        paid_order.requested_dispatch_date = date(2026, 8, 25)
+        paid_order.save(update_fields=["requested_dispatch_date"])
+
+        order = fulfill_dispatch(order=paid_order, carrier="Chilexpress")
+
+        assert order.estimated_delivery_date == date(2026, 8, 25)
+
+    def test_dispatch_requires_date_for_regional_order_without_requested_date(self, paid_order):
+        with pytest.raises(InvalidFulfillmentError, match="La fecha estimada de entrega es obligatoria"):
+            fulfill_dispatch(order=paid_order, carrier="Chilexpress")
+
+        paid_order.refresh_from_db()
+        assert paid_order.status == "PAID"
+        assert paid_order.estimated_delivery_date is None
+
+    def test_dispatch_uses_explicit_staff_date_over_requested_date(self, paid_order):
+        paid_order.requested_dispatch_date = date(2026, 8, 25)
+        paid_order.save(update_fields=["requested_dispatch_date"])
+
+        order = fulfill_dispatch(
+            order=paid_order,
+            carrier="Chilexpress",
+            estimated_delivery_date=date(2026, 8, 20),
+        )
+
+        assert order.estimated_delivery_date == date(2026, 8, 20)
+
     @pytest.mark.parametrize("status", ["PENDING", "SHIPPED", "CANCELLED"])
     def test_dispatch_rejects_orders_not_in_preparation(self, order_factory, status):
         order = order_factory(status=status, total=10000)
@@ -80,6 +108,42 @@ class TestFulfillDispatch:
 
         order.refresh_from_db()
         assert order.status == status and not NotificationDelivery.objects.filter(order=order).exists()
+
+
+class TestDeliveryTransition:
+    def test_only_shipped_orders_can_be_marked_delivered(self, order_factory):
+        for status in ("PENDING", "PAID", "DELIVERED", "CANCELLED"):
+            order = order_factory(status=status, total=10000)
+
+            with pytest.raises(InvalidFulfillmentError):
+                transition_order_to_delivered(order=order)
+
+            order.refresh_from_db()
+            assert order.status == status
+            assert order.delivered_at is None
+
+    def test_marking_shipped_order_delivered_sets_timestamp_and_preserves_dispatch_fields(self, order_factory):
+        dispatched_at = date(2026, 8, 20)
+        order = order_factory(
+            status="SHIPPED",
+            carrier="Chilexpress",
+            tracking_number="TRK-1",
+            estimated_delivery_date=dispatched_at,
+        )
+
+        delivered = transition_order_to_delivered(order=order)
+
+        assert delivered.status == "DELIVERED"
+        assert delivered.delivered_at is not None
+        assert (delivered.carrier, delivered.tracking_number, delivered.estimated_delivery_date) == (
+            "Chilexpress", "TRK-1", dispatched_at,
+        )
+
+    def test_order_schema_includes_nullable_delivered_timestamp(self):
+        field = Order._meta.get_field("delivered_at")
+
+        assert field.null is True
+        assert field.blank is True
 
     def test_email_failure_is_contained_and_retry_resends(self, paid_order):
         order = fulfill_dispatch(order=paid_order, **DISPATCH_ARGS)
@@ -133,13 +197,20 @@ class TestFulfillmentAdmin:
     def change_url(order):
         return reverse("admin:orders_order_change", args=[order.id])
 
-    @pytest.mark.parametrize("status,visible", [("PAID", True), ("PENDING", False), ("SHIPPED", False)])
-    def test_change_form_shows_dispatch_submit_only_for_paid_orders(self, paid_order, order_factory, admin_client, status, visible):
+    @pytest.mark.parametrize(
+        "status,dispatch_visible,delivery_visible",
+        [("PAID", True, False), ("PENDING", False, False), ("SHIPPED", False, True)],
+    )
+    def test_change_form_shows_only_the_valid_lifecycle_submit(
+        self, paid_order, order_factory, admin_client, status, dispatch_visible, delivery_visible,
+    ):
         order = order_factory(status=status, user=paid_order.user)
 
         response = admin_client.get(self.change_url(order))
 
-        assert ("Guardar y despachar" in response.content.decode()) is visible
+        content = response.content.decode()
+        assert ("Guardar y despachar" in content) is dispatch_visible
+        assert ("Marcar como entregado" in content) is delivery_visible
 
     def test_change_form_hides_dispatch_submit_from_unauthorized_users(self, paid_order, client):
         response = client.get(self.change_url(paid_order), follow=True)
@@ -165,6 +236,36 @@ class TestFulfillmentAdmin:
         assert (response.context["original"].status, response.context["original"].dispatched_at is not None) == ("SHIPPED", True)
         assert NotificationDelivery.objects.filter(order=paid_order, event="dispatch").count() == 1
         assert "guardado y despachado correctamente" in response.content.decode()
+
+    def test_change_form_dispatch_uses_requested_date_when_blank(self, paid_order, admin_client):
+        paid_order.requested_dispatch_date = date(2026, 8, 25)
+        paid_order.save(update_fields=["requested_dispatch_date"])
+        response = admin_client.get(self.change_url(paid_order))
+        data = self.change_form_data(
+            response,
+            carrier="Chilexpress",
+            estimated_delivery_date="",
+            _save_and_dispatch="Guardar y despachar",
+        )
+
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            admin_client.post(self.change_url(paid_order), data)
+
+        paid_order.refresh_from_db()
+        assert (paid_order.status, paid_order.estimated_delivery_date) == ("SHIPPED", date(2026, 8, 25))
+
+    def test_change_form_marks_shipped_order_delivered(self, paid_order, admin_client):
+        shipped = fulfill_dispatch(order=paid_order, **DISPATCH_ARGS)
+        response = admin_client.get(self.change_url(shipped))
+        data = self.change_form_data(response, _mark_delivered="Marcar como entregado")
+
+        response = admin_client.post(self.change_url(shipped), data, follow=True)
+
+        shipped.refresh_from_db()
+        assert response.status_code == 200
+        assert shipped.status == "DELIVERED"
+        assert shipped.delivered_at is not None
+        assert "marcado como entregado correctamente" in response.content.decode()
 
     def test_regular_save_updates_metadata_without_dispatching(self, paid_order, admin_client):
         response = admin_client.get(self.change_url(paid_order))
@@ -252,6 +353,29 @@ class TestFulfillmentAdmin:
         assert response.status_code == 200
         assert paid_order.status == "SHIPPED"
         assert NotificationDelivery.objects.filter(order=paid_order, event="dispatch").count() == 1
+
+    def test_bulk_delivery_action_transitions_valid_rows_and_reports_invalid_rows(self, paid_order, order_factory, admin_client):
+        shipped = fulfill_dispatch(order=paid_order, **DISPATCH_ARGS)
+        unpaid = order_factory(status="PAID", user=paid_order.user)
+
+        response = admin_client.post(
+            reverse("admin:orders_order_changelist"),
+            {
+                "action": "mark_orders_delivered",
+                "_selected_action": [str(shipped.id), str(unpaid.id)],
+                "index": "0",
+                "select_across": "0",
+            },
+            follow=True,
+        )
+
+        shipped.refresh_from_db()
+        unpaid.refresh_from_db()
+        assert response.status_code == 200
+        assert shipped.status == "DELIVERED"
+        assert shipped.delivered_at is not None
+        assert unpaid.status == "PAID"
+        assert "No se pudo marcar como entregado" in response.content.decode()
 
     @pytest.mark.parametrize("prepared", [True, False])
     def test_admin_dispatch_action_dispatches_or_reports(self, paid_order, order_admin, admin_request, prepared):

@@ -5,7 +5,13 @@ from django.utils import timezone
 
 from .models import NotificationDelivery, Order, OrderItem
 from .notifications import retry_delivery
-from .services import PendingCancellationError, InvalidFulfillmentError, cancel_pending_order, fulfill_dispatch
+from .services import (
+    PendingCancellationError,
+    InvalidFulfillmentError,
+    cancel_pending_order,
+    fulfill_dispatch,
+    transition_order_to_delivered,
+)
 
 
 class OrderItemInline(admin.TabularInline):
@@ -41,9 +47,12 @@ class OrderAdmin(admin.ModelAdmin):
         'guest_access_digest', 'guest_access_issued_at', 'guest_access_expires_at',
         'guest_access_revoked_at', 'guest_access_version',
         # Campos de ciclo de vida: solo cambian mediante la acción de despacho
-        'status', 'dispatched_at',
+        'status', 'dispatched_at', 'delivered_at',
     )
-    actions = ('revoke_guest_access', 'rotate_guest_access', 'cancel_pending_orders', 'dispatch_orders')
+    actions = (
+        'revoke_guest_access', 'rotate_guest_access', 'cancel_pending_orders',
+        'dispatch_orders', 'mark_orders_delivered',
+    )
 
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
         context["show_save_and_dispatch"] = bool(
@@ -52,29 +61,52 @@ class OrderAdmin(admin.ModelAdmin):
             and obj.status == "PAID"
             and self.has_change_permission(request, obj)
         )
+        context["show_mark_delivered"] = bool(
+            change
+            and obj
+            and obj.status == "SHIPPED"
+            and self.has_change_permission(request, obj)
+        )
         return super().render_change_form(request, context, add, change, form_url, obj)
 
     def response_change(self, request, obj):
-        if "_save_and_dispatch" not in request.POST:
+        if "_save_and_dispatch" in request.POST:
+            try:
+                fulfill_dispatch(
+                    order=obj,
+                    carrier=obj.carrier,
+                    estimated_delivery_date=obj.estimated_delivery_date,
+                    tracking_number=obj.tracking_number,
+                )
+            except InvalidFulfillmentError as error:
+                self.message_user(
+                    request,
+                    f"No se pudo despachar {obj.order_number}: {error}",
+                    level=messages.ERROR,
+                )
+            else:
+                self.message_user(
+                    request,
+                    f"Pedido {obj.order_number} guardado y despachado correctamente.",
+                    level=messages.SUCCESS,
+                )
+            return HttpResponseRedirect(request.path)
+
+        if "_mark_delivered" not in request.POST:
             return super().response_change(request, obj)
 
         try:
-            fulfill_dispatch(
-                order=obj,
-                carrier=obj.carrier,
-                estimated_delivery_date=obj.estimated_delivery_date,
-                tracking_number=obj.tracking_number,
-            )
+            transition_order_to_delivered(order=obj)
         except InvalidFulfillmentError as error:
             self.message_user(
                 request,
-                f"No se pudo despachar {obj.order_number}: {error}",
+                f"No se pudo marcar como entregado {obj.order_number}: {error}",
                 level=messages.ERROR,
             )
         else:
             self.message_user(
                 request,
-                f"Pedido {obj.order_number} guardado y despachado correctamente.",
+                f"Pedido {obj.order_number} marcado como entregado correctamente.",
                 level=messages.SUCCESS,
             )
         return HttpResponseRedirect(request.path)
@@ -147,6 +179,22 @@ class OrderAdmin(admin.ModelAdmin):
                                   level=messages.ERROR)
         if dispatched:
             self.message_user(request, f"{dispatched} pedido(s) despachado(s) correctamente.")
+
+    @admin.action(description="Marcar pedidos seleccionados como entregados")
+    def mark_orders_delivered(self, request, queryset):
+        delivered = 0
+        for order in queryset:
+            try:
+                transition_order_to_delivered(order=order)
+                delivered += 1
+            except InvalidFulfillmentError as error:
+                self.message_user(
+                    request,
+                    f"No se pudo marcar como entregado {order.order_number}: {error}",
+                    level=messages.ERROR,
+                )
+        if delivered:
+            self.message_user(request, f"{delivered} pedido(s) marcado(s) como entregado(s) correctamente.")
 
 
 class ExhaustedFilter(admin.SimpleListFilter):

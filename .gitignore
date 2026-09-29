@@ -191,3 +191,4 @@ sdd_*.md
 
 # Durable local PostgreSQL validation evidence
 backend/.ordinary-validation-evidence/
+backend/.runtime-evidence/

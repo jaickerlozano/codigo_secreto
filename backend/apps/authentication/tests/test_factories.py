@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 from rest_framework.test import APIClient
 
@@ -23,6 +25,26 @@ def test_user_factory_creates_valid_user():
     assert user.check_password("TestPass123!") is True
     assert user.rut is not None
     assert validate_rut(user.rut) is True
+
+
+def test_user_factory_reuses_precomputed_password_hash():
+    """The factory avoids a costly password hash for every generated user."""
+    with patch.object(User, "set_password", autospec=True) as set_password:
+        user = UserFactory.create()
+
+    set_password.assert_not_called()
+    assert user.check_password("TestPass123!") is True
+
+
+def test_user_factory_reuses_password_hash_for_staff_user():
+    """The optimized path also preserves staff-user authentication."""
+    with patch.object(User, "set_password", autospec=True) as set_password:
+        user = UserFactory.create(is_staff=True, is_superuser=True)
+
+    set_password.assert_not_called()
+    assert user.is_staff is True
+    assert user.is_superuser is True
+    assert user.check_password("TestPass123!") is True
 
 
 def test_user_factory_emails_are_unique():
