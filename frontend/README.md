@@ -4,31 +4,54 @@ Cliente React + TypeScript + Vite para el eCommerce de bienestar íntimo.
 
 ## Flujo de desarrollo
 
+Instalá las dependencias con `pnpm install`. Si necesitás configuración local,
+copiá la plantilla ignorada sin compartirla entre Windows y WSL:
+
+```powershell
+# PowerShell
+Copy-Item .env.example .env
+```
+
 ```bash
-# Instalar dependencias
-pnpm install
-
-# Configurar variables de entorno
+# WSL/Linux Bash
 cp .env.example .env
-# Editar .env según tu entorno local
+```
 
-# Servidor de desarrollo
+Después podés usar los mismos scripts en PowerShell, CMD o Bash:
+
+```text
 pnpm run dev
-
-# Ejecutar tests
-pnpm run test
-
-# Build de producción
-pnpm run build
-
-# Lint
+pnpm run test:local
+pnpm run build:local
 pnpm run lint
-
-# Formatear código
 pnpm run format
-
-# Generar tipos desde el esquema OpenAPI del backend
 pnpm run api:gen
+```
+
+`test:local` y `build:local` ejecutan Vite con `LOCAL_NO_DOTENV=1`. El build
+local usa modo `development`, por lo que prueba la configuración local sin
+relajar el guard de producción. `api:gen` toma `VITE_API_URL` del proceso y usa
+`http://localhost:8000` cuando no está definida; el wrapper no depende de la
+sintaxis de expansión de variables del shell.
+
+El build de producción sigue exigiendo una URL HTTPS. Usá una variable del
+proceso, no un archivo local:
+
+```powershell
+# PowerShell
+$env:VITE_API_URL = "https://api.example.test"
+pnpm run build
+```
+
+```cmd
+:: CMD
+set "VITE_API_URL=https://api.example.test"
+pnpm run build
+```
+
+```bash
+# WSL/Linux Bash
+VITE_API_URL=https://api.example.test pnpm run build
 ```
 
 ## Páginas y rutas

@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vitest/config'
 
+const isWsl = process.platform === 'linux' && Boolean(process.env.WSL_DISTRO_NAME)
+
 // https://vite.dev/config/
 export default defineConfig({
   envDir: process.env.LOCAL_NO_DOTENV === '1' ? false : undefined,
@@ -34,9 +36,12 @@ export default defineConfig({
     css: true,
     setupFiles: ['./src/test/setup.ts'],
     pool: 'forks',
-    // Bound file-level concurrency to prevent jsdom worker memory pressure from
-    // starving async tests while preserving parallel execution and normal timeouts.
-    maxWorkers: 4,
+    // WSL pays extra filesystem and process startup costs for this Windows-hosted
+    // checkout, so serialize jsdom workers and allow slow tests/hooks more time.
+    // Other platforms retain the existing worker count and Vitest timeouts.
+    maxWorkers: isWsl ? 1 : 4,
+    testTimeout: isWsl ? 30_000 : undefined,
+    hookTimeout: isWsl ? 30_000 : undefined,
     // Browser acceptance specs live in e2e/ and run under Playwright, not
     // Vitest; keep Vitest scoped to src so *.spec.ts files are not double-run.
     include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],

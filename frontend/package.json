@@ -9,9 +9,11 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:local": "node scripts/with-local-env.mjs vitest run",
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
-    "api:gen": "openapi-typescript ${VITE_API_URL:-http://localhost:8000}/api/schema/ -o src/api/schema.d.ts",
+    "build:local": "node scripts/with-local-env.mjs vite build --mode development",
+    "api:gen": "node scripts/gen-api.mjs",
     "check:schema": "openapi-typescript ../backend/schema.yaml -o src/api/schema.d.ts --check",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
