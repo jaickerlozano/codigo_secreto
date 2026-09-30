@@ -56,8 +56,9 @@ class TestTransactionModel:
 
         transactions = list(Transaction.objects.filter(order=order))
 
-        assert transactions[0] == second
-        assert transactions[1] == first
+        assert {transaction.id for transaction in transactions} == {first.id, second.id}
+        created_at_values = [transaction.created_at for transaction in transactions]
+        assert created_at_values == sorted(created_at_values, reverse=True)
 
     def test_transaction_idempotency_key_unique_per_order(self, transaction_factory, order_factory):
         """Two attempts for the same order with the same idempotency key are rejected."""

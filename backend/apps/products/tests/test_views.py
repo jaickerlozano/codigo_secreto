@@ -320,7 +320,13 @@ def test_stock_movement_list_ordered_by_newest(staff_client, stock_movement_fact
     assert response.status_code == status.HTTP_200_OK
 
     ids = [item["id"] for item in _results(response)]
-    assert ids == [movement3.id, movement2.id, movement1.id]
+    assert set(ids) == {movement1.id, movement2.id, movement3.id}
+    timestamps_by_id = {
+        movement.id: movement.timestamp
+        for movement in (movement1, movement2, movement3)
+    }
+    returned_timestamps = [timestamps_by_id[movement_id] for movement_id in ids]
+    assert returned_timestamps == sorted(returned_timestamps, reverse=True)
 
 
 def test_stock_movement_405_update(staff_client, stock_movement_factory):

@@ -11,6 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from django.conf import settings
 
 from core.settings import _resolve_database_config, _resolve_email_backend
@@ -38,6 +39,8 @@ def load_local_email_settings(**overrides):
             "PIPENV_DONT_LOAD_ENV": "1",
             "DJANGO_READ_DOTENV": "0",
             "DJANGO_SETTINGS_MODULE": "core.settings_local",
+            # Email tests must not read or connect to the shared PostgreSQL setup.
+            "LOCAL_TEST_DATABASE": "1",
             **overrides,
         }
     )
@@ -64,101 +67,52 @@ print(json.dumps({
     return json.loads(result.stdout)
 
 
-def test_email_port_and_tls_defaults_are_dev_safe():
-    assert settings.EMAIL_PORT == 587
-    assert settings.EMAIL_USE_TLS is True
+def test_local_email_transport_has_no_smtp_tls_configuration():
+    assert settings.EMAIL_PORT == 1025
+    assert settings.EMAIL_USE_TLS is False
 
 
-def test_development_has_no_hardcoded_sender():
-    assert settings.DEFAULT_FROM_EMAIL == ""
+def test_local_sender_uses_a_non_deliverable_domain():
+    assert settings.DEFAULT_FROM_EMAIL == "local@example.invalid"
 
 
-def test_local_settings_use_console_backend_without_smtp():
-    local_settings = load_local_email_settings()
-
-    assert (
-        local_settings["EMAIL_BACKEND"]
-        == "django.core.mail.backends.console.EmailBackend"
-    )
-
-
-def test_local_settings_preserve_explicit_smtp_configuration():
-    local_settings = load_local_email_settings(
-        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
-        EMAIL_HOST="smtp.example.test",
-        EMAIL_PORT="2525",
-        EMAIL_USE_TLS="True",
-        EMAIL_HOST_USER="test-user",
-        EMAIL_HOST_PASSWORD="test-password",
-        DEFAULT_FROM_EMAIL="notifications@example.test",
-    )
-
-    assert local_settings == {
-        "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
-        "EMAIL_HOST": "smtp.example.test",
-        "EMAIL_PORT": 2525,
-        "EMAIL_USE_TLS": True,
-        "EMAIL_HOST_USER": "test-user",
-        "EMAIL_HOST_PASSWORD": "test-password",
-        "DEFAULT_FROM_EMAIL": "notifications@example.test",
-    }
+LOCAL_EMAIL_SETTINGS = {
+    "EMAIL_BACKEND": "django.core.mail.backends.locmem.EmailBackend",
+    "EMAIL_HOST": "",
+    "EMAIL_PORT": 1025,
+    "EMAIL_USE_TLS": False,
+    "EMAIL_HOST_USER": "",
+    "EMAIL_HOST_PASSWORD": "",
+    "DEFAULT_FROM_EMAIL": "local@example.invalid",
+}
 
 
-def test_local_settings_use_authorized_aliases_when_standard_credentials_are_absent():
-    local_settings = load_local_email_settings(
-        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
-        EMAIL_HOST="smtp.example.test",
-        SECRET_EMAIL="alias-sender@example.test",
-        SECRET_KEY_EMAIL="alias-password",
-    )
-
-    assert local_settings["EMAIL_HOST_USER"] == "alias-sender@example.test"
-    assert local_settings["EMAIL_HOST_PASSWORD"] == "alias-password"
-    assert local_settings["DEFAULT_FROM_EMAIL"] == "alias-sender@example.test"
+def test_local_settings_use_in_memory_email_without_smtp():
+    assert load_local_email_settings() == LOCAL_EMAIL_SETTINGS
 
 
-def test_local_settings_use_authorized_aliases_when_standard_credentials_are_empty():
-    local_settings = load_local_email_settings(
-        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
-        EMAIL_HOST="smtp.example.test",
-        EMAIL_HOST_USER="",
-        DEFAULT_FROM_EMAIL="",
-        SECRET_EMAIL="alias-sender@example.test",
-        SECRET_KEY_EMAIL="alias-password",
-    )
-
-    assert local_settings["EMAIL_HOST_USER"] == "alias-sender@example.test"
-    assert local_settings["EMAIL_HOST_PASSWORD"] == "alias-password"
-    assert local_settings["DEFAULT_FROM_EMAIL"] == "alias-sender@example.test"
-
-
-def test_local_settings_prioritize_standard_credentials_over_authorized_aliases():
-    local_settings = load_local_email_settings(
-        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
-        EMAIL_HOST="smtp.example.test",
-        EMAIL_HOST_USER="standard-user",
-        EMAIL_HOST_PASSWORD="standard-password",
-        DEFAULT_FROM_EMAIL="standard-sender@example.test",
-        SECRET_EMAIL="alias-sender@example.test",
-        SECRET_KEY_EMAIL="alias-password",
-    )
-
-    assert local_settings["EMAIL_HOST_USER"] == "standard-user"
-    assert local_settings["EMAIL_HOST_PASSWORD"] == "standard-password"
-    assert local_settings["DEFAULT_FROM_EMAIL"] == "standard-sender@example.test"
-
-
-def test_local_test_database_forces_locmem_email_backend():
-    local_settings = load_local_email_settings(
-        LOCAL_TEST_DATABASE="1",
-        EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend",
-        EMAIL_HOST="smtp.example.test",
-    )
-
-    assert (
-        local_settings["EMAIL_BACKEND"]
-        == "django.core.mail.backends.locmem.EmailBackend"
-    )
+@pytest.mark.parametrize(
+    "smtp_overrides",
+    [
+        {
+            "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "EMAIL_HOST": "smtp.example.test",
+            "EMAIL_PORT": "2525",
+            "EMAIL_USE_TLS": "True",
+            "EMAIL_HOST_USER": "test-user",
+            "EMAIL_HOST_PASSWORD": "test-password",
+            "DEFAULT_FROM_EMAIL": "notifications@example.test",
+        },
+        {
+            "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+            "EMAIL_HOST": "smtp.example.test",
+            "SECRET_EMAIL": "alias-sender@example.test",
+            "SECRET_KEY_EMAIL": "alias-password",
+        },
+    ],
+)
+def test_local_settings_ignore_all_smtp_configuration(smtp_overrides):
+    assert load_local_email_settings(**smtp_overrides) == LOCAL_EMAIL_SETTINGS
 
 
 def test_debug_blank_host_selects_console_backend():

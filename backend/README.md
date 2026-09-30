@@ -2,67 +2,100 @@
 
 API REST con Django y Django REST Framework para el eCommerce.
 
-## Setup
+## Supported local profile
 
-```bash
-cd backend
-pipenv install
-pipenv run python manage.py migrate
-pipenv run python manage.py seed_products
-pipenv run python manage.py runserver
+The supported backend toolchain is Python 3.12.x plus Pipenv on either native
+Windows or WSL/Linux. `Pipfile.lock` is the authoritative installation input;
+`requirements.txt` is its pinned default-and-development compatibility export.
+Use a separate external Pipenv environment on each platform. Never reuse,
+activate, modify, or delete the tracked legacy `backend/env/` directory.
+
+### Install dependencies
+
+PowerShell, from `backend/` (a bare `pipenv` command is not required):
+
+```powershell
+$env:PIPENV_DONT_LOAD_ENV = "1"
+$env:PIPENV_VENV_IN_PROJECT = "0"
+$env:PIPENV_IGNORE_VIRTUALENVS = "1"
+py -3.12 -m pipenv sync --dev
+py -3.12 -m pipenv --venv
 ```
 
-El servidor queda disponible en `http://localhost:8000`.
+WSL/Linux Bash, from `backend/`:
 
-## Database
+```bash
+export PIPENV_DONT_LOAD_ENV=1
+export PIPENV_VENV_IN_PROJECT=0
+export PIPENV_IGNORE_VIRTUALENVS=1
+python3.12 -m pipenv sync --dev
+python3.12 -m pipenv --venv
+```
 
-Ordinary local development uses SQLite (`DATABASE_URL=sqlite:///db.sqlite3` in
-the ignored `backend/.env`). PostgreSQL is required for tests marked `pg_only`,
-which exercise real row locking and concurrent transactions.
+The reported environment path must be outside the repository. Dependency
+updates must start in `Pipfile`, regenerate `Pipfile.lock` with Python 3.12, and
+refresh `requirements.txt` from that lock so all three declarations agree.
+
+### Run without dotenv loading
+
+The explicit `core.settings_local` profile refuses to start unless both dotenv
+guards are present. It reads only `POSTGRES_DB`, `POSTGRES_USER`, and
+`POSTGRES_PASSWORD` from the ignored `docker/postgres.env`; it never reads
+`backend/.env`, accepts a database hostname from that file, or constructs a
+remote database target. The resulting PostgreSQL connection is fixed to
+`127.0.0.1:5432` and is transaction-read-only by default.
+
+PowerShell:
+
+```powershell
+$env:DJANGO_SETTINGS_MODULE = "core.settings_local"
+$env:DJANGO_READ_DOTENV = "0"
+$env:PIPENV_DONT_LOAD_ENV = "1"
+$env:PIPENV_VENV_IN_PROJECT = "0"
+$env:PIPENV_IGNORE_VIRTUALENVS = "1"
+py -3.12 -m pipenv run python manage.py check
+py -3.12 -m pipenv run python manage.py runserver
+```
+
+WSL/Linux Bash:
+
+```bash
+export DJANGO_SETTINGS_MODULE=core.settings_local
+export DJANGO_READ_DOTENV=0
+export PIPENV_DONT_LOAD_ENV=1
+export PIPENV_VENV_IN_PROJECT=0
+export PIPENV_IGNORE_VIRTUALENVS=1
+python3.12 -m pipenv run python manage.py check
+python3.12 -m pipenv run python manage.py runserver
+```
+
+The server is available at `http://localhost:8000`. The local profile forces the
+mock payment provider, in-memory email delivery, blank Cloudinary credentials,
+and offline media storage even if conflicting service variables exist in the
+parent process. SMTP variables cannot opt this profile into network delivery;
+any future SMTP integration testing requires a separately named, explicitly
+selected profile. Existing remote image references remain unresolved locally.
 
 ### Development PostgreSQL container
 
-The repository's root `compose.yaml` provides a development-only PostgreSQL 16
-container. It is bound to `127.0.0.1` and stores its data in the named
-`postgres_data` volume. It is not a production deployment configuration.
-
-From the repository root, create the ignored local Docker environment file and
-replace the password placeholder with an alphanumeric development-only value:
-
-```bash
-cp docker/postgres.env.example docker/postgres.env
-```
-
-Use that same local password in the ignored `backend/.env` when setting Django's
-database URL:
-
-```env
-DATABASE_URL=postgresql://codigo_secreto:replace-with-a-local-alphanumeric-password@127.0.0.1:5432/codigo_secreto
-```
-
-Start the database and wait for its healthcheck before running Django commands:
+The root `compose.yaml` provides PostgreSQL 16 on loopback and persists its
+catalog in the `postgres_data` named volume. Provision the ignored
+`docker/postgres.env` from its tracked example without copying its values into
+`backend/.env`, then start only PostgreSQL from the repository root:
 
 ```bash
 docker compose up -d --wait postgres
 ```
 
-Stop the container while preserving the named volume:
+Normal local startup does not run migrations or seed/reset commands. Do not set
+`LOCAL_ALLOW_WRITES`; that opt-in is reserved for an explicitly authorized
+catalog-changing workflow. Focused settings tests use an isolated in-memory
+SQLite database by setting `LOCAL_TEST_DATABASE=1`, so they do not connect to or
+write the Docker catalog.
 
-```bash
-docker compose down
-```
-
-With the container healthy and `DATABASE_URL` set, run migrations and the
-PostgreSQL-only concurrency tests from `backend/`:
-
-```bash
-pipenv run python manage.py migrate
-pipenv run pytest -m pg_only
-```
-
-Production uses its own managed PostgreSQL service and a `DATABASE_URL` injected
-by the approved secret manager. Never reuse this container, its credentials, or
-its local environment files for production.
+Production keeps using `core.settings`, its managed PostgreSQL `DATABASE_URL`,
+SMTP, Cloudinary, and deployment-injected secrets. Never select
+`core.settings_local` in production.
 
 ## Aplicaciones
 
@@ -77,12 +110,16 @@ Las apps viven en `apps/` y están aisladas por dominio:
 
 ## Testing
 
-```bash
-pipenv run pytest
-pipenv run pytest --cov --cov-report=term-missing
+With the local-profile guards above plus `LOCAL_TEST_DATABASE=1`, run tests
+through Pipenv. For example, on PowerShell:
+
+```powershell
+$env:LOCAL_TEST_DATABASE = "1"
+py -3.12 -m pipenv run python -m pytest core/tests/test_local_development.py core/tests/test_email_settings.py
 ```
 
-La configuración de cobertura está en `pyproject.toml`.
+On WSL/Linux, use `python3.12 -m pipenv run` with the same exported guards. La
+configuración de cobertura está en `pyproject.toml`.
 
 ## Comandos de administración
 
@@ -90,28 +127,28 @@ La configuración de cobertura está en `pyproject.toml`.
 
 Crea o actualiza el catálogo semilla de 44 productos.
 
-```bash
-pipenv run python manage.py seed_products
-```
-
-Para recrear desde cero:
+This command changes the catalog and is not part of normal local-profile setup.
+Run it only in an explicitly authorized writable workflow:
 
 ```bash
-pipenv run python manage.py seed_products --reset
+python manage.py seed_products
 ```
+
+`seed_products --reset` is destructive and must not be used against the shared
+Docker development catalog.
 
 ## Notificaciones de cliente (`process_notifications`)
 
 El comando `process_notifications` reintenta los correos transaccionales fallidos (pago y despacho):
 
 ```bash
-pipenv run python manage.py process_notifications --batch-size 100
+python manage.py process_notifications --batch-size 100
 ```
 
 Ejecutarlo como mínimo cada 5 minutos. Ejemplo con cron:
 
 ```cron
-*/5 * * * * cd /ruta/al/proyecto/backend && /usr/local/bin/pipenv run python manage.py process_notifications >> /var/log/codigo-secreto/notifications.log 2>&1
+*/5 * * * * cd /ruta/al/proyecto/backend && /path/to/venv/bin/python manage.py process_notifications >> /var/log/codigo-secreto/notifications.log 2>&1
 ```
 
 O con systemd. Timer (`/etc/systemd/system/codigo-secreto-notifications.timer`):
@@ -138,7 +175,7 @@ Description=Procesar notificaciones de Código Secreto
 Type=oneshot
 WorkingDirectory=/ruta/al/proyecto/backend
 EnvironmentFile=/ruta/al/proyecto/backend/.env
-ExecStart=/usr/local/bin/pipenv run python manage.py process_notifications
+ExecStart=/path/to/venv/bin/python manage.py process_notifications
 ```
 
 ### Variables de entorno SMTP (producción)
@@ -154,12 +191,14 @@ EMAIL_USE_TLS=true
 DEFAULT_FROM_EMAIL="Código Secreto <no-reply@example.com>"
 ```
 
-En desarrollo con `DEBUG=True` y `EMAIL_HOST` vacío o ausente, los correos se imprimen en consola.
+These variables apply to `core.settings`, not to `core.settings_local`. The
+normal local profile always uses Django's in-memory backend and clears SMTP
+hosts and credentials, regardless of inherited SMTP environment variables.
 
 ## Schema de la API
 
 Genera el schema OpenAPI en `schema.yaml`:
 
 ```bash
-pipenv run python manage.py spectacular --file schema.yaml
+python manage.py spectacular --file schema.yaml
 ```

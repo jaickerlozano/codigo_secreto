@@ -6,55 +6,63 @@ Monorepo del eCommerce de bienestar íntimo para Chile. Incluye catálogo de pro
 
 ```
 /
-├── backend/   Django + Django REST Framework + SQLite (dev)
+├── backend/   Django + Django REST Framework + loopback PostgreSQL (local)
 └── frontend/  React + TypeScript + Vite + Tailwind CSS
 ```
 
-## Requisitos
+## Supported local toolchain
 
-- Python 3.12 + Pipenv
-- Node.js + pnpm
+Use the same major-version contract on native Windows and WSL/Linux:
+
+- Python 3.12.x with Pipenv (separate external environment per platform)
+- Node.js 22.x LTS
+- pnpm 10.x
+- Docker Desktop 4.x with Docker Compose v2
+- Git 2.40 or newer
+
+Do not share virtual environments or `node_modules` between Windows and WSL.
+The backend dependency source of truth is `backend/Pipfile.lock`; on Windows,
+invoke Pipenv as `py -3.12 -m pipenv` rather than assuming it is on `PATH`.
 
 ## Inicio rápido
 
 ### Backend
 
-```bash
-cd backend
-pipenv install
-pipenv run python manage.py migrate
-pipenv run python manage.py seed_products
-pipenv run python manage.py runserver
-```
+Use the explicit read-only/offline local profile. It disables dotenv loading,
+connects only to the loopback Docker PostgreSQL service, categorically blocks
+SMTP egress, and does not run setup migrations or seed commands. PowerShell and
+WSL/Linux commands are documented in
+[the backend local-profile guide](backend/README.md#supported-local-profile).
 
 El backend queda disponible en `http://localhost:8000`.
 
 ### Frontend
 
-```bash
+En PowerShell, CMD o WSL/Linux Bash:
+
+```text
 cd frontend
 pnpm install
 pnpm run dev
 ```
 
+Si necesitás configuración local, copiá la plantilla ignorada con
+`Copy-Item .env.example .env` en PowerShell o `cp .env.example .env` en
+WSL/Linux Bash. Mantené configuraciones separadas entre Windows y WSL.
+
 El frontend queda disponible en `http://localhost:5173`.
 
 ## Variables de entorno
 
-### Backend (`backend/.env`)
-
-```env
-DEBUG=True
-SECRET_KEY="your-secret-key"
-DATABASE_URL=sqlite:///db.sqlite3
-```
+The supported backend local profile does not read `backend/.env`. Docker keeps
+its local PostgreSQL values in ignored `docker/postgres.env`; do not source,
+print, or duplicate those values. Production secrets remain deployment-injected.
 
 ### Frontend (`frontend/.env`)
 
-```env
-VITE_API_URL=http://localhost:8000
-VITE_SUPPORT_PHONE=56912345678
-```
+Creá el archivo local copiando la plantilla como se indica arriba y editá la
+copia para tu máquina. No compartas el archivo ni sus valores entre entornos.
+Los comandos `test:local` y `build:local` omiten la carga de dotenv.
 
 ## Production security
 
@@ -70,21 +78,31 @@ pnpm run api:gen
 ```
 
 Esto actualiza `src/api/schema.d.ts` a partir del schema OpenAPI del backend.
+El script usa `VITE_API_URL` si está definida y, en caso contrario, apunta a
+`http://localhost:8000` en PowerShell, CMD y Bash sin sintaxis específica del
+shell.
 
 ## Testing
 
 ### Backend
 
-```bash
-cd backend
-pipenv run pytest --cov --cov-report=term-missing
-```
+Run focused tests through the platform-specific Python environment described in
+the backend guide, with `DJANGO_SETTINGS_MODULE=core.settings_local`,
+`DJANGO_READ_DOTENV=0`, `PIPENV_DONT_LOAD_ENV=1`, and
+`LOCAL_TEST_DATABASE=1`. This keeps verification off the Docker catalog.
 
 ### Frontend
 
-```bash
+```text
 cd frontend
-pnpm run test
-pnpm run build
+pnpm run test:local
+pnpm run build:local
+pnpm run check:schema
 pnpm oxlint src/
 ```
+
+`test:local` y `build:local` establecen `LOCAL_NO_DOTENV=1` mediante Node. Para
+validar producción, definí una URL HTTPS no secreta en `VITE_API_URL` y ejecutá
+`pnpm run build`; el guard HTTPS de producción permanece activo. Los comandos
+por shell y el drift check del backend están documentados en
+[el contrato API](frontend/src/README.md#verificar-que-el-esquema-no-está-desactualizado-drift-check).

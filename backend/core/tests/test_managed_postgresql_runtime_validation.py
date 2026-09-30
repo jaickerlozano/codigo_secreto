@@ -1,7 +1,11 @@
 """Fail-closed pytest evidence and validation orchestration contracts."""
 
+import signal
+import subprocess
 from contextlib import contextmanager
 from types import SimpleNamespace
+
+import pytest
 
 from core.managed_postgresql_runtime import cli, evidence, pytest_plugin
 from core.managed_postgresql_runtime import runner
@@ -391,3 +395,41 @@ def test_pytest_plugin_records_the_sorted_node_id_digest(monkeypatch, tmp_path):
     assert pytest_plugin.read_outcome(result_path)["node_ref"] == runner.node_ids_ref(
         ["core/tests/test_a.py::test_a", "core/tests/test_b.py::test_b"]
     )
+
+
+def test_process_group_creation_is_explicit_for_posix_and_windows(monkeypatch):
+    monkeypatch.setattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 512, raising=False)
+
+    assert runner.process_group_popen_kwargs("posix") == {"start_new_session": True}
+    assert runner.process_group_popen_kwargs("nt") == {"creationflags": 512}
+
+
+def test_process_group_creation_rejects_unproved_platform_support():
+    with pytest.raises(runner.ChildProcessError, match="unsupported"):
+        runner.process_group_popen_kwargs("unknown")
+
+
+def test_windows_process_tree_termination_uses_fixed_no_shell_command():
+    calls = []
+
+    def run(argv, **kwargs):
+        calls.append((argv, kwargs))
+        return SimpleNamespace(returncode=0)
+
+    taskkill = r"C:\Windows\System32\taskkill.exe"
+    runner._windows_kill_process_tree(4321, signal.SIGTERM, run=run, taskkill_path=taskkill)
+    runner._windows_kill_process_tree(4321, getattr(signal, "SIGKILL", 9), run=run, taskkill_path=taskkill)
+
+    assert calls[0][0] == [taskkill, "/PID", "4321", "/T"]
+    assert calls[1][0] == [taskkill, "/PID", "4321", "/T", "/F"]
+    assert all(call[1]["shell"] is False and call[1]["check"] is False for call in calls)
+
+
+def test_windows_process_tree_termination_fails_closed_on_tool_failure():
+    with pytest.raises(runner.ChildProcessError, match="could not be terminated"):
+        runner._windows_kill_process_tree(
+            4321,
+            signal.SIGTERM,
+            run=lambda *_args, **_kwargs: SimpleNamespace(returncode=1),
+            taskkill_path=r"C:\Windows\System32\taskkill.exe",
+        )

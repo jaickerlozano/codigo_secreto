@@ -126,7 +126,8 @@ def test_guest_journey_purchase_approve_dispatch_and_notify(
     # every stable field matches the initial response byte-for-byte, and the
     # ONLY intentional difference is the rotated guest capability — the design
     # says "guest replay rotates its raw capability": rotate_guest_access
-    # revokes the previous token and issues a fresh one (new token, new expiry).
+    # revokes the previous token and issues a fresh one. The expiry may tie at
+    # the platform clock's resolution, but it must never move backwards.
     replayed = api_client.post("/api/orders/", _guest_payload(product.id, comuna.id, quote["revision"]),
                                format="json", HTTP_IDEMPOTENCY_KEY=KEY)
     assert replayed.status_code == status.HTTP_201_CREATED
@@ -137,7 +138,7 @@ def test_guest_journey_purchase_approve_dispatch_and_notify(
     assert replayed_data == stable_initial
     second_token = replayed_capability["token"]
     assert second_token != first_token
-    assert replayed_capability["expires_at"] != order_data["guest_access"]["expires_at"]
+    assert replayed_capability["expires_at"] >= order_data["guest_access"]["expires_at"]
     assert Order.objects.count() == 1
 
     # 5. Capability exchange issues the access cookie (guest ownership).

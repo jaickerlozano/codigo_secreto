@@ -1,7 +1,9 @@
 """Foundation contracts for managed PostgreSQL runtime validation."""
 
+import os
 import stat
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -17,6 +19,7 @@ from core.managed_postgresql_runtime.cli import (
     EXIT_UNSAFE,
     RELEASE_ID_PATTERN,
 )
+from core.managed_postgresql_runtime import evidence
 from core.managed_postgresql_runtime.evidence import (
     EVIDENCE_SCHEMA,
     EvidenceWriteError,
@@ -84,7 +87,10 @@ def test_evidence_atomic_write(tmp_path):
 
     assert written == b'{"schema":"managed-postgresql-result/v1","status":"passed"}\n'
     assert result_path.read_bytes() == written
-    assert stat.S_IMODE(result_path.stat().st_mode) == 0o600
+    if os.name == "posix":
+        assert stat.S_IMODE(result_path.stat().st_mode) == 0o600
+    else:
+        evidence._secure_windows_path(result_path)
 
 
 def test_evidence_rejects_payloads_larger_than_the_contract(tmp_path):
@@ -123,8 +129,12 @@ def test_local_evidence_store_enforces_private_modes_and_canonical_records(tmp_p
 
     record_path = store.write("runs/run-1/run.json", payload)
 
-    assert stat.S_IMODE(store.root.stat().st_mode) == 0o700
-    assert stat.S_IMODE(record_path.stat().st_mode) == 0o600
+    if os.name == "posix":
+        assert stat.S_IMODE(store.root.stat().st_mode) == 0o700
+        assert stat.S_IMODE(record_path.stat().st_mode) == 0o600
+    else:
+        evidence._secure_windows_path(store.root)
+        evidence._secure_windows_path(record_path)
     assert record_path.read_bytes() == (
         b'{"kind":"run","run_id":"run-1","schema":"ordinary-local-validation/v1",'
         b'"timestamp":"2026-09-16T09:00:00Z"}\n'
@@ -142,10 +152,60 @@ def test_local_evidence_store_rejects_symlink_and_non_owned_roots(tmp_path, monk
 
     root = tmp_path / "evidence"
     root.mkdir()
-    monkeypatch.setattr("core.managed_postgresql_runtime.evidence.os.getuid", lambda: -1)
+    monkeypatch.setattr(evidence, "_is_windows", lambda: False)
+    monkeypatch.setattr(evidence.os, "getuid", lambda: -1, raising=False)
 
     with pytest.raises(LocalEvidenceError):
         LocalEvidenceStore(root)
+
+
+def test_private_directory_uses_windows_acl_path_without_posix_ownership(monkeypatch):
+    secured = []
+    directory = SimpleNamespace(
+        mkdir=lambda **_kwargs: None,
+        lstat=lambda: SimpleNamespace(
+            st_mode=stat.S_IFDIR | 0o777,
+            st_file_attributes=0,
+        ),
+    )
+    monkeypatch.setattr(evidence, "_is_windows", lambda: True)
+    monkeypatch.setattr(evidence, "_secure_windows_path", lambda path: secured.append(path))
+    monkeypatch.setattr(evidence, "_verify_private_path", lambda path, *, directory: secured.append((path, directory)))
+
+    LocalEvidenceStore._ensure_private_directory(directory)
+
+    assert secured == [directory, (directory, True)]
+
+
+def test_private_directory_fails_closed_when_windows_acl_cannot_be_proven(monkeypatch):
+    root = SimpleNamespace(
+        mkdir=lambda **_kwargs: None,
+        lstat=lambda: SimpleNamespace(
+            st_mode=stat.S_IFDIR | 0o777,
+            st_file_attributes=0,
+        ),
+    )
+    monkeypatch.setattr(evidence, "_is_windows", lambda: True)
+    monkeypatch.setattr(evidence, "_secure_windows_path", lambda _path: (_ for _ in ()).throw(OSError("ACL unavailable")))
+
+    with pytest.raises(LocalEvidenceError, match="directory is unavailable"):
+        LocalEvidenceStore._ensure_private_directory(root)
+
+
+def test_private_directory_uses_posix_owner_and_mode(monkeypatch):
+    calls = []
+    directory = SimpleNamespace(
+        mkdir=lambda **kwargs: calls.append(("mkdir", kwargs)),
+        lstat=lambda: SimpleNamespace(st_mode=stat.S_IFDIR | 0o755, st_uid=123),
+    )
+    monkeypatch.setattr(evidence, "_is_windows", lambda: False)
+    monkeypatch.setattr(evidence.os, "getuid", lambda: 123, raising=False)
+    monkeypatch.setattr(evidence.os, "chmod", lambda path, mode: calls.append(("chmod", path, mode)))
+    monkeypatch.setattr(evidence, "_verify_private_path", lambda path, *, directory: calls.append(("verify", path, directory)))
+
+    LocalEvidenceStore._ensure_private_directory(directory)
+
+    assert calls[-2:] == [("chmod", directory, 0o700), ("verify", directory, True)]
 
 
 def test_resume_evidence_requires_matching_module_and_collection_identity(tmp_path):

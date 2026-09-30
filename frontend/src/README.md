@@ -22,25 +22,58 @@ pnpm exec openapi-typescript ../backend/schema.yaml -o src/api/schema.d.ts
 
 ## Verificar que el esquema no está desactualizado (drift check)
 
-```bash
-pnpm check:schema
+Este comando es portable entre PowerShell, CMD y WSL/Linux Bash:
+
+```text
+pnpm run check:schema
 ```
 
 Compara la salida generada con `src/api/schema.d.ts` y sale con código 1 si el
-tipo no está al día. En el backend, el check equivalente es:
+tipo no está al día.
+
+Para verificar también que el YAML versionado coincide con el schema generado
+por Django, usá el entorno Python propio de cada plataforma y bloqueá la carga
+de dotenv. En PowerShell:
+
+```powershell
+cd ../backend
+$env:DJANGO_SETTINGS_MODULE = "core.settings_local"
+$env:DJANGO_READ_DOTENV = "0"
+$env:PIPENV_DONT_LOAD_ENV = "1"
+$schema = Join-Path $env:TEMP "codigo-secreto-schema.yaml"
+py -3.12 -m pipenv run python manage.py spectacular --validate --file $schema
+git diff --no-index --exit-code -- schema.yaml $schema
+```
+
+En WSL/Linux Bash:
 
 ```bash
-cd ../backend && env/bin/python manage.py spectacular --validate --file /tmp/schema.yaml && diff -q /tmp/schema.yaml schema.yaml
+cd ../backend
+schema="$(mktemp)"
+DJANGO_SETTINGS_MODULE=core.settings_local DJANGO_READ_DOTENV=0 \
+  PIPENV_DONT_LOAD_ENV=1 pipenv run python manage.py spectacular \
+  --validate --file "$schema"
+git diff --no-index --exit-code -- schema.yaml "$schema"
 ```
 
 ## Validación
 
-```bash
-pnpm run build
+Las pruebas y el build locales aíslan la configuración de dotenv:
+
+```text
+pnpm run test:local
+pnpm run build:local
 pnpm run lint
 ```
 
-Ambos deben salir con código 0.
+El build de producción conserva el guard HTTPS. Por ejemplo, en PowerShell:
+
+```powershell
+$env:VITE_API_URL = "https://api.example.test"
+pnpm run build
+```
+
+Todos los comandos deben salir con código 0.
 
 ## Reglas
 

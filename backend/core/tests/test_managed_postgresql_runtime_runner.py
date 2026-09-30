@@ -46,8 +46,8 @@ def test_fixed_argv_no_shell(tmp_path):
             "stdout": subprocess.PIPE,
             "stderr": subprocess.STDOUT,
             "text": True,
-            "start_new_session": True,
             "shell": False,
+            **runner.process_group_popen_kwargs(),
         },
     }
 
@@ -96,6 +96,50 @@ def test_timeout_kills_process_group(tmp_path):
     assert error.value.code == EXIT_LOCK
     assert killed == [(4321, signal.SIGTERM)]
     assert process.timeouts == [1, 5]
+
+
+def test_graceful_termination_failure_escalates_to_force_and_preserves_timeout(tmp_path):
+    process = FakeProcess("child timed out", timeout=True)
+    killed = []
+
+    def kill_process_group(process_id, signal_number):
+        killed.append((process_id, signal_number))
+        if signal_number == runner.TERMINATE_SIGNAL:
+            raise runner.ChildProcessError("graceful termination failed")
+
+    with pytest.raises(runner.ChildTimeoutError) as error:
+        runner.run_stage(
+            "drift",
+            backend_root=tmp_path,
+            timeout_seconds=1,
+            popen=lambda *_args, **_kwargs: process,
+            kill_process_group=kill_process_group,
+        )
+
+    assert error.value.code == EXIT_LOCK
+    assert killed == [(4321, runner.TERMINATE_SIGNAL), (4321, runner.KILL_SIGNAL)]
+    assert process.timeouts == [1, None]
+
+
+def test_force_termination_failure_remains_fail_closed_after_graceful_failure(tmp_path):
+    process = FakeProcess("child timed out", timeout=True)
+    killed = []
+
+    def kill_process_group(process_id, signal_number):
+        killed.append((process_id, signal_number))
+        raise runner.ChildProcessError("process tree termination failed")
+
+    with pytest.raises(runner.ChildProcessError, match="process tree termination failed"):
+        runner.run_stage(
+            "drift",
+            backend_root=tmp_path,
+            timeout_seconds=1,
+            popen=lambda *_args, **_kwargs: process,
+            kill_process_group=kill_process_group,
+        )
+
+    assert killed == [(4321, runner.TERMINATE_SIGNAL), (4321, runner.KILL_SIGNAL)]
+    assert process.timeouts == [1]
 
 
 def test_child_output_redacted(tmp_path):
@@ -207,7 +251,8 @@ def test_shards_run_sequentially_with_fixed_argv(tmp_path):
         ],
     ]
     assert all(kwargs["cwd"] == tmp_path and kwargs["shell"] is False for _argv, kwargs in captured)
-    assert all(kwargs["stdin"] is subprocess.DEVNULL and kwargs["start_new_session"] is True for _argv, kwargs in captured)
+    group_options = runner.process_group_popen_kwargs()
+    assert all(kwargs["stdin"] is subprocess.DEVNULL and group_options.items() <= kwargs.items() for _argv, kwargs in captured)
     assert all("NEON_DATABASE_URL" not in kwargs["env"] for _argv, kwargs in captured)
     assert all("MANAGED_POSTGRESQL_RUNTIME" not in kwargs["env"] for _argv, kwargs in captured)
 
@@ -385,5 +430,5 @@ def test_cancellation_terminates_waits_kills_reaps_and_reports_interrupted(tmp_p
         )
 
     assert error.value.shard_module == "core/tests/test_runtime.py"
-    assert killed == [(4321, signal.SIGTERM), (4321, signal.SIGKILL)]
+    assert killed == [(4321, runner.TERMINATE_SIGNAL), (4321, runner.KILL_SIGNAL)]
     assert interrupted == ["core/tests/test_runtime.py"]

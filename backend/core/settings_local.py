@@ -21,17 +21,27 @@ os.environ.update({
     "PAYMENT_PROVIDER": "mock",
     "CLOUDINARY_CLOUD_NAME": "", "CLOUDINARY_API_KEY": "",
     "CLOUDINARY_API_SECRET": "", "CLOUDINARY_UPLOAD_PRESET": "",
+    "EMAIL_BACKEND": "django.core.mail.backends.locmem.EmailBackend",
+    "EMAIL_HOST": "", "EMAIL_PORT": "1025", "EMAIL_USE_TLS": "False",
+    "EMAIL_HOST_USER": "", "EMAIL_HOST_PASSWORD": "",
+    "SECRET_EMAIL": "", "SECRET_KEY_EMAIL": "",
+    "DEFAULT_FROM_EMAIL": "local@example.invalid",
 })
-for setting, default in {
-    "EMAIL_HOST": "",
-    "EMAIL_PORT": "587",
-    "EMAIL_USE_TLS": "True",
-}.items():
-    os.environ.setdefault(setting, default)
 
 from .settings import *  # noqa: E402,F403
 
-LOCAL_CLOUDINARY_NAMESPACE = os.environ.get("LOCAL_CLOUDINARY_NAMESPACE", "")
+# Keep local integrations offline even if the base settings gain new aliases.
+PAYMENT_PROVIDER = "mock"
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+EMAIL_HOST = ""
+EMAIL_PORT = 1025
+EMAIL_USE_TLS = False
+EMAIL_HOST_USER = ""
+EMAIL_HOST_PASSWORD = ""
+SECRET_EMAIL = ""
+SECRET_KEY_EMAIL = ""
+DEFAULT_FROM_EMAIL = "local@example.invalid"
+CLOUDINARY_STORAGE = {key: "" for key in CLOUDINARY_STORAGE}
 STORAGES = {**STORAGES, "default": {"BACKEND": "core.local_storage.LocalReferenceStorage"}}
 if os.environ.get("LOCAL_TEST_DATABASE") == "1":
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}

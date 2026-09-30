@@ -1,10 +1,10 @@
-from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
+from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
-from apps.products.images import product_image_delivery_urls
 from core.local_storage import LocalReferenceStorage
 from core.local_configuration import local_database
 
@@ -15,29 +15,37 @@ def test_local_test_profile():
     assert settings.DATABASES["default"]["ENGINE"].endswith("sqlite3")
     assert settings.STORAGES["default"]["BACKEND"].endswith("InMemoryStorage")
     assert settings.EMAIL_BACKEND.endswith("locmem.EmailBackend")
+    assert settings.EMAIL_HOST == ""
+    assert settings.EMAIL_HOST_USER == ""
+    assert settings.EMAIL_HOST_PASSWORD == ""
+    assert settings.EMAIL_USE_TLS is False
+    assert settings.DEFAULT_FROM_EMAIL == "local@example.invalid"
     assert settings.PAYMENT_PROVIDER == "mock"
-    assert not settings.CLOUDINARY_STORAGE["API_SECRET"]
+    assert apps.is_installed("cloudinary")
+    assert apps.is_installed("cloudinary_storage")
+    assert not any(settings.CLOUDINARY_STORAGE.values())
 
 
-def test_loopback_readonly_database_configuration(tmp_path):
-    path = tmp_path / "postgres.env"
-    path.write_text("POSTGRES_DB=test\nPOSTGRES_USER=test\nPOSTGRES_PASSWORD='synthetic'\nHOST=remote.invalid\n")
+def test_loopback_readonly_database_configuration():
+    path = Mock()
+    path.read_text.side_effect = [
+        "POSTGRES_DB=test\nPOSTGRES_USER=test\nPOSTGRES_PASSWORD='synthetic'\nHOST=remote.invalid\n",
+        "POSTGRES_PASSWORD='do-not-expose\n",
+    ]
     database = local_database(path)
     assert (database["HOST"], database["PORT"]) == ("127.0.0.1", "5432")
     assert "default_transaction_read_only=on" in database["OPTIONS"]["options"]
-    path.write_text("POSTGRES_PASSWORD='do-not-expose\n")
     with pytest.raises(ImproperlyConfigured, match="^Invalid local PostgreSQL configuration$"):
         local_database(path)
 
 
-def test_missing_namespace_uses_existing_placeholder(settings):
-    settings.LOCAL_CLOUDINARY_NAMESPACE = ""
+def test_remote_media_reference_stays_offline():
     assert LocalReferenceStorage().url("products/example.webp") is None
 
 
-def test_writable_mode_is_explicit_opt_in(tmp_path):
-    path = tmp_path / "postgres.env"
-    path.write_text("POSTGRES_DB=test\nPOSTGRES_USER=test\nPOSTGRES_PASSWORD='synthetic'\n")
+def test_writable_mode_is_explicit_opt_in():
+    path = Mock()
+    path.read_text.return_value = "POSTGRES_DB=test\nPOSTGRES_USER=test\nPOSTGRES_PASSWORD='synthetic'\n"
     readonly = local_database(path)
     assert "default_transaction_read_only=on" in readonly["OPTIONS"]["options"]
     writable = local_database(path, read_only=False)
@@ -45,24 +53,7 @@ def test_writable_mode_is_explicit_opt_in(tmp_path):
     assert writable["OPTIONS"]["connect_timeout"] == 5
 
 
-def test_public_reference_is_not_transformed(settings):
-    settings.LOCAL_CLOUDINARY_NAMESPACE = "synthetic-namespace"
-    storage = LocalReferenceStorage()
-    url = storage.url("products/example.webp")
-    image = SimpleNamespace(url=url, storage=storage)
-    delivery = product_image_delivery_urls(image, max_width=640)
-    assert delivery.transformed == delivery.original == url
-    assert url == "https://res.cloudinary.com/synthetic-namespace/image/upload/products/example.webp"
-
-
 @pytest.mark.parametrize("operation", ["open", "save", "delete", "exists"])
 def test_storage_operations_are_forbidden(operation):
     with pytest.raises(PermissionError):
         getattr(LocalReferenceStorage(), operation)("products/example.webp")
-
-
-@pytest.mark.parametrize("name", ["../image", "https://remote.invalid/image", "/image"])
-def test_invalid_references_are_rejected(settings, name):
-    settings.LOCAL_CLOUDINARY_NAMESPACE = "synthetic"
-    with pytest.raises(ValueError):
-        LocalReferenceStorage().url(name)
