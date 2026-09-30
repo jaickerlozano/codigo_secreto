@@ -1,5 +1,6 @@
 """Fixed, bounded child-process execution for runtime validation."""
 
+import ctypes
 import hashlib
 import os
 import re
@@ -17,6 +18,8 @@ from .evidence import module_sha256, shard_resume_eligible
 CHILD_TIMEOUT_SECONDS = 30 * 60
 ORDINARY_LOCAL_DEADLINE_SECONDS = 45 * 60
 PROCESS_TERMINATION_GRACE_SECONDS = 5
+TERMINATE_SIGNAL = signal.SIGTERM
+KILL_SIGNAL = getattr(signal, "SIGKILL", 9)
 OUTCOME_PLUGIN = "core.managed_postgresql_runtime.outcome_plugin"
 STAGE_COMMANDS = {
     "migrate": ("python", "manage.py", "migrate", "--noinput"),
@@ -140,14 +143,86 @@ def ordinary_local_deadline(*, monotonic=time.monotonic):
     return monotonic() + ORDINARY_LOCAL_DEADLINE_SECONDS
 
 
-def _reap_process_group(process, *, kill_process_group):
-    """Terminate, wait briefly, force-kill only if needed, then reap."""
-    kill_process_group(process.pid, signal.SIGTERM)
+def process_group_popen_kwargs(platform_name=None):
+    """Return process-group creation flags for Windows or POSIX."""
+    platform_name = platform_name or os.name
+    if platform_name == "nt":
+        creation_flag = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", None)
+        if creation_flag is None:
+            raise ChildProcessError("Windows process-group support is unavailable")
+        return {"creationflags": creation_flag}
+    if platform_name == "posix":
+        return {"start_new_session": True}
+    raise ChildProcessError("managed PostgreSQL process groups are unsupported")
+
+
+def _windows_taskkill_path():
+    """Resolve taskkill from the trusted Windows system directory."""
+    if os.name != "nt" or not hasattr(ctypes, "WinDLL"):
+        raise ChildProcessError("Windows system tools are unavailable")
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetSystemDirectoryW.argtypes = (ctypes.c_wchar_p, ctypes.c_uint)
+    kernel32.GetSystemDirectoryW.restype = ctypes.c_uint
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = kernel32.GetSystemDirectoryW(buffer, len(buffer))
+    if not length or length >= len(buffer):
+        raise ChildProcessError("Windows system directory is unavailable")
+    taskkill = Path(buffer.value) / "taskkill.exe"
+    if not taskkill.is_file():
+        raise ChildProcessError("Windows process-tree termination is unavailable")
+    return str(taskkill)
+
+
+def _windows_kill_process_tree(process_id, signal_number, *, run=subprocess.run, taskkill_path=None):
+    """Terminate a Windows process tree with the fixed system taskkill tool."""
+    force = signal_number == KILL_SIGNAL
+    argv = [taskkill_path or _windows_taskkill_path(), "/PID", str(process_id), "/T"]
+    if force:
+        argv.append("/F")
     try:
-        output, _ = process.communicate(timeout=PROCESS_TERMINATION_GRACE_SECONDS)
-    except subprocess.TimeoutExpired:
-        kill_process_group(process.pid, signal.SIGKILL)
-        output, _ = process.communicate()
+        completed = run(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            shell=False,
+            check=False,
+        )
+    except OSError as error:
+        raise ChildProcessError("Windows child process tree could not be terminated") from error
+    if completed.returncode:
+        raise ChildProcessError("Windows child process tree could not be terminated")
+
+
+def _default_kill_process_group(process_id, signal_number, *, platform_name=None):
+    platform_name = platform_name or os.name
+    if platform_name == "nt":
+        _windows_kill_process_tree(process_id, signal_number)
+        return
+    if platform_name == "posix":
+        os.killpg(process_id, signal_number)
+        return
+    raise ChildProcessError("managed PostgreSQL process groups are unsupported")
+
+
+def _reap_process_group(process, *, kill_process_group):
+    """Terminate, force-kill when graceful cleanup fails, then reap."""
+    force_required = False
+    try:
+        kill_process_group(process.pid, TERMINATE_SIGNAL)
+    except ChildProcessError:
+        force_required = True
+
+    if not force_required:
+        try:
+            output, _ = process.communicate(timeout=PROCESS_TERMINATION_GRACE_SECONDS)
+            return output
+        except subprocess.TimeoutExpired:
+            force_required = True
+
+    kill_process_group(process.pid, KILL_SIGNAL)
+    output, _ = process.communicate()
     return output
 
 
@@ -159,10 +234,19 @@ def _run_child(
     environment=None,
     timeout_seconds=CHILD_TIMEOUT_SECONDS,
     popen=subprocess.Popen,
-    kill_process_group=os.killpg,
+    kill_process_group=None,
+    platform_name=None,
     shard_index=None,
     shard_module=None,
 ):
+    platform_name = platform_name or os.name
+    kill_process_group = kill_process_group or (
+        lambda process_id, signal_number: _default_kill_process_group(
+            process_id,
+            signal_number,
+            platform_name=platform_name,
+        )
+    )
     try:
         process = popen(
             list(argv),
@@ -172,8 +256,8 @@ def _run_child(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            start_new_session=True,
             shell=False,
+            **process_group_popen_kwargs(platform_name),
         )
         output, _ = process.communicate(timeout=timeout_seconds)
     except subprocess.TimeoutExpired as error:
@@ -197,7 +281,8 @@ def run_stage(
     environment=None,
     timeout_seconds=CHILD_TIMEOUT_SECONDS,
     popen=subprocess.Popen,
-    kill_process_group=os.killpg,
+    kill_process_group=None,
+    platform_name=None,
 ):
     """Run only a declared stage with a closed input and isolated process group."""
     try:
@@ -213,6 +298,7 @@ def run_stage(
         timeout_seconds=timeout_seconds,
         popen=popen,
         kill_process_group=kill_process_group,
+        platform_name=platform_name,
     )
 
 

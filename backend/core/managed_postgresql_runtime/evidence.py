@@ -1,11 +1,14 @@
 """Bounded canonical evidence output for runtime validation."""
 
+import ctypes
+import hashlib
 import json
 import os
 import re
 import stat
 import tempfile
-import hashlib
+from ctypes import wintypes
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 
 
@@ -42,6 +45,290 @@ class LocalEvidenceError(EvidenceWriteError):
     """Raised when local validation evidence cannot meet its safety contract."""
 
 
+_OWNER_SECURITY_INFORMATION = 0x00000001
+_DACL_SECURITY_INFORMATION = 0x00000004
+_PROTECTED_DACL_SECURITY_INFORMATION = 0x80000000
+_SE_DACL_PROTECTED = 0x1000
+_TOKEN_QUERY = 0x0008
+_TOKEN_USER = 1
+_ACCESS_ALLOWED_ACE_TYPE = 0
+_FILE_ALL_ACCESS = 0x001F01FF
+_MOVEFILE_REPLACE_EXISTING = 0x00000001
+_MOVEFILE_WRITE_THROUGH = 0x00000008
+
+
+class _Acl(ctypes.Structure):
+    _fields_ = (
+        ("revision", wintypes.BYTE),
+        ("reserved", wintypes.BYTE),
+        ("size", wintypes.WORD),
+        ("ace_count", wintypes.WORD),
+        ("reserved2", wintypes.WORD),
+    )
+
+
+class _AceHeader(ctypes.Structure):
+    _fields_ = (
+        ("ace_type", wintypes.BYTE),
+        ("ace_flags", wintypes.BYTE),
+        ("ace_size", wintypes.WORD),
+    )
+
+
+class _AccessAllowedAce(ctypes.Structure):
+    _fields_ = (
+        ("header", _AceHeader),
+        ("mask", wintypes.DWORD),
+        ("sid_start", wintypes.DWORD),
+    )
+
+
+class _SidAndAttributes(ctypes.Structure):
+    _fields_ = (("sid", wintypes.LPVOID), ("attributes", wintypes.DWORD))
+
+
+class _TokenUser(ctypes.Structure):
+    _fields_ = (("user", _SidAndAttributes),)
+
+
+@lru_cache(maxsize=1)
+def _windows_api():
+    """Return the narrowly configured Windows security and file APIs."""
+    if os.name != "nt" or not hasattr(ctypes, "WinDLL"):
+        raise OSError("Windows security APIs are unavailable")
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    advapi32.OpenProcessToken.argtypes = (wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE))
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    advapi32.GetTokenInformation.argtypes = (
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    )
+    advapi32.GetTokenInformation.restype = wintypes.BOOL
+    advapi32.ConvertSidToStringSidW.argtypes = (wintypes.LPVOID, ctypes.POINTER(wintypes.LPWSTR))
+    advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.LPVOID),
+        ctypes.POINTER(wintypes.DWORD),
+    )
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.restype = wintypes.BOOL
+    advapi32.SetFileSecurityW.argtypes = (wintypes.LPCWSTR, wintypes.DWORD, wintypes.LPVOID)
+    advapi32.SetFileSecurityW.restype = wintypes.BOOL
+    advapi32.GetFileSecurityW.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    )
+    advapi32.GetFileSecurityW.restype = wintypes.BOOL
+    advapi32.GetSecurityDescriptorOwner.argtypes = (
+        wintypes.LPVOID,
+        ctypes.POINTER(wintypes.LPVOID),
+        ctypes.POINTER(wintypes.BOOL),
+    )
+    advapi32.GetSecurityDescriptorOwner.restype = wintypes.BOOL
+    advapi32.GetSecurityDescriptorDacl.argtypes = (
+        wintypes.LPVOID,
+        ctypes.POINTER(wintypes.BOOL),
+        ctypes.POINTER(wintypes.LPVOID),
+        ctypes.POINTER(wintypes.BOOL),
+    )
+    advapi32.GetSecurityDescriptorDacl.restype = wintypes.BOOL
+    advapi32.GetSecurityDescriptorControl.argtypes = (
+        wintypes.LPVOID,
+        ctypes.POINTER(wintypes.WORD),
+        ctypes.POINTER(wintypes.DWORD),
+    )
+    advapi32.GetSecurityDescriptorControl.restype = wintypes.BOOL
+    advapi32.GetAce.argtypes = (wintypes.LPVOID, wintypes.DWORD, ctypes.POINTER(wintypes.LPVOID))
+    advapi32.GetAce.restype = wintypes.BOOL
+
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = (wintypes.HLOCAL,)
+    kernel32.LocalFree.restype = wintypes.HLOCAL
+    kernel32.MoveFileExW.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD)
+    kernel32.MoveFileExW.restype = wintypes.BOOL
+    return advapi32, kernel32
+
+
+def _raise_windows_error():
+    raise ctypes.WinError(ctypes.get_last_error())
+
+
+def _sid_string(advapi32, kernel32, sid):
+    value = wintypes.LPWSTR()
+    if not advapi32.ConvertSidToStringSidW(sid, ctypes.byref(value)):
+        _raise_windows_error()
+    try:
+        return value.value
+    finally:
+        kernel32.LocalFree(value)
+
+
+def _current_windows_sid(advapi32, kernel32):
+    token = wintypes.HANDLE()
+    if not advapi32.OpenProcessToken(kernel32.GetCurrentProcess(), _TOKEN_QUERY, ctypes.byref(token)):
+        _raise_windows_error()
+    try:
+        required = wintypes.DWORD()
+        advapi32.GetTokenInformation(token, _TOKEN_USER, None, 0, ctypes.byref(required))
+        if not required.value:
+            _raise_windows_error()
+        buffer = ctypes.create_string_buffer(required.value)
+        if not advapi32.GetTokenInformation(
+            token,
+            _TOKEN_USER,
+            buffer,
+            required.value,
+            ctypes.byref(required),
+        ):
+            _raise_windows_error()
+        return _sid_string(advapi32, kernel32, ctypes.cast(buffer, ctypes.POINTER(_TokenUser)).contents.user.sid)
+    finally:
+        kernel32.CloseHandle(token)
+
+
+def _read_windows_security_descriptor(path, advapi32):
+    security_information = _OWNER_SECURITY_INFORMATION | _DACL_SECURITY_INFORMATION
+    required = wintypes.DWORD()
+    advapi32.GetFileSecurityW(str(path), security_information, None, 0, ctypes.byref(required))
+    if not required.value:
+        _raise_windows_error()
+    descriptor = ctypes.create_string_buffer(required.value)
+    if not advapi32.GetFileSecurityW(
+        str(path),
+        security_information,
+        descriptor,
+        required.value,
+        ctypes.byref(required),
+    ):
+        _raise_windows_error()
+    return descriptor
+
+
+def _verify_windows_private_path(path, expected_sid, advapi32, kernel32):
+    descriptor = _read_windows_security_descriptor(path, advapi32)
+    owner = wintypes.LPVOID()
+    owner_defaulted = wintypes.BOOL()
+    if not advapi32.GetSecurityDescriptorOwner(descriptor, ctypes.byref(owner), ctypes.byref(owner_defaulted)):
+        _raise_windows_error()
+    if _sid_string(advapi32, kernel32, owner) != expected_sid:
+        raise OSError("Windows evidence owner is not the current user")
+
+    dacl_present = wintypes.BOOL()
+    dacl = wintypes.LPVOID()
+    dacl_defaulted = wintypes.BOOL()
+    if not advapi32.GetSecurityDescriptorDacl(
+        descriptor,
+        ctypes.byref(dacl_present),
+        ctypes.byref(dacl),
+        ctypes.byref(dacl_defaulted),
+    ):
+        _raise_windows_error()
+    control = wintypes.WORD()
+    revision = wintypes.DWORD()
+    if not advapi32.GetSecurityDescriptorControl(descriptor, ctypes.byref(control), ctypes.byref(revision)):
+        _raise_windows_error()
+    if not dacl_present.value or not dacl.value or dacl_defaulted.value or not control.value & _SE_DACL_PROTECTED:
+        raise OSError("Windows evidence DACL is not private")
+
+    acl = ctypes.cast(dacl, ctypes.POINTER(_Acl)).contents
+    if acl.ace_count != 1:
+        raise OSError("Windows evidence DACL grants additional access")
+    ace_pointer = wintypes.LPVOID()
+    if not advapi32.GetAce(dacl, 0, ctypes.byref(ace_pointer)):
+        _raise_windows_error()
+    ace = ctypes.cast(ace_pointer, ctypes.POINTER(_AccessAllowedAce)).contents
+    ace_sid = wintypes.LPVOID(ace_pointer.value + _AccessAllowedAce.sid_start.offset)
+    if (
+        ace.header.ace_type != _ACCESS_ALLOWED_ACE_TYPE
+        or ace.header.ace_flags != 0
+        or ace.mask != _FILE_ALL_ACCESS
+        or _sid_string(advapi32, kernel32, ace_sid) != expected_sid
+    ):
+        raise OSError("Windows evidence DACL is not private")
+
+
+def _assert_windows_private_path(path):
+    """Prove that a Windows path is owned and accessible only by the current user."""
+    advapi32, kernel32 = _windows_api()
+    resolved = Path(path).resolve(strict=True)
+    current_sid = _current_windows_sid(advapi32, kernel32)
+    _verify_windows_private_path(resolved, current_sid, advapi32, kernel32)
+
+
+def _secure_windows_path(path):
+    """Apply and prove a protected current-user-only Windows DACL."""
+    advapi32, kernel32 = _windows_api()
+    resolved = Path(path).resolve(strict=True)
+    current_sid = _current_windows_sid(advapi32, kernel32)
+    descriptor = wintypes.LPVOID()
+    sddl = f"D:P(A;;FA;;;{current_sid})"
+    if not advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+        sddl,
+        1,
+        ctypes.byref(descriptor),
+        None,
+    ):
+        _raise_windows_error()
+    try:
+        information = _DACL_SECURITY_INFORMATION | _PROTECTED_DACL_SECURITY_INFORMATION
+        if not advapi32.SetFileSecurityW(str(resolved), information, descriptor):
+            _raise_windows_error()
+    finally:
+        kernel32.LocalFree(descriptor)
+    _verify_windows_private_path(resolved, current_sid, advapi32, kernel32)
+
+
+def _is_windows():
+    return os.name == "nt"
+
+
+def _is_link_or_reparse(metadata):
+    return stat.S_ISLNK(metadata.st_mode) or bool(
+        _is_windows()
+        and getattr(metadata, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+
+
+def _verify_private_path(path, *, directory):
+    metadata = Path(path).lstat()
+    expected_type = stat.S_ISDIR if directory else stat.S_ISREG
+    if _is_link_or_reparse(metadata) or not expected_type(metadata.st_mode):
+        raise OSError("evidence path type is unsafe")
+    if _is_windows():
+        _assert_windows_private_path(path)
+        return
+    getuid = getattr(os, "getuid", None)
+    expected_mode = 0o700 if directory else 0o600
+    if getuid is None or metadata.st_uid != getuid() or stat.S_IMODE(metadata.st_mode) != expected_mode:
+        raise OSError("POSIX evidence ownership or mode is unsafe")
+
+
+def _replace_evidence(source, destination):
+    if _is_windows():
+        _advapi32, kernel32 = _windows_api()
+        flags = _MOVEFILE_REPLACE_EXISTING | _MOVEFILE_WRITE_THROUGH
+        if not kernel32.MoveFileExW(str(source), str(destination), flags):
+            _raise_windows_error()
+        return
+    os.replace(source, destination)
+    directory_descriptor = os.open(Path(destination).parent, os.O_RDONLY)
+    try:
+        os.fsync(directory_descriptor)
+    finally:
+        os.close(directory_descriptor)
+
+
 def canonicalize_evidence(payload):
     """Return the contract's canonical UTF-8 JSON representation."""
     try:
@@ -59,7 +346,7 @@ def canonicalize_evidence(payload):
 
 
 def write_evidence(path, payload):
-    """Atomically publish canonical evidence with owner-only permissions."""
+    """Atomically publish canonical evidence with private platform permissions."""
     destination = Path(path)
     evidence = canonicalize_evidence(payload)
     temporary_path = None
@@ -68,22 +355,25 @@ def write_evidence(path, payload):
             dir=destination.parent,
             prefix=f".{destination.name}.",
         )
-        os.fchmod(descriptor, 0o600)
+        if _is_windows():
+            _secure_windows_path(temporary_path)
+        else:
+            os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "wb") as temporary_file:
             temporary_file.write(evidence)
             temporary_file.flush()
             os.fsync(temporary_file.fileno())
-        os.replace(temporary_path, destination)
-        directory_descriptor = os.open(destination.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory_descriptor)
-        finally:
-            os.close(directory_descriptor)
+        _replace_evidence(temporary_path, destination)
+        temporary_path = None
+        _verify_private_path(destination, directory=False)
     except OSError as error:
         raise EvidenceWriteError("unable to write validation evidence") from error
     finally:
         if temporary_path and os.path.exists(temporary_path):
-            os.unlink(temporary_path)
+            try:
+                os.unlink(temporary_path)
+            except OSError:
+                pass
     return evidence
 
 
@@ -163,12 +453,18 @@ class LocalEvidenceStore:
         try:
             directory.mkdir(mode=0o700, parents=True, exist_ok=True)
             metadata = directory.lstat()
-        except OSError as error:
-            raise LocalEvidenceError("local evidence directory is unavailable") from error
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != os.getuid():
-            raise LocalEvidenceError("local evidence directory is unsafe")
-        try:
-            os.chmod(directory, 0o700)
+            if _is_link_or_reparse(metadata) or not stat.S_ISDIR(metadata.st_mode):
+                raise LocalEvidenceError("local evidence directory is unsafe")
+            if _is_windows():
+                _secure_windows_path(directory)
+            else:
+                getuid = getattr(os, "getuid", None)
+                if getuid is None or metadata.st_uid != getuid():
+                    raise LocalEvidenceError("local evidence directory is unsafe")
+                os.chmod(directory, 0o700)
+            _verify_private_path(directory, directory=True)
+        except LocalEvidenceError:
+            raise
         except OSError as error:
             raise LocalEvidenceError("local evidence directory is unavailable") from error
 
