@@ -4,6 +4,12 @@ Production deployment remains blocked until the deployment owner supplies the ap
 
 ## Quick path
 
+`core.settings_local` is intentionally incompatible with production: it forces
+loopback PostgreSQL, mock payments, offline media storage, and in-memory email.
+It ignores inherited SMTP configuration and therefore has no SMTP network
+capability. Production must keep using `core.settings` with deployment-injected
+values.
+
 1. Use the environment examples only as local-development references and format guides.
 2. Have the deployment owner and secret custodian supply approved values outside the repository.
 3. Run the checks below, retain their outputs, and complete every rollout gate before release.

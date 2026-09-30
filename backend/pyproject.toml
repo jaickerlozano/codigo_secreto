@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "codigo-secreto-backend"
 version = "1.0.0"
 description = "Django REST API for Código Secreto"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.13"
 
 [tool.coverage.run]
 source = ["apps"]
