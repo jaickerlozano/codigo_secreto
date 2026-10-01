@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import type { Product } from '../types'
 import { useProductFilters } from './useProductFilters'
 
-const product = (id: number, price: number): Product => ({ id, name: `P${id}`, price, category: 'todos', experienceLevel: 'principiante', features: [], description: '', materials: [], usageInstructions: '', icon: '', gradient: '', sku: null, stock: 1, image: null, images: [] })
+const product = (id: number, price: number): Product => ({ id, name: `P${id}`, price, category: 'todos', experienceLevel: 'principiante', features: [], description: '', materials: [], usageInstructions: '', icon: '', gradient: '', sku: null, stock: 1, availableStock: 1, image: null, images: [] })
 
 describe('useProductFilters reset', () => {
   it('does not loop while loading keeps supplying a fresh empty array', async () => {

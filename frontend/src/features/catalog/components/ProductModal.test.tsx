@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Product } from '../types'
@@ -18,6 +18,7 @@ const mockProduct: Product = {
   gradient: 'from-violet-950 via-purple-900 to-violet-800',
   sku: '101',
   stock: 10,
+  availableStock: 10,
   image: null,
   images: [],
 }
@@ -39,6 +40,27 @@ describe('ProductModal', () => {
     expect(
       screen.getByRole('button', { name: /Agregar al carrito/i }),
     ).toBeDefined()
+  })
+
+  it('shows an unavailable state and prevents add-to-cart when availability is zero', () => {
+    const onAddToCart = vi.fn()
+
+    render(
+      <ProductModal
+        product={{ ...mockProduct, availableStock: 0 }}
+        isOpen={true}
+        onClose={vi.fn()}
+        onAddToCart={onAddToCart}
+      />,
+    )
+
+    expect(screen.getByRole('status').textContent).toContain(
+      'No disponible por el momento',
+    )
+    const button = screen.getByRole('button', { name: 'No disponible' })
+    expect(button).toHaveProperty('disabled', true)
+    fireEvent.click(button)
+    expect(onAddToCart).not.toHaveBeenCalled()
   })
 
   it('does not clip the gallery with a modal-specific viewport wrapper', () => {

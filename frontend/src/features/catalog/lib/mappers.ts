@@ -63,6 +63,7 @@ export function mapApiProduct(
     gradient: raw.gradient ?? 'from-violet-950 via-purple-900 to-violet-800',
     sku: raw.sku ?? null,
     stock: raw.stock ?? raw.current_stock ?? 0,
+    availableStock: raw.available_stock,
     image: primaryImage,
     imageOriginal:
       typeof raw.image_original === 'string' ? raw.image_original.trim() : null,

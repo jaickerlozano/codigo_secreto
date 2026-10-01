@@ -1,3 +1,5 @@
+import type { components } from '@/api/schema.d.ts'
+
 export type ExperienceLevel = 'principiante' | 'intermedio' | 'avanzado'
 
 export interface Product {
@@ -23,6 +25,7 @@ export interface Product {
   /** Fields coming from the backend Product model. */
   sku: string | null
   stock: number
+  availableStock: components['schemas']['Product']['available_stock']
   image: string | null
   imageOriginal?: string | null
   /** Gallery images array from ProductImage model. */
