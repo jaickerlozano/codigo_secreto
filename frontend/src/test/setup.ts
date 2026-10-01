@@ -23,8 +23,13 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 })
 
-// jsdom does not implement these DOM APIs; Radix Select requires
-// scrollIntoView on open and pointer-capture calls during pointer events.
+// jsdom does not implement these scroll APIs. Application navigation uses
+// window.scrollTo, while Radix Select requires scrollIntoView on open.
+Object.defineProperty(window, 'scrollTo', {
+  configurable: true,
+  writable: true,
+  value: vi.fn(),
+})
 Element.prototype.scrollIntoView = vi.fn()
 Element.prototype.hasPointerCapture = vi.fn(() => false)
 Element.prototype.setPointerCapture = vi.fn()

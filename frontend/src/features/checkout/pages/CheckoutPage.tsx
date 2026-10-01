@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -16,6 +16,7 @@ import {
 import { useCreateOrder } from '@/features/orders/hooks/useCreateOrder'
 import { guestQuoteQueryKey } from '@/features/cart/api/quote.api'
 import { useComunas, useRegions } from '@/features/shipping'
+import { scrollToPageTop } from '@/hooks/useScrollToTopOnNavigate'
 
 import { useInitiatePayment } from '../hooks/useInitiatePayment'
 import { CheckoutProgress } from '../components/CheckoutProgress'
@@ -116,6 +117,14 @@ export function CheckoutPage() {
       quoteCurrent &&
       (confirmedRevision === null || confirmedRevision === quote.revision)
     )
+  const previousStepRef = useRef(currentStep)
+
+  useEffect(() => {
+    if (previousStepRef.current === currentStep) return
+
+    previousStepRef.current = currentStep
+    scrollToPageTop()
+  }, [currentStep])
 
   useEffect(() => {
     setConfirmedRevision(null)

@@ -2,6 +2,7 @@ import { Outlet } from 'react-router'
 
 import { CartDrawer } from '@/features/cart'
 import { useCategories } from '@/features/catalog'
+import { useScrollToTopOnNavigate } from '@/hooks/useScrollToTopOnNavigate'
 
 import { AgeGate } from './AgeGate'
 import { Footer } from './Footer'
@@ -9,6 +10,7 @@ import { Header } from './Header'
 import { WhatsAppFAB } from './WhatsAppFAB'
 
 export function Layout() {
+  useScrollToTopOnNavigate()
   const { data: categories } = useCategories()
 
   return (
