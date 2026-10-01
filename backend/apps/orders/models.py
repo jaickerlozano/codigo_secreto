@@ -228,12 +228,13 @@ class Order(models.Model):
 
 
 class NotificationDelivery(models.Model):
-    """Registro durable de cada correo transaccional (pago/despacho); el envío
-    se agenda con ``transaction.on_commit`` y un fallo nunca revierte el estado."""
+    """Registro durable de cada correo transaccional; el envío se agenda con
+    ``transaction.on_commit`` y un fallo nunca revierte el estado."""
 
     EVENT_CHOICES = (
         ('payment_confirmation', 'Confirmación de Pago'),
         ('dispatch', 'Despacho del Pedido'),
+        ('delivered', 'Entrega del Pedido'),
     )
     STATUS_CHOICES = (
         ('PENDING', 'Pendiente'),

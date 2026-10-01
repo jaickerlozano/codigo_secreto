@@ -1,8 +1,7 @@
 """Migration reversibility tests for the orders app.
 
-These tests prove the new Order checkout/delivery/dispatch migration and the
-notification-delivery due index can be applied forward and reversed without
-changing existing rows.
+These tests cover order lifecycle fields and notification delivery schema/state
+changes while preserving existing rows across forward and reverse migrations.
 """
 import pytest
 from django.db import connection
@@ -17,6 +16,7 @@ BASELINE_0006 = ("orders", "0006_notificationdelivery")
 TARGET_0007 = ("orders", "0007_notificationdelivery_due_index")
 TARGET_0009 = ("orders", "0009_order_delivered_at")
 TARGET_0010 = ("orders", "0010_order_guest_email_access")
+TARGET_0011 = ("orders", "0011_alter_notificationdelivery_event")
 INDEX_NAME = "orders_notif_status_next_retry"
 
 NEW_COLUMNS = (
@@ -108,7 +108,7 @@ def test_orders_0007_adds_due_index_and_is_reversible():
         assert INDEX_NAME in _index_names("orders_notificationdelivery")
         assert NotificationDelivery.objects.filter(pk=created.pk).exists()
     finally:
-        MigrationExecutor(connection).migrate([TARGET_0010])
+        MigrationExecutor(connection).migrate([TARGET_0011])
 
 
 @pytest.mark.django_db(transaction=True)
@@ -126,7 +126,7 @@ def test_orders_0009_adds_delivered_timestamp_and_is_reversible():
         executor.migrate([TARGET_0007])
         assert "delivered_at" not in _table_columns("orders_order")
     finally:
-        MigrationExecutor(connection).migrate([TARGET_0010])
+        MigrationExecutor(connection).migrate([TARGET_0011])
 
 
 @pytest.mark.django_db(transaction=True)
@@ -142,4 +142,28 @@ def test_orders_0010_adds_email_access_revocation_fields_and_is_reversible():
         assert "guest_email_access_version" in columns
         assert "guest_email_access_revoked_at" in columns
     finally:
-        MigrationExecutor(connection).migrate([TARGET_0010])
+        MigrationExecutor(connection).migrate([TARGET_0011])
+
+
+@pytest.mark.django_db(transaction=True)
+def test_orders_0011_adds_delivered_notification_event_and_is_reversible():
+    try:
+        executor = MigrationExecutor(connection)
+        executor.migrate([TARGET_0010])
+        state = executor.loader.project_state([TARGET_0010])
+        field = state.apps.get_model("orders", "NotificationDelivery")._meta.get_field("event")
+        assert "delivered" not in dict(field.choices)
+
+        executor = MigrationExecutor(connection)
+        executor.migrate([TARGET_0011])
+        state = executor.loader.project_state([TARGET_0011])
+        field = state.apps.get_model("orders", "NotificationDelivery")._meta.get_field("event")
+        assert dict(field.choices)["delivered"] == "Entrega del Pedido"
+
+        executor = MigrationExecutor(connection)
+        executor.migrate([TARGET_0010])
+        state = executor.loader.project_state([TARGET_0010])
+        field = state.apps.get_model("orders", "NotificationDelivery")._meta.get_field("event")
+        assert "delivered" not in dict(field.choices)
+    finally:
+        MigrationExecutor(connection).migrate([TARGET_0011])

@@ -511,7 +511,7 @@ def fulfill_dispatch(*, order, carrier=None, estimated_delivery_date=None, track
 
 
 def transition_order_to_delivered(*, order):
-    """Atomically transition a shipped order to delivered without changing dispatch data."""
+    """Transition SHIPPED to DELIVERED and schedule its notification on commit."""
     with transaction.atomic():
         order = Order.objects.select_for_update().get(id=order.id)
         if order.status != "SHIPPED":
@@ -519,4 +519,5 @@ def transition_order_to_delivered(*, order):
         order.status = "DELIVERED"
         order.delivered_at = timezone.now()
         order.save(update_fields=["status", "delivered_at", "updated_at"])
+        schedule_delivery(order, "delivered")
         return order

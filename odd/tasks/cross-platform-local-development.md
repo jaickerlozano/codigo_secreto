@@ -80,4 +80,8 @@ Make the local development workflow reproducible on native Windows and WSL/Linux
 
 ## Next step
 
-Map and implement CPD-3 shell-neutral frontend scripts and Windows/WSL documentation. Do not remove `backend/env/` until the user explicitly approves that destructive operation.
+**CPD-7 — Restore local checkout CORS preflight.** DONE locally, pending commit. Added the exact guest capability, idempotency, and retry headers to the backend allow-list; system and safe OPTIONS checks passed without wildcard CORS behavior.
+
+**CPD-8 — Add safe transactional-email environments.** DONE locally, pending commit. Mailpit is loopback-only with no credentials/volume; local Django targets it while tests retain in-memory mail. Documentation defines the secret-free Brevo production contract. Focused checks passed; manual Mailpit confirmation was observed.
+
+**CPD-9 — Notify customers on delivered status.** DONE locally, pending commit. Added the idempotent `delivered` notification event, scheduled only after the legal `SHIPPED` → `DELIVERED` transition. Guest emails receive a signed tracking ticket; authenticated users receive no capability. Existing retries record failure without reversing delivery. Isolated focused test suite passed (67 passed, 1 PostgreSQL-only skipped); independent verification passed (44 passed).

@@ -33,9 +33,11 @@ def _ticket_from_body(body):
     return body.split("#access=", 1)[1]
 
 
+@pytest.mark.parametrize("event", ["payment_confirmation", "delivered"])
 @override_settings(ORDER_TRACKING_PUBLIC_ORIGIN="http://localhost:5173")
-def test_payment_confirmation_includes_email_ticket_only_for_guest_orders(guest_order):
-    ticket = _ticket_from_body(_body("payment_confirmation", guest_order))
+def test_tracking_emails_include_signed_ticket_only_for_guest_orders(guest_order, event):
+    guest_body = _body(event, guest_order)
+    ticket = _ticket_from_body(guest_body)
 
     payload = signing.loads(ticket, salt=GUEST_EMAIL_ACCESS_SALT, max_age=GUEST_EMAIL_ACCESS_MAX_AGE)
 
@@ -44,10 +46,12 @@ def test_payment_confirmation_includes_email_ticket_only_for_guest_orders(guest_
         "purpose": GUEST_EMAIL_ACCESS_PURPOSE,
         "version": guest_order.guest_email_access_version,
     }
-    assert f"http://localhost:5173/order/{guest_order.order_number}#access={ticket}" in _body("payment_confirmation", guest_order)
+    assert f"http://localhost:5173/order/{guest_order.order_number}#access={ticket}" in guest_body
+    assert guest_order.guest_access_digest not in guest_body
     assert "#access=" not in _body("dispatch", guest_order)
+
     account_order = OrderFactory()
-    account_body = _body("payment_confirmation", account_order)
+    account_body = _body(event, account_order)
     assert f"http://localhost:5173/order/{account_order.order_number}" in account_body
     assert "#access=" not in account_body
 
@@ -93,8 +97,9 @@ def test_email_ticket_version_bump_invalidates_every_prior_ticket(guest_order):
     assert verify_guest_email_access_ticket(guest_order, issue_guest_email_access_ticket(guest_order))
 
 
-def test_notification_retry_keeps_email_ticket_version_stable_and_redacts_delivery_errors(guest_order):
-    delivery = NotificationDelivery.objects.create(order=guest_order, event="payment_confirmation")
+@pytest.mark.parametrize("event", ["payment_confirmation", "delivered"])
+def test_notification_retry_keeps_email_ticket_version_stable_and_redacts_delivery_errors(guest_order, event):
+    delivery = NotificationDelivery.objects.create(order=guest_order, event=event)
     opaque_version = guest_order.guest_access_version
     email_version = guest_order.guest_email_access_version
     sent_bodies = []
