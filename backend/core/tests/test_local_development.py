@@ -1,12 +1,15 @@
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
+import yaml
 from django.apps import apps
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 from core.local_storage import LocalReferenceStorage
 from core.local_configuration import local_database
+from core.settings_local import local_email_configuration
 
 
 def test_local_test_profile():
@@ -16,6 +19,7 @@ def test_local_test_profile():
     assert settings.STORAGES["default"]["BACKEND"].endswith("InMemoryStorage")
     assert settings.EMAIL_BACKEND.endswith("locmem.EmailBackend")
     assert settings.EMAIL_HOST == ""
+    assert settings.EMAIL_PORT == 1025
     assert settings.EMAIL_HOST_USER == ""
     assert settings.EMAIL_HOST_PASSWORD == ""
     assert settings.EMAIL_USE_TLS is False
@@ -24,6 +28,28 @@ def test_local_test_profile():
     assert apps.is_installed("cloudinary")
     assert apps.is_installed("cloudinary_storage")
     assert not any(settings.CLOUDINARY_STORAGE.values())
+
+
+def test_local_runtime_routes_email_only_to_loopback_mailpit():
+    assert local_email_configuration(testing=False) == {
+        "EMAIL_BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+        "EMAIL_HOST": "127.0.0.1",
+        "EMAIL_PORT": 1025,
+        "EMAIL_USE_TLS": False,
+        "EMAIL_HOST_USER": "",
+        "EMAIL_HOST_PASSWORD": "",
+        "DEFAULT_FROM_EMAIL": "local@example.invalid",
+    }
+
+
+def test_compose_mailpit_is_loopback_bound_without_persistent_storage():
+    compose_path = Path(__file__).resolve().parents[3] / "compose.yaml"
+    mailpit = yaml.safe_load(compose_path.read_text(encoding="utf-8"))["services"]["mailpit"]
+
+    assert mailpit["image"].startswith("axllent/mailpit:v")
+    assert mailpit["ports"] == ["127.0.0.1:1025:1025", "127.0.0.1:8025:8025"]
+    assert "volumes" not in mailpit
+    assert "env_file" not in mailpit
 
 
 def test_loopback_readonly_database_configuration():

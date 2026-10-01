@@ -1,4 +1,4 @@
-"""Durable transactional email delivery for payment confirmation and dispatch.
+"""Durable transactional email delivery for order lifecycle events.
 
 The row is written inside the domain transaction, the send runs on commit, a
 failure never rolls back domain state, and deliveries stay retryable."""
@@ -13,7 +13,7 @@ from .models import NotificationDelivery
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EVENTS = frozenset({"payment_confirmation", "dispatch"})
+SUPPORTED_EVENTS = frozenset({"payment_confirmation", "dispatch", "delivered"})
 RETRY_DELAY_MINUTES = (15, 60, 240, 720)
 STALE_PENDING_MINUTES = 15
 MAX_ERROR_LENGTH = 500
@@ -24,8 +24,22 @@ def _recipient_email(order):
 
 
 def _subject(event, order):
-    return (f"Tu pedido {order.order_number} fue despachado" if event == "dispatch"
-            else f"Confirmación de pago — Pedido {order.order_number}")
+    if event == "dispatch":
+        return f"Tu pedido {order.order_number} fue despachado"
+    if event == "delivered":
+        return f"Tu pedido {order.order_number} fue entregado"
+    return f"Confirmación de pago — Pedido {order.order_number}"
+
+
+def _tracking_url(order):
+    url = f"{settings.ORDER_TRACKING_PUBLIC_ORIGIN}/order/{order.order_number}"
+    if order.user_id is not None:
+        return url
+
+    from .services import issue_guest_email_access_ticket
+
+    ticket = issue_guest_email_access_ticket(order)
+    return f"{url}#access={ticket}" if ticket else url
 
 
 def _body(event, order):
@@ -33,17 +47,12 @@ def _body(event, order):
         tracking = f"\nNúmero de seguimiento: {order.tracking_number}" if order.tracking_number else ""
         return (f"Hola, tu pedido {order.order_number} fue despachado con {order.carrier}.{tracking}\n"
                 f"Fecha estimada de entrega: {order.estimated_delivery_date:%d/%m/%Y}.")
+    if event == "delivered":
+        return (f"Hola, tu pedido {order.order_number} fue entregado.\n\n"
+                f"Revisa tu pedido: {_tracking_url(order)}")
     total = f"${order.total:,}".replace(",", ".")
-    body = f"Hola, tu pago por {total} del pedido {order.order_number} fue confirmado. Ya estamos preparando tu despacho."
-    if order.user_id is None:
-        from .services import issue_guest_email_access_ticket
-
-        ticket = issue_guest_email_access_ticket(order)
-        if ticket:
-            body += f"\n\nSigue tu pedido: {settings.ORDER_TRACKING_PUBLIC_ORIGIN}/order/{order.order_number}#access={ticket}"
-    else:
-        body += f"\n\nSigue tu pedido: {settings.ORDER_TRACKING_PUBLIC_ORIGIN}/order/{order.order_number}"
-    return body
+    return (f"Hola, tu pago por {total} del pedido {order.order_number} fue confirmado. "
+            f"Ya estamos preparando tu despacho.\n\nSigue tu pedido: {_tracking_url(order)}")
 
 
 def _safe_delivery_error(error):

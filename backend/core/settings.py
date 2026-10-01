@@ -434,6 +434,9 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
     "x-csrftoken",          # Requerido para CSRF cross-origin
     "content-type",
+    "x-order-capability",
+    "idempotency-key",
+    "x-session-retry",
 ]
 
 # Obligatorio para cookies cross-origin (diferentes puertos localhost)

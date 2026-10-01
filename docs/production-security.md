@@ -5,10 +5,10 @@ Production deployment remains blocked until the deployment owner supplies the ap
 ## Quick path
 
 `core.settings_local` is intentionally incompatible with production: it forces
-loopback PostgreSQL, mock payments, offline media storage, and in-memory email.
-It ignores inherited SMTP configuration and therefore has no SMTP network
-capability. Production must keep using `core.settings` with deployment-injected
-values.
+loopback PostgreSQL, mock payments, offline media storage, and email capture
+through loopback Mailpit. It ignores inherited SMTP configuration and cannot be
+redirected to an external SMTP host. Production must keep using `core.settings`
+with deployment-injected values.
 
 1. Use the environment examples only as local-development references and format guides.
 2. Have the deployment owner and secret custodian supply approved values outside the repository.
@@ -49,6 +49,33 @@ The following names identify required inputs, not values. Their values must be i
 | `DATABASE_URL`                                                                                     | `postgresql://<db-user>:<secret-manager-reference>@<db-host>:5432/<db-name>`           |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `DEFAULT_FROM_EMAIL`         | Approved SMTP host and account references; password uses `<secret-manager-reference>`. |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_UPLOAD_PRESET` | Approved storage identifiers; credential fields use `<secret-manager-reference>`.      |
+
+### Brevo transactional-email contract
+
+Brevo is the planned production SMTP provider; this is an environment contract,
+not authorization to provision or contact the service. Do not create a Brevo
+account, API key, SMTP key, sender identity, or DNS record from this repository.
+The deployment owner must approve the provider account and sending domain, the
+domain owner must publish Brevo's then-current SPF/DKIM records and review DMARC,
+and the secret custodian must inject credentials through the approved secret
+manager only after the sender domain is verified.
+
+| Variable | Required production value |
+| --- | --- |
+| `EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` |
+| `EMAIL_HOST` | `smtp-relay.brevo.com` |
+| `EMAIL_PORT` | `587` |
+| `EMAIL_USE_TLS` | `True` |
+| `EMAIL_HOST_USER` | Brevo SMTP login supplied through the secret manager |
+| `EMAIL_HOST_PASSWORD` | Brevo SMTP key supplied through the secret manager |
+| `DEFAULT_FROM_EMAIL` | Approved sender address on the verified domain, optionally with a display name |
+
+The application uses SMTP and does not need a Brevo HTTP API key. Never expose
+any Brevo credential in frontend variables, repository files, command history,
+logs, tickets, or retained validation output. Before release, prove with a
+controlled non-customer recipient that Brevo accepts the verified sender and
+that SPF/DKIM authentication passes; retain only redacted evidence. A failed or
+unverified sender-domain check blocks production email rollout.
 
 ### Frontend public configuration
 

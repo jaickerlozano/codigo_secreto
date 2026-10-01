@@ -70,28 +70,52 @@ python3.12 -m pipenv run python manage.py runserver
 ```
 
 The server is available at `http://localhost:8000`. The local profile forces the
-mock payment provider, in-memory email delivery, blank Cloudinary credentials,
-and offline media storage even if conflicting service variables exist in the
-parent process. SMTP variables cannot opt this profile into network delivery;
-any future SMTP integration testing requires a separately named, explicitly
-selected profile. Existing remote image references remain unresolved locally.
+mock payment provider, blank Cloudinary credentials, offline media storage, and
+email capture through the loopback Mailpit service. Its SMTP target is fixed to
+`127.0.0.1:1025`, with TLS and credentials disabled; inherited SMTP variables
+cannot redirect local mail to an external server. Existing remote image
+references remain unresolved locally.
 
-### Development PostgreSQL container
+### Development containers
 
 The root `compose.yaml` provides PostgreSQL 16 on loopback and persists its
-catalog in the `postgres_data` named volume. Provision the ignored
-`docker/postgres.env` from its tracked example without copying its values into
-`backend/.env`, then start only PostgreSQL from the repository root:
+catalog in the existing `postgres_data` named volume. It also provides Mailpit
+without a Docker volume: SMTP capture is loopback-bound on `127.0.0.1:1025`, and
+the browser inbox is loopback-bound at `http://127.0.0.1:8025`. Captured messages
+are disposable and never leave Mailpit.
+
+Provision the ignored `docker/postgres.env` from its tracked example without
+copying its values into `backend/.env`, then start the two local services from
+the repository root:
 
 ```bash
-docker compose up -d --wait postgres
+docker compose up -d --wait postgres mailpit
 ```
 
 Normal local startup does not run migrations or seed/reset commands. Do not set
 `LOCAL_ALLOW_WRITES`; that opt-in is reserved for an explicitly authorized
 catalog-changing workflow. Focused settings tests use an isolated in-memory
-SQLite database by setting `LOCAL_TEST_DATABASE=1`, so they do not connect to or
+SQLite database and Django's in-memory email backend by setting
+`LOCAL_TEST_DATABASE=1`, so they neither connect to Mailpit nor connect to or
 write the Docker catalog.
+
+### Manual guest tracking-email check
+
+Use this only with an explicitly authorized writable local catalog and the mock
+payment provider; it does not require a real recipient or SMTP credential.
+
+1. Start `postgres` and `mailpit`, then run the backend with the local profile
+   and `LOCAL_ALLOW_WRITES=1`; run the frontend normally.
+2. Complete the existing guest checkout with a synthetic address such as
+   `guest@example.invalid`, then complete the existing mock payment approval.
+3. Open `http://127.0.0.1:8025`, select the payment-confirmation message, and
+   open its guest tracking link in a private browser window.
+4. Confirm the order page loads, the URL capability fragment is removed after
+   exchange, and no message was delivered to an external mailbox.
+
+Do not use a real recipient, add provider credentials, or change checkout data
+handling for this check. Mailpit captures the message regardless of its
+recipient domain.
 
 Production keeps using `core.settings`, its managed PostgreSQL `DATABASE_URL`,
 SMTP, Cloudinary, and deployment-injected secrets. Never select
@@ -180,20 +204,11 @@ ExecStart=/path/to/venv/bin/python manage.py process_notifications
 
 ### Variables de entorno SMTP (producción)
 
-Con `DEBUG=False` el backend usa SMTP TLS; nunca cae a consola:
-
-```bash
-EMAIL_HOST=smtp.example.com
-EMAIL_PORT=587
-EMAIL_HOST_USER=no-reply@example.com
-EMAIL_HOST_PASSWORD=...
-EMAIL_USE_TLS=true
-DEFAULT_FROM_EMAIL="Código Secreto <no-reply@example.com>"
-```
-
-These variables apply to `core.settings`, not to `core.settings_local`. The
-normal local profile always uses Django's in-memory backend and clears SMTP
-hosts and credentials, regardless of inherited SMTP environment variables.
+Production uses the Brevo SMTP contract documented in
+[`docs/production-security.md`](../docs/production-security.md#brevo-transactional-email-contract).
+Credentials remain deployment-injected; do not add them to repository files.
+These variables apply to `core.settings`, not to `core.settings_local`, whose
+only SMTP destination is the loopback Mailpit capture service.
 
 ## Schema de la API
 

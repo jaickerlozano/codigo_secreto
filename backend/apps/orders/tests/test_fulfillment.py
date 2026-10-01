@@ -121,6 +121,7 @@ class TestDeliveryTransition:
             order.refresh_from_db()
             assert order.status == status
             assert order.delivered_at is None
+            assert not NotificationDelivery.objects.filter(order=order, event="delivered").exists()
 
     def test_marking_shipped_order_delivered_sets_timestamp_and_preserves_dispatch_fields(self, order_factory):
         dispatched_at = date(2026, 8, 20)
@@ -131,13 +132,35 @@ class TestDeliveryTransition:
             estimated_delivery_date=dispatched_at,
         )
 
-        delivered = transition_order_to_delivered(order=order)
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            delivered = transition_order_to_delivered(order=order)
 
         assert delivered.status == "DELIVERED"
         assert delivered.delivered_at is not None
         assert (delivered.carrier, delivered.tracking_number, delivered.estimated_delivery_date) == (
             "Chilexpress", "TRK-1", dispatched_at,
         )
+        notification = NotificationDelivery.objects.get(order=delivered, event="delivered")
+        assert (notification.status, notification.attempts) == ("SENT", 1)
+        assert len(mail.outbox) == 1
+        assert mail.outbox[0].to == [order.user.email]
+
+    def test_delivered_email_failure_is_contained_and_uses_existing_retry_path(self, order_factory):
+        order = order_factory(status="SHIPPED", total=10000)
+
+        with mock.patch("apps.orders.notifications.send_mail", side_effect=RuntimeError("SMTP down")):
+            with TestCase.captureOnCommitCallbacks(execute=True):
+                delivered = transition_order_to_delivered(order=order)
+
+        notification = NotificationDelivery.objects.get(order=delivered, event="delivered")
+        assert delivered.status == "DELIVERED"
+        assert (notification.status, notification.attempts) == ("FAILED", 1)
+        assert notification.next_retry_at is not None
+
+        retry_delivery(notification.id)
+        notification.refresh_from_db()
+        assert (notification.status, notification.attempts) == ("SENT", 2)
+        assert len(mail.outbox) == 1
 
     def test_order_schema_includes_nullable_delivered_timestamp(self):
         field = Order._meta.get_field("delivered_at")
@@ -265,6 +288,7 @@ class TestFulfillmentAdmin:
         assert response.status_code == 200
         assert shipped.status == "DELIVERED"
         assert shipped.delivered_at is not None
+        assert NotificationDelivery.objects.filter(order=shipped, event="delivered").count() == 1
         assert "marcado como entregado correctamente" in response.content.decode()
 
     def test_regular_save_updates_metadata_without_dispatching(self, paid_order, admin_client):
@@ -374,7 +398,9 @@ class TestFulfillmentAdmin:
         assert response.status_code == 200
         assert shipped.status == "DELIVERED"
         assert shipped.delivered_at is not None
+        assert NotificationDelivery.objects.filter(order=shipped, event="delivered").count() == 1
         assert unpaid.status == "PAID"
+        assert not NotificationDelivery.objects.filter(order=unpaid, event="delivered").exists()
         assert "No se pudo marcar como entregado" in response.content.decode()
 
     @pytest.mark.parametrize("prepared", [True, False])
