@@ -13,7 +13,7 @@ import { queryClient } from '@/lib/query-client'
 import { trackedOrders } from '@/test/handlers/orders'
 import { server } from '@/test/setup'
 
-const product = { id: 1, name: 'Vibrador de prueba', price: 29990, category: '1', experienceLevel: 'intermedio', features: [], description: 'Descripción de prueba', materials: [], usageInstructions: '', icon: '✦', gradient: 'from-violet-950 via-purple-900 to-violet-800', sku: '101', stock: 10, image: null, images: [] } as Product
+const product = { id: 1, name: 'Vibrador de prueba', price: 29990, category: '1', experienceLevel: 'intermedio', features: [], description: 'Descripción de prueba', materials: [], usageInstructions: '', icon: '✦', gradient: 'from-violet-950 via-purple-900 to-violet-800', sku: '101', stock: 10, availableStock: 10, image: null, images: [] } as Product
 const quote = { items: [{ product_id: 1, product_name: 'Vibrador de prueba', quantity: 1, unit_price: 29990, line_total: 29990 }], subtotal: 29990, shipping_cost: 3500, total: 33490, revision: 'gq1.frame' }
 
 function renderApp(initialPath: string, quoteHandler?: HttpResponseResolver) {

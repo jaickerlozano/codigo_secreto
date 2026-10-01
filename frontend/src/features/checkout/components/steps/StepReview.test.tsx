@@ -47,6 +47,32 @@ describe('StepReview review map (four-step frame)', () => {
     expect(screen.getByText('Envío a Santiago, Región Metropolitana — martes 25 de agosto')).toBeDefined()
   })
 
+  it('explains inventory blocking inline and disables confirmation', () => {
+    render(
+      <StepReview
+        data={data}
+        subtotal={29990}
+        shippingCost={3500}
+        total={33490}
+        quoteReady
+        inventoryBlocked
+        onEditStep={vi.fn()}
+        onTermsChange={vi.fn()}
+        onBack={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('alert').textContent).toContain(
+      'uno o más productos no están disponibles',
+    )
+    const confirm = screen.getByRole('button', { name: 'Confirmar pedido' })
+    expect(confirm).toHaveProperty('disabled', true)
+    expect(confirm.getAttribute('aria-describedby')).toBe(
+      'checkout-inventory-error',
+    )
+  })
+
   it('shows the authenticated account contact instead of checkout form state', () => {
     render(<StepReview data={data} accountContact="María González · maria@example.com" subtotal={29990} shippingCost={3500} total={33490} quoteReady onEditStep={vi.fn()} onTermsChange={vi.fn()} onBack={vi.fn()} onConfirm={vi.fn()} />)
 
