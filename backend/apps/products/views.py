@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema
 from .serializers import ProductSerializer, SupplierSerializer, CategorySerializer, StockMovementSerializer, FavoriteSerializer, FavoriteMergeSerializer
 from .models import Product, Supplier, Category, StockMovement, Favorite
-from .services import merge_favorites
+from .services import merge_favorites, with_available_stock
 from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
 from .filters import ProductFilter
@@ -20,6 +20,9 @@ class ProductViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'name', 'id'] # <-- Campos permitidos para ordenar
     ordering = ['-id'] # Orden por defecto (más recientes)
+
+    def get_queryset(self):
+        return with_available_stock(super().get_queryset())
 
     def create(self, request, *args, **kwargs):
         """

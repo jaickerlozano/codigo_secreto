@@ -6,6 +6,7 @@ from .images import (
     product_image_original_url,
     product_image_url,
 )
+from .services import available_stock_for_product
 
 #   NUEVO SERIALIZADOR: Formatea de forma individual las fotos secundarias de la galería
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -30,9 +31,10 @@ class ProductImageSerializer(serializers.ModelSerializer):
 
 
 class CategoryNameField(serializers.PrimaryKeyRelatedField):
+    def use_pk_only_optimization(self):
+        return False
+
     def to_representation(self, value):
-        if not hasattr(value, 'name'):
-            value = Category.objects.get(pk=value.pk)
         return value.name
 
 
@@ -46,6 +48,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     category = CategoryNameField(queryset=Category.objects.all())
     stock = serializers.IntegerField(source='current_stock', read_only=True)
+    available_stock = serializers.SerializerMethodField()
     experience_level = serializers.IntegerField(read_only=True)
 
     class Meta:
@@ -55,7 +58,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'id', 'name', 'sku', 'price', 'description', 'image', 'image_original',
             'images',  # <--- Inyectamos el array aquí
             'gradient', 'icon', 'badge', 'features', 
-            'category', 'stock', 'experience_level',
+            'category', 'stock', 'available_stock', 'experience_level',
             'current_stock', 'minimum_stock', 'supplier', 'created_at', 'updated_at'
         ]
 
@@ -75,6 +78,13 @@ class ProductSerializer(serializers.ModelSerializer):
             obj.image,
             max_width=delivery_width_for_serializer_context(self.context),
         )
+
+    def get_available_stock(self, obj) -> int:
+        annotated_value = getattr(obj, 'available_stock', None)
+        if annotated_value is not None:
+            return annotated_value
+        return available_stock_for_product(obj)
+
 
 class SupplierSerializer(serializers.ModelSerializer):
     class Meta:

@@ -15,6 +15,7 @@ from apps.products.services import (
     inspect,
     release,
     reserve,
+    with_available_stock,
 )
 
 
@@ -66,6 +67,38 @@ def test_active_holds_limit_reservations_and_generic_out_movements(product_facto
     product.refresh_from_db()
     assert product.current_stock == 10
     assert StockMovement.objects.filter(product=product).count() == 0
+
+
+def test_available_stock_ignores_released_and_expired_holds(product_factory):
+    now = timezone.now()
+    released_product = product_factory(current_stock=10)
+    expired_product = product_factory(current_stock=8)
+
+    with transaction.atomic():
+        _reserve(112, released_product, 6, now + timedelta(minutes=15))
+        release(order_id=112, reason="CANCELLED", at=now)
+        _reserve(113, expired_product, 5, now - timedelta(seconds=1))
+
+    available = {
+        product.id: product.available_stock
+        for product in with_available_stock(
+            type(released_product).objects.filter(id__in=(released_product.id, expired_product.id)),
+            at=now,
+        )
+    }
+
+    assert available == {released_product.id: 10, expired_product.id: 8}
+
+
+def test_available_stock_never_returns_a_negative_value(product_factory):
+    product = product_factory(current_stock=10)
+    with transaction.atomic():
+        _reserve(114, product, 8, timezone.now() + timedelta(minutes=15))
+    type(product).objects.filter(pk=product.pk).update(current_stock=3)
+
+    annotated = with_available_stock(type(product).objects.filter(pk=product.pk)).get()
+
+    assert annotated.available_stock == 0
 
 
 def test_release_is_idempotent_and_never_creates_an_out_movement(product_factory):

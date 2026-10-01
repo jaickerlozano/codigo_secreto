@@ -1,4 +1,8 @@
+from datetime import timedelta
+
 import pytest
+from django.db import transaction
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
 from apps.products.serializers import (
@@ -6,6 +10,7 @@ from apps.products.serializers import (
     ProductSerializer,
     StockMovementSerializer,
 )
+from apps.products.services import ReservationLineInput, reserve
 
 
 pytestmark = pytest.mark.django_db
@@ -51,6 +56,31 @@ def test_product_serializer_exposes_numeric_experience_level(product_factory):
     data = ProductSerializer(product).data
 
     assert data["experience_level"] == 4 and "experienceLevel" not in data
+
+
+def test_product_serializer_preserves_stock_and_exposes_zero_availability(product_factory):
+    product = product_factory(current_stock=0)
+
+    data = ProductSerializer(product).data
+
+    assert data["stock"] == 0
+    assert data["available_stock"] == 0
+
+
+def test_product_serializer_subtracts_active_unexpired_holds(product_factory):
+    product = product_factory(current_stock=10)
+    with transaction.atomic():
+        reserve(
+            order_id=201,
+            lines=(ReservationLineInput(product.id, 6),),
+            expires_at=timezone.now() + timedelta(minutes=15),
+        )
+
+    data = ProductSerializer(product).data
+
+    assert data["stock"] == 10
+    assert data["available_stock"] == 4
+    assert not {"reservation", "reservation_lines", "held_stock"} & data.keys()
 
 
 def test_category_serializer_nested(category_factory):

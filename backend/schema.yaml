@@ -2059,6 +2059,9 @@ components:
         stock:
           type: integer
           readOnly: true
+        available_stock:
+          type: integer
+          readOnly: true
         experience_level:
           type: integer
           readOnly: true
@@ -2184,6 +2187,9 @@ components:
         stock:
           type: integer
           readOnly: true
+        available_stock:
+          type: integer
+          readOnly: true
         experience_level:
           type: integer
           readOnly: true
@@ -2211,6 +2217,7 @@ components:
           readOnly: true
           title: Fecha de actualización
       required:
+      - available_stock
       - category
       - created_at
       - experience_level

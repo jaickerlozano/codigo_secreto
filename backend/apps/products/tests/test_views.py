@@ -33,6 +33,20 @@ def test_product_list_public(api_client, product_factory):
     assert response.status_code == status.HTTP_200_OK
 
 
+def test_product_list_availability_does_not_add_queries_per_product(
+    api_client, product_factory, django_assert_num_queries
+):
+    products = [product_factory(current_stock=index) for index in range(1, 6)]
+
+    with django_assert_num_queries(3):
+        response = api_client.get("/api/products/")
+
+    assert response.status_code == status.HTTP_200_OK
+    by_id = {item["id"]: item for item in _results(response)}
+    assert {by_id[product.id]["available_stock"] for product in products} == {1, 2, 3, 4, 5}
+    assert all(by_id[product.id]["stock"] == product.current_stock for product in products)
+
+
 def test_product_create_requires_staff(authenticated_client, category_factory, supplier_factory):
     """POST /api/products/ requiere usuario staff."""
     category = category_factory(parent=None)
