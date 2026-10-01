@@ -117,9 +117,9 @@ class OrderAdmin(admin.ModelAdmin):
         if obj.guest_access_expires_at and obj.guest_access_expires_at < timezone.now():
             return "Expirado"
         if obj.guest_access_digest:
-            return "Activo"
-        return "Sin capacidad"
-    guest_access_status.short_description = "Acceso de invitado"
+            return "Disponible"
+        return "No aplica"
+    guest_access_status.short_description = "Seguimiento como invitado"
 
     @admin.action(description="Revocar acceso de invitado")
     def revoke_guest_access(self, request, queryset):
