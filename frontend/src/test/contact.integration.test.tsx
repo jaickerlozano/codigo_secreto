@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { createMemoryRouter, RouterProvider } from 'react-router'
@@ -130,7 +130,7 @@ describe('search navigation regression', () => {
     server.use(http.get(PRODUCTS_URL, ({ request }) => { lastSearch = new URL(request.url).searchParams.get('search'); return HttpResponse.json({ count: 1, next: null, previous: null, results: [apiProduct] }) }))
     const u = user()
     renderApp('/')
-    const input = await screen.findByLabelText(/Buscar productos/)
+    const input = await screen.findByRole('searchbox', { name: 'Buscar productos' })
     await u.type(input, 'vibrador+nuevo')
     fireEvent.submit(input.closest('form') as HTMLFormElement)
     expect(await screen.findByRole('heading', { name: 'Todos los productos' })).toBeDefined()
@@ -143,5 +143,53 @@ describe('search navigation regression', () => {
     renderApp('/category/todos?search=juguete%20nuevo')
     expect(await screen.findByText('Vibrador de prueba')).toBeDefined()
     expect(lastSearch).toBe('juguete nuevo')
+    expect((screen.getByRole('searchbox', { name: 'Buscar productos' }) as HTMLInputElement).value).toBe('juguete nuevo')
+  })
+
+  it.each([
+    { name: 'desktop manual', mobile: false, clearButton: false },
+    { name: 'desktop X', mobile: false, clearButton: true },
+    { name: 'mobile manual', mobile: true, clearButton: false },
+    { name: 'mobile X', mobile: true, clearButton: true },
+  ])('$name clear restores results without delayed loading stealing input focus', async ({ mobile, clearButton }) => {
+    const requestedSearches: (string | null)[] = []
+    let releaseResults: () => void = () => {}
+    const resultsGate = new Promise<void>((resolve) => { releaseResults = resolve })
+    server.use(http.get(PRODUCTS_URL, async ({ request }) => {
+      const search = new URL(request.url).searchParams.get('search')
+      requestedSearches.push(search)
+      if (search === null) await resultsGate
+      return HttpResponse.json({
+        count: search === null ? 1 : 0,
+        next: null,
+        previous: null,
+        results: search === null ? [apiProduct] : [],
+      })
+    }))
+
+    const u = user()
+    renderApp('/category/todos?view=grid&search=sin-resultados#results')
+    expect(await screen.findByText('No encontramos productos con esos filtros.')).toBeDefined()
+    if (mobile) await u.click(screen.getByRole('button', { name: 'Abrir menú' }))
+    const input = screen.getByRole('searchbox', { name: mobile ? 'Buscar' : 'Buscar productos' }) as HTMLInputElement
+    expect(input.value).toBe('sin-resultados')
+
+    try {
+      if (clearButton) {
+        await u.click(within(input.closest('form') as HTMLFormElement).getByRole('button', { name: 'Limpiar búsqueda' }))
+      } else {
+        await u.clear(input)
+      }
+      await waitFor(() => expect(requestedSearches).toContain(null))
+      expect(input.value).toBe('')
+      expect(document.activeElement).toBe(input)
+      await act(async () => { releaseResults() })
+      expect(await screen.findByText('Vibrador de prueba')).toBeDefined()
+      expect(screen.queryByText('No encontramos productos con esos filtros.')).toBeNull()
+      expect(document.activeElement).toBe(input)
+      if (mobile) expect(screen.getByRole('button', { name: 'Cerrar menú' })).toBeDefined()
+    } finally {
+      releaseResults()
+    }
   })
 })

@@ -122,6 +122,8 @@ export function CategoryPage() {
   // meaningful catalog content instead of leaving it on <body>.
   useEffect(() => {
     if (categoriesLoading || productsLoading) return
+    // Keep the user's search focus while cleared-search results arrive.
+    if (document.activeElement instanceof HTMLInputElement && document.activeElement.type === 'search') return
     headingRef.current?.focus()
   }, [categoriesLoading, productsLoading])
 

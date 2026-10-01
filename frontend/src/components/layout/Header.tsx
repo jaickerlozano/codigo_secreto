@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Heart, LogOut, Menu, Package, Search, ShoppingCart, User, X } from 'lucide-react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 
 import { CSLogo } from '@/components/brand/CSLogo'
 import {
@@ -30,12 +30,66 @@ interface HeaderProps {
   categories?: Category[]
 }
 
+interface SearchFormProps {
+  value: string
+  onChange: (value: string) => void
+  onClear: () => void
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
+  mobile?: boolean
+}
+
+function SearchForm({ value, onChange, onClear, onSubmit, mobile = false }: SearchFormProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  return (
+    <form
+      onSubmit={onSubmit}
+      className={mobile ? 'relative mb-3' : 'hidden sm:block relative max-w-xl w-full mx-auto'}
+    >
+      <button
+        type="submit"
+        aria-label="Buscar productos"
+        className="absolute left-0 top-1/2 -translate-y-1/2 size-12 flex items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-magenta-500 rounded-xl"
+      >
+        <Search size={15} aria-hidden="true" />
+      </button>
+      <input
+        ref={inputRef}
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="¿Qué estás buscando?"
+        className="w-full min-h-12 bg-popover border border-border rounded-xl px-12 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-magenta-500 focus:ring-1 focus:ring-neon-magenta-500/40 transition-all [&::-webkit-search-cancel-button]:appearance-none"
+        aria-label={mobile ? 'Buscar' : 'Buscar productos'}
+      />
+      {value.length > 0 && (
+        <button
+          type="button"
+          aria-label="Limpiar búsqueda"
+          onClick={() => {
+            onClear()
+            inputRef.current?.focus()
+          }}
+          className="absolute right-0 top-1/2 -translate-y-1/2 size-12 flex items-center justify-center text-foreground hover:text-neon-magenta-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-magenta-500 rounded-xl"
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+      )}
+    </form>
+  )
+}
+
 export function Header({
   categories = [],
 }: HeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('') // 💡 NUEVO ESTADO
+  const location = useLocation()
+  const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(location.search).get('search') ?? '')
   const navigate = useNavigate()
+
+  useEffect(() => {
+    setSearchTerm(new URLSearchParams(location.search).get('search') ?? '')
+  }, [location])
   const { isAuthenticated, user, logout } = useAuth()
   const { totalItems: cartCount } = useCart()
   const wishlistCount = useFavoriteCount()
@@ -97,12 +151,40 @@ export function Header({
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // 💡 NUEVA FUNCIÓN MANEJADORA
-  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const clearSearch = () => {
+    setSearchTerm('')
+    if (!new URLSearchParams(location.search).has('search')) return
+
+    // Keep unrelated query segments opaque and byte-for-byte unchanged.
+    const query = location.search.slice(1).split('&').filter((segment) => {
+      const key = segment.split('=', 1)[0]
+      try {
+        return decodeURIComponent(key.replace(/\+/g, ' ')) !== 'search'
+      } catch {
+        return true
+      }
+    }).join('&')
+    navigate({
+      pathname: location.pathname,
+      search: query ? `?${query}` : '',
+      hash: location.hash,
+    })
+  }
+
+  const handleSearchChange = (value: string) => {
+    if (!value.trim()) {
+      clearSearch()
+    } else {
+      setSearchTerm(value)
+    }
+  }
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
     if (searchTerm.trim()) {
-      // Redirige al catálogo general inyectando la palabra en la URL
       navigate(`/category/todos?search=${encodeURIComponent(searchTerm.trim())}`)
+    } else {
+      clearSearch()
     }
   }
   return (
@@ -113,26 +195,12 @@ export function Header({
       <div className="max-w-7xl mx-auto px-4 h-[64px] grid grid-cols-[auto_1fr_auto] items-center gap-4">
         <CSLogo onClick={handleHome} />
 
-        <form 
-          onSubmit={handleSearchSubmit} 
-          className="hidden sm:block max-w-xl w-full mx-auto"
-        >
-          <div className="relative">
-            <Search
-              size={15}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <input
-              type="search"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)} // Vinculamos el texto
-              placeholder="¿Qué estás buscando?"
-              className="w-full bg-popover border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-magenta-500 focus:ring-1 focus:ring-neon-magenta-500/40 transition-all"
-              aria-label="Buscar productos"
-            />
-          </div>
-        </form>
+        <SearchForm
+          value={searchTerm}
+          onChange={handleSearchChange}
+          onClear={clearSearch}
+          onSubmit={handleSearchSubmit}
+        />
 
         <div className="flex items-center gap-0.5">
           <button
@@ -274,27 +342,16 @@ export function Header({
             className="md:hidden overflow-hidden border-t border-border bg-background"
           >
             <div className="max-w-7xl mx-auto px-4 py-3">
-              <form 
-                onSubmit={(e) => {
-                  handleSearchSubmit(e);
-                  setMenuOpen(false); // Cierra automáticamente el menú lateral en celulares tras buscar
-                }} 
-                className="relative mb-3"
-              >
-                <Search
-                  size={14}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <input
-                  type="search"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)} // Vinculamos el mismo estado global de búsqueda
-                  placeholder="¿Qué estás buscando?"
-                  className="w-full bg-popover border border-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neon-magenta-500 focus:ring-1 focus:ring-neon-magenta-500/40"
-                  aria-label="Buscar"
-                />
-              </form>
+              <SearchForm
+                mobile
+                value={searchTerm}
+                onChange={handleSearchChange}
+                onClear={clearSearch}
+                onSubmit={(event) => {
+                  handleSearchSubmit(event)
+                  setMenuOpen(false)
+                }}
+              />
               <nav className="flex flex-col" aria-label="Menú móvil">
                 {categories.map((category) => (
                   <Link
