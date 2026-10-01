@@ -29,10 +29,11 @@ invoke Pipenv as `py -3.12 -m pipenv` rather than assuming it is on `PATH`.
 ### Backend
 
 Use the explicit read-only/offline local profile. It disables dotenv loading,
-connects only to the loopback Docker PostgreSQL service, categorically blocks
-SMTP egress, and does not run setup migrations or seed commands. PowerShell and
-WSL/Linux commands are documented in
-[the backend local-profile guide](backend/README.md#supported-local-profile).
+connects only to loopback PostgreSQL, and routes transactional email only to the
+loopback Mailpit capture service; it does not run setup migrations or seed
+commands. Mailpit accepts SMTP on `127.0.0.1:1025` and exposes its browser inbox
+at `http://127.0.0.1:8025`. Startup and the manual guest tracking-email check are
+documented in [the backend local-profile guide](backend/README.md#supported-local-profile).
 
 El backend queda disponible en `http://localhost:8000`.
 
@@ -56,7 +57,9 @@ El frontend queda disponible en `http://localhost:5173`.
 
 The supported backend local profile does not read `backend/.env`. Docker keeps
 its local PostgreSQL values in ignored `docker/postgres.env`; do not source,
-print, or duplicate those values. Production secrets remain deployment-injected.
+print, or duplicate those values. Local Mailpit needs no credentials and has no
+persistent volume. Production Brevo inputs remain deployment-injected under the
+[documented environment contract](docs/production-security.md#brevo-transactional-email-contract).
 
 ### Frontend (`frontend/.env`)
 
