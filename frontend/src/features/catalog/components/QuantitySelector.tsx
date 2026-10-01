@@ -24,12 +24,12 @@ export function QuantitySelector({
         onClick={() => canDecrease && onChange(value - 1)}
         disabled={!canDecrease}
         aria-label="Disminuir cantidad"
-        className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-all hover:border-neon-magenta hover:text-neon-magenta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+        className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-all hover:border-neon-magenta hover:text-neon-magenta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
       >
         <Minus size={16} />
       </button>
 
-      <div className="flex h-10 w-12 items-center justify-center overflow-hidden rounded-lg border border-border bg-card">
+      <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-border bg-card">
         <motion.span
           key={value}
           initial={{ y: -16, opacity: 0 }}
@@ -47,8 +47,8 @@ export function QuantitySelector({
         type="button"
         onClick={() => canIncrease && onChange(value + 1)}
         disabled={!canIncrease}
-        aria-label="Aumentar cantidad"
-        className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-all hover:border-neon-magenta hover:text-neon-magenta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label={`Aumentar cantidad (máximo ${max})`}
+        className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-card text-foreground transition-all hover:border-neon-magenta hover:text-neon-magenta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
       >
         <Plus size={16} />
       </button>

@@ -1009,6 +1009,7 @@ export interface components {
             features?: unknown;
             category?: number;
             readonly stock?: number;
+            readonly available_stock?: number;
             readonly experience_level?: number;
             /** Format: int64 */
             current_stock?: number;
@@ -1075,6 +1076,7 @@ export interface components {
             features?: unknown;
             category: number;
             readonly stock: number;
+            readonly available_stock: number;
             readonly experience_level: number;
             /** Format: int64 */
             current_stock?: number;

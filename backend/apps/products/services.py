@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from django.db import connection
-from django.db.models import Sum
+from django.db.models import F, IntegerField, Q, Sum, Value
+from django.db.models.functions import Coalesce, Greatest
 from django.utils import timezone
 
 from .models import Favorite, InventoryReservation, InventoryReservationLine, Product, StockMovement
@@ -94,6 +95,36 @@ def _active_holds(product_ids, at):
             product_id__in=product_ids, reservation__status="ACTIVE", reservation__expires_at__gt=at
         ).values("product_id").annotate(total=Sum("quantity")).values_list("product_id", "total")
     )
+
+
+def with_available_stock(queryset, *, at=None):
+    """Annotate products with physical stock minus live inventory holds."""
+    at = at or timezone.now()
+    active_holds = Coalesce(
+        Sum(
+            "reservation_lines__quantity",
+            filter=Q(
+                reservation_lines__reservation__status="ACTIVE",
+                reservation_lines__reservation__expires_at__gt=at,
+            ),
+        ),
+        Value(0),
+        output_field=IntegerField(),
+    )
+    return queryset.annotate(
+        available_stock=Greatest(
+            F("current_stock") - active_holds,
+            Value(0),
+            output_field=IntegerField(),
+        )
+    )
+
+
+def available_stock_for_product(product: Product, *, at=None) -> int:
+    """Resolve hold-aware availability for a product not already annotated."""
+    return with_available_stock(Product.objects.filter(pk=product.pk), at=at).values_list(
+        "available_stock", flat=True
+    ).get()
 
 
 def _expire_if_due(reservation: InventoryReservation, at) -> None:

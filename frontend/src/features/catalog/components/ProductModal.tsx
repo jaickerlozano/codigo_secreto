@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
-import { Check, Lock, Package, Shield } from 'lucide-react'
+import { Check, Lock, Package, PackageX, Shield } from 'lucide-react'
 
 import {
   Dialog,
@@ -40,9 +40,12 @@ export function ProductModal({
 
   if (!product) return null
 
+  const isUnavailable = product.availableStock === 0
+
   const handleAdd = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()
     e.stopPropagation()
+    if (isUnavailable) return
     onAddToCart(product)
     setAdded(true)
     setTimeout(() => {
@@ -102,6 +105,16 @@ export function ProductModal({
                 )}
               </div>
 
+              {isUnavailable && (
+                <p
+                  className="mb-4 flex items-center gap-2 rounded-xl border border-destructive/50 bg-destructive/10 p-3 text-sm font-semibold text-foreground"
+                  role="status"
+                >
+                  <PackageX size={16} className="shrink-0 text-destructive" aria-hidden="true" />
+                  No disponible por el momento
+                </p>
+              )}
+
               <div
                 className="mb-4 flex gap-1 rounded-xl bg-secondary p-1"
                 role="tablist"
@@ -113,7 +126,7 @@ export function ProductModal({
                     onClick={() => setTab(key)}
                     role="tab"
                     aria-selected={tab === key}
-                    className={`flex-1 rounded-lg py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`min-h-12 flex-1 rounded-lg py-1.5 text-[11px] font-bold uppercase tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       tab === key
                         ? 'text-white'
                         : 'text-muted-foreground hover:text-foreground'
@@ -194,19 +207,26 @@ export function ProductModal({
               <button
                 type="button"
                 onClick={handleAdd}
-                className={`w-full rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#141414] ${
-                  added
-                    ? 'bg-neon-lime text-background'
-                    : 'text-white hover:shadow-[0_0_22px_rgba(255,43,214,0.45)]'
+                disabled={isUnavailable}
+                className={`min-h-12 w-full rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#141414] disabled:cursor-not-allowed ${
+                  isUnavailable
+                    ? 'border border-white/15 bg-secondary text-muted-foreground'
+                    : added
+                      ? 'bg-neon-lime text-background'
+                      : 'text-white hover:shadow-[0_0_22px_rgba(255,43,214,0.45)]'
                 }`}
                 style={
-                  added
+                  isUnavailable || added
                     ? undefined
                     : { background: 'var(--gradient-brand)' }
                 }
                 aria-live="polite"
               >
-                {added ? (
+                {isUnavailable ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <PackageX size={15} aria-hidden="true" /> No disponible
+                  </span>
+                ) : added ? (
                   <span className="flex items-center justify-center gap-2">
                     <Check size={15} aria-hidden="true" /> Agregado
                   </span>

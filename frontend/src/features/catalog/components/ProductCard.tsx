@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { motion } from 'motion/react'
-import { Check, Eye } from 'lucide-react'
+import { Check, Eye, PackageX } from 'lucide-react'
 
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { formatCLP } from '@/lib/format'
@@ -37,6 +37,7 @@ export function ProductCard({
   const [isUsingOriginal, setIsUsingOriginal] = useState(false)
   const [imageError, setImageError] = useState(false)
   const prefersReduced = useReducedMotion()
+  const isUnavailable = product.availableStock === 0
 
   useEffect(() => {
     setIsUsingOriginal(false)
@@ -49,6 +50,7 @@ export function ProductCard({
   const handleAdd = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault()
     e.stopPropagation()
+    if (isUnavailable) return
     onAddToCart(product)
     setAdded(true)
     setTimeout(() => setAdded(false), 1600)
@@ -102,7 +104,7 @@ export function ProductCard({
           <button
             type="button"
             onClick={handleQuickView}
-            className="rounded-xl bg-white/10 p-3 text-white backdrop-blur-sm transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             aria-label={`Vista rápida de ${product.name}`}
           >
             <Eye size={16} />
@@ -137,6 +139,15 @@ export function ProductCard({
       </div>
 
       <div className="p-4">
+        {isUnavailable && (
+          <p
+            className="mb-3 flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs font-semibold text-foreground"
+            role="status"
+          >
+            <PackageX size={15} className="shrink-0 text-destructive" aria-hidden="true" />
+            No disponible
+          </p>
+        )}
         <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
           {product.category}
         </p>
@@ -171,13 +182,16 @@ export function ProductCard({
         <button
           type="button"
           onClick={handleAdd}
-          className={`relative z-10 w-full rounded-xl py-2.5 text-[13px] font-bold uppercase tracking-wide transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
-            added
-              ? 'bg-neon-lime text-background'
-              : 'text-white hover:shadow-[0_0_18px_rgba(255,43,214,0.45)]'
+          disabled={isUnavailable}
+          className={`relative z-10 min-h-12 w-full rounded-xl py-2.5 text-[13px] font-bold uppercase tracking-wide transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed ${
+            isUnavailable
+              ? 'border border-white/15 bg-secondary text-muted-foreground'
+              : added
+                ? 'bg-neon-lime text-background'
+                : 'text-white hover:shadow-[0_0_18px_rgba(255,43,214,0.45)]'
           }`}
           style={
-            added
+            isUnavailable || added
               ? undefined
               : {
                   background: 'var(--gradient-brand)',
@@ -185,7 +199,11 @@ export function ProductCard({
           }
           aria-live="polite"
         >
-          {added ? (
+          {isUnavailable ? (
+            <span className="flex items-center justify-center gap-1.5">
+              <PackageX size={14} aria-hidden="true" /> No disponible
+            </span>
+          ) : added ? (
             <span className="flex items-center justify-center gap-1.5">
               <Check size={14} aria-hidden="true" /> Agregado
             </span>

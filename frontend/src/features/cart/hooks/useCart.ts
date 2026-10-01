@@ -94,18 +94,37 @@ export function useCart(
     : 0
 
   const addItem = (product: Product) => {
+    const currentQuantity =
+      items.find((item) => item.product.id === product.id)?.quantity ?? 0
+    const quantityToAdd = Math.min(1, product.availableStock - currentQuantity)
+    if (quantityToAdd <= 0) return
+
     if (mode === 'authenticated') {
-      addToCartMutation.mutate({ product_id: product.id, quantity: 1 })
+      addToCartMutation.mutate({
+        product_id: product.id,
+        quantity: quantityToAdd,
+      })
     } else {
       guestAddItem(product)
     }
   }
 
   const addItemWithQuantity = (product: Product, quantity: number) => {
+    const currentQuantity =
+      items.find((item) => item.product.id === product.id)?.quantity ?? 0
+    const quantityToAdd = Math.min(
+      Math.max(0, quantity),
+      product.availableStock - currentQuantity,
+    )
+    if (quantityToAdd <= 0) return
+
     if (mode === 'authenticated') {
-      addToCartMutation.mutate({ product_id: product.id, quantity })
+      addToCartMutation.mutate({
+        product_id: product.id,
+        quantity: quantityToAdd,
+      })
     } else {
-      guestAddItemWithQuantity(product, quantity)
+      guestAddItemWithQuantity(product, quantityToAdd)
     }
   }
 
@@ -129,17 +148,18 @@ export function useCart(
       return
     }
 
+    const current = items.find((item) => item.product.id === productId)
+    if (!current || current.product.availableStock === 0) return
+    const nextQuantity = Math.min(quantity, current.product.availableStock)
+
     if (mode === 'authenticated') {
-      const current = authItems.find((item) => item.product.id === productId)
-      if (current) {
-        updateCartItemMutation.mutate({
-          productId,
-          quantity,
-          currentQuantity: current.quantity,
-        })
-      }
+      updateCartItemMutation.mutate({
+        productId,
+        quantity: nextQuantity,
+        currentQuantity: current.quantity,
+      })
     } else {
-      guestUpdateQuantity(productId, quantity)
+      guestUpdateQuantity(productId, nextQuantity)
     }
   }
 

@@ -18,6 +18,7 @@ const product: Product = {
   gradient: 'from-violet-950 to-purple-900',
   sku: 'CS-1',
   stock: 10,
+  availableStock: 10,
   image: 'https://cdn.example.test/primary.webp',
   imageOriginal: 'https://cdn.example.test/primary-original.webp',
   images: [

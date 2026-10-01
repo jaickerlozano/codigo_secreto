@@ -30,6 +30,7 @@ const testProduct = {
   gradient: 'from-violet-900 to-purple-700',
   sku: '101',
   stock: 10,
+  availableStock: 10,
   image: null,
   images: [],
 }
@@ -52,6 +53,27 @@ describe('useCart', () => {
 
     await waitFor(() => expect(result.current.items).toHaveLength(1))
     expect(result.current.totalItems).toBe(1)
+  })
+
+  it('prevents unavailable additions and caps guest quantities at available stock', async () => {
+    const { result } = renderHook(() => useCart(), { wrapper: Wrapper })
+
+    act(() => {
+      result.current.addItem({ ...testProduct, availableStock: 0 })
+      result.current.addItemWithQuantity(
+        { ...testProduct, availableStock: 2 },
+        5,
+      )
+    })
+
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    expect(result.current.items[0].quantity).toBe(2)
+
+    act(() => {
+      result.current.updateQuantity(testProduct.id, 4)
+    })
+
+    expect(result.current.items[0].quantity).toBe(2)
   })
 
   it('uses backend quote totals for guest money fields', async () => {

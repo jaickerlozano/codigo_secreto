@@ -23,6 +23,7 @@ const testProduct: components['schemas']['Product'] = {
   minimum_stock: 1,
   price: 29990,
   stock: 10,
+  available_stock: 10,
   image: '',
   image_original: '',
   images: [],

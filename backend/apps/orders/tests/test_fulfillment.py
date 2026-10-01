@@ -4,7 +4,7 @@ Staff dispatch requires carrier and estimated date (tracking optional), invalid
 fulfillment leaves state unchanged, and payment/dispatch emails are sent only
 after valid transitions with failure containment and Admin retry.
 """
-from datetime import date
+from datetime import date, timedelta
 from unittest import mock
 
 import pytest
@@ -13,6 +13,7 @@ from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core import mail
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.orders.admin import NotificationDeliveryAdmin, OrderAdmin
 from apps.orders.models import NotificationDelivery, Order
@@ -193,6 +194,27 @@ class TestDeliveryTransition:
 
 
 class TestFulfillmentAdmin:
+    @pytest.mark.parametrize(
+        "digest,expires_at,revoked_at,expected",
+        [
+            ("digest", None, None, "Disponible"),
+            ("", None, None, "No aplica"),
+            ("digest", timezone.now() - timedelta(days=1), None, "Expirado"),
+            ("digest", timezone.now() + timedelta(days=1), timezone.now(), "Revocado"),
+        ],
+    )
+    def test_guest_tracking_status_uses_user_facing_spanish_labels(
+        self, order_admin, digest, expires_at, revoked_at, expected,
+    ):
+        order = mock.Mock(
+            guest_access_digest=digest,
+            guest_access_expires_at=expires_at,
+            guest_access_revoked_at=revoked_at,
+        )
+
+        assert order_admin.guest_access_status(order) == expected
+        assert OrderAdmin.guest_access_status.short_description == "Seguimiento como invitado"
+
     @pytest.fixture
     def admin_client(self, client, paid_order):
         staff = paid_order.user

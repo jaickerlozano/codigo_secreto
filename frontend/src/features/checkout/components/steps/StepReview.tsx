@@ -1,4 +1,4 @@
-import { Check, Loader2, Lock, Package } from 'lucide-react'
+import { Check, Loader2, Lock, Package, PackageX } from 'lucide-react'
 
 import { formatCLP } from '@/lib/format'
 
@@ -12,6 +12,8 @@ interface StepReviewProps {
   shippingCost: number | null
   total: number | null
   quoteReady: boolean
+  inventoryBlocked?: boolean
+  inventoryMessage?: string | null
   onEditStep: (step: CheckoutStep) => void
   onTermsChange: (accepted: boolean) => void
   onBack: () => void
@@ -34,6 +36,8 @@ export function StepReview({
   shippingCost,
   total,
   quoteReady,
+  inventoryBlocked = false,
+  inventoryMessage,
   onEditStep,
   onTermsChange,
   onBack,
@@ -119,6 +123,24 @@ export function StepReview({
         </div>
       </div>
 
+      {(inventoryBlocked || inventoryMessage) && (
+        <div
+          id="checkout-inventory-error"
+          role="alert"
+          className="mb-5 flex items-start gap-3 rounded-2xl border border-destructive/50 bg-destructive/10 p-4"
+        >
+          <PackageX
+            size={18}
+            className="mt-0.5 shrink-0 text-destructive"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-semibold text-foreground">
+            {inventoryMessage ??
+              'No puedes confirmar el pedido porque uno o más productos no están disponibles. Ajusta el carrito antes de continuar.'}
+          </p>
+        </div>
+      )}
+
       <label className="group mb-5 flex cursor-pointer items-start gap-3">
         <div
           className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 transition-all ${
@@ -179,8 +201,18 @@ export function StepReview({
         <button
           type="button"
           onClick={onConfirm}
-          disabled={!data.termsAccepted || !quoteReady || isSubmitting}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={
+            !data.termsAccepted ||
+            !quoteReady ||
+            inventoryBlocked ||
+            isSubmitting
+          }
+          aria-describedby={
+            inventoryBlocked || inventoryMessage
+              ? 'checkout-inventory-error'
+              : undefined
+          }
+          className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide text-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-40"
           style={{ background: 'var(--gradient-brand)' }}
         >
           {isSubmitting ? (

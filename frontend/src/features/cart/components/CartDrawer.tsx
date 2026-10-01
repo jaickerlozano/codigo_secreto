@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { Lock, Minus, Package, Plus, ShoppingCart, X } from 'lucide-react'
+import { Lock, Minus, Package, PackageX, Plus, ShoppingCart, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 
@@ -41,6 +41,12 @@ export function CartDrawer() {
   } = useCart()
 
   const progress = freeShippingProgress ?? 0
+  const inventoryIssueItems = cartItems.filter(
+    (item) =>
+      item.product.availableStock === 0 ||
+      item.quantity > item.product.availableStock,
+  )
+  const hasInventoryIssues = inventoryIssueItems.length > 0
   const quotePlaceholder = quoteIsError ? 'No disponible' : 'Cotizando…'
   const prefersReduced = useReducedMotion()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -192,6 +198,17 @@ export function CartDrawer() {
                       <p className="mb-2 truncate text-[11px] text-muted-foreground">
                         {item.product.shortDesc ?? item.product.description}
                       </p>
+                      {item.product.availableStock === 0 && (
+                        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-destructive" role="status">
+                          <PackageX size={13} aria-hidden="true" /> No disponible: sin stock
+                        </p>
+                      )}
+                      {item.product.availableStock > 0 &&
+                        item.quantity > item.product.availableStock && (
+                          <p className="mb-2 text-xs font-semibold text-destructive" role="status">
+                            Cantidad no disponible. Máximo {item.product.availableStock}.
+                          </p>
+                        )}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <button
@@ -221,7 +238,11 @@ export function CartDrawer() {
                                 item.quantity + 1,
                               )
                             }
-                            className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            disabled={
+                              item.product.availableStock === 0 ||
+                              item.quantity >= item.product.availableStock
+                            }
+                            className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
                             aria-label={`Aumentar ${item.product.name}`}
                           >
                             <Plus size={11} />
@@ -247,6 +268,17 @@ export function CartDrawer() {
 
             {cartItems.length > 0 && (
               <div className="border-t border-white/[0.06] px-6 py-5">
+                {hasInventoryIssues && (
+                  <div
+                    id="cart-inventory-error"
+                    role="alert"
+                    className="mb-4 rounded-xl border border-destructive/50 bg-destructive/10 p-3"
+                  >
+                    <p className="text-sm font-semibold text-foreground">
+                      No puedes continuar al pago porque hay productos sin disponibilidad o con una cantidad mayor al stock disponible. Ajusta o quita los productos identificados.
+                    </p>
+                  </div>
+                )}
                 {quoteIsError && <div role="alert" className="mb-4 rounded-xl bg-destructive/10 p-3"><p className="mb-2 text-[11px] text-destructive">{quoteError?.message ?? 'No pudimos calcular el total. Inténtalo de nuevo.'}</p><button type="button" onClick={retryQuote} className="rounded text-[11px] font-bold text-neon-magenta underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Reintentar cotización</button></div>}
                 {freeShippingThreshold > 0 && subtotal! < freeShippingThreshold && (
                   <div className="mb-4 rounded-xl bg-secondary p-3">
@@ -331,11 +363,17 @@ export function CartDrawer() {
                     closeCart()
                     navigate('/checkout')
                   }}
-                  className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl py-4 text-sm font-bold uppercase tracking-wide text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
-                  style={{
-                    background: 'var(--gradient-brand)',
-                    boxShadow: 'var(--shadow-glow-brand)',
-                  }}
+                  disabled={hasInventoryIssues}
+                  aria-describedby={hasInventoryIssues ? 'cart-inventory-error' : undefined}
+                  className="mb-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl py-4 text-sm font-bold uppercase tracking-wide text-white transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:border disabled:border-white/15 disabled:bg-secondary disabled:text-muted-foreground"
+                  style={
+                    hasInventoryIssues
+                      ? undefined
+                      : {
+                          background: 'var(--gradient-brand)',
+                          boxShadow: 'var(--shadow-glow-brand)',
+                        }
+                  }
                 >
                   <Lock size={14} aria-hidden="true" /> Continuar al pago
                 </button>

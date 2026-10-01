@@ -17,7 +17,7 @@ import { PendingPaymentPage } from '@/features/checkout/pages/PendingPaymentPage
 import { ConfirmationPage } from './ConfirmationPage'
 
 type Order = components['schemas']['Order']
-const product = { id: 1, name: 'Vibrador de prueba', price: 29990, category: '1', experienceLevel: 'intermedio', features: [], description: 'Descripción de prueba', materials: [], usageInstructions: '', icon: '✦', gradient: 'from-violet-950 via-purple-900 to-violet-800', sku: '101', stock: 10, image: null, images: [] } as Product
+const product = { id: 1, name: 'Vibrador de prueba', price: 29990, category: '1', experienceLevel: 'intermedio', features: [], description: 'Descripción de prueba', materials: [], usageInstructions: '', icon: '✦', gradient: 'from-violet-950 via-purple-900 to-violet-800', sku: '101', stock: 10, availableStock: 10, image: null, images: [] } as Product
 const routes = [{ path: '/confirmation/:orderNumber', element: <ConfirmationPage /> }, { path: '/checkout/payment/:orderNumber', element: <PendingPaymentPage /> }]
 const orderUrl = 'http://localhost:8000/api/orders/by-order-number/CS-123456/'
 const authMeUrl = 'http://localhost:8000/api/auth/me/'

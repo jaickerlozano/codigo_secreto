@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ShoppingBag } from 'lucide-react'
+import { Check, ChevronDown, PackageX, ShoppingBag } from 'lucide-react'
 import { useState } from 'react'
 
 import { formatCLP } from '@/lib/format'
@@ -68,6 +68,17 @@ export function OrderSummary({ cart }: OrderSummaryProps) {
                   <p className="truncate text-xs font-semibold text-foreground">
                     {item.product.name}
                   </p>
+                  {item.product.availableStock === 0 && (
+                    <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-destructive" role="status">
+                      <PackageX size={12} aria-hidden="true" /> No disponible
+                    </p>
+                  )}
+                  {item.product.availableStock > 0 &&
+                    item.quantity > item.product.availableStock && (
+                      <p className="mt-1 text-xs font-semibold text-destructive" role="status">
+                        Cantidad disponible: {item.product.availableStock}
+                      </p>
+                    )}
                 </div>
               </div>
             ))

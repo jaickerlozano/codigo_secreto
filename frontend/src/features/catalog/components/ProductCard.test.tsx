@@ -19,6 +19,7 @@ const mockProduct: Product = {
   gradient: 'from-violet-950 via-purple-900 to-violet-800',
   sku: '101',
   stock: 10,
+  availableStock: 10,
   image: null,
   images: [],
 }
@@ -49,6 +50,24 @@ describe('ProductCard', () => {
         screen.getByRole('button', { name: /Agregar al carrito/i }),
       ),
     ).toBe(true)
+  })
+
+  it('shows an unavailable state and prevents add-to-cart when availability is zero', () => {
+    const onAddToCart = vi.fn()
+
+    renderWithRouter(
+      <ProductCard
+        product={{ ...mockProduct, availableStock: 0 }}
+        onAddToCart={onAddToCart}
+        onQuickView={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('status').textContent).toContain('No disponible')
+    const button = screen.getByRole('button', { name: 'No disponible' })
+    expect(button).toHaveProperty('disabled', true)
+    fireEvent.click(button)
+    expect(onAddToCart).not.toHaveBeenCalled()
   })
 
   it('uses the shared uncropped studio stage for AI cutouts', () => {

@@ -82,6 +82,28 @@ export function CheckoutPage() {
   const [confirmedRevision, setConfirmedRevision] = useState<string | null>(
     null
   )
+  const [inventoryError, setInventoryError] = useState<string | null>(null)
+  const inventoryIssueItems = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          item.product.availableStock === 0 ||
+          item.quantity > item.product.availableStock
+      ),
+    [items]
+  )
+  const hasInventoryIssues = inventoryIssueItems.length > 0
+  const inventoryIdentity = useMemo(
+    () =>
+      JSON.stringify(
+        items.map((item) => [
+          item.product.id,
+          item.quantity,
+          item.product.availableStock,
+        ])
+      ),
+    [items]
+  )
   const quoteIdentity = useMemo(() => JSON.stringify(quoteInput), [quoteInput])
   const quoteCurrent =
     quote?.total !== undefined &&
@@ -98,6 +120,10 @@ export function CheckoutPage() {
   useEffect(() => {
     setConfirmedRevision(null)
   }, [quoteIdentity, quote?.revision])
+
+  useEffect(() => {
+    setInventoryError(null)
+  }, [inventoryIdentity])
 
   useEffect(() => {
     if (destinationResolution.status === 'valid') {
@@ -176,6 +202,7 @@ export function CheckoutPage() {
   }
 
   const handleConfirm = () => {
+    if (hasInventoryIssues || inventoryError) return
     if (mode === 'guest' && !quoteReady) return
 
     const payload = {
@@ -243,6 +270,22 @@ export function CheckoutPage() {
       },
       onError: (error) => {
         if (
+          error instanceof OrderCreationError &&
+          error.code === 'inventory_unavailable'
+        ) {
+          setConfirmedRevision(null)
+          setInventoryError(
+            'La disponibilidad cambió mientras confirmabas el pedido. Revisa las cantidades o quita los productos no disponibles y vuelve a intentarlo.'
+          )
+          if (mode === 'guest') {
+            const key = guestQuoteQueryKey(quoteInput)
+            void queryClient.invalidateQueries({ queryKey: key, exact: true })
+          } else {
+            void queryClient.invalidateQueries({ queryKey: ['cart'] })
+          }
+          return
+        }
+        if (
           mode === 'guest' &&
           error instanceof OrderCreationError &&
           error.refreshedQuote
@@ -292,6 +335,16 @@ export function CheckoutPage() {
           <div className="grid gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
               <div className="rounded-2xl border border-white/[0.06] bg-card p-6">
+                {hasInventoryIssues && (
+                  <div
+                    role="alert"
+                    className="mb-6 rounded-2xl border border-destructive/50 bg-destructive/10 p-4"
+                  >
+                    <p className="text-sm font-semibold text-foreground">
+                      No puedes continuar con el checkout porque hay productos sin disponibilidad o con una cantidad mayor al stock disponible. Ajusta el carrito antes de continuar.
+                    </p>
+                  </div>
+                )}
                 {currentStep === 1 && (
                   <StepData
                     defaultValues={{
@@ -306,7 +359,7 @@ export function CheckoutPage() {
                         setShipping({})
                       }
                       setAddress(address)
-                      nextStep()
+                      if (!hasInventoryIssues) nextStep()
                     }}
                   />
                 )}
@@ -323,7 +376,7 @@ export function CheckoutPage() {
                     selection={data.shipping}
                     onSubmit={(shipping) => {
                       setShipping(shipping)
-                      nextStep()
+                      if (!hasInventoryIssues) nextStep()
                     }}
                     onBack={prevStep}
                   />
@@ -333,7 +386,7 @@ export function CheckoutPage() {
                     defaultValues={data.payment}
                     onSubmit={(payment) => {
                       setPayment(payment)
-                      nextStep()
+                      if (!hasInventoryIssues) nextStep()
                     }}
                     onBack={prevStep}
                   />
@@ -345,6 +398,8 @@ export function CheckoutPage() {
                     shippingCost={shippingCost}
                     total={total}
                     quoteReady={quoteReady}
+                    inventoryBlocked={hasInventoryIssues || Boolean(inventoryError)}
+                    inventoryMessage={inventoryError}
                     accountContact={
                       mode === 'authenticated' ? accountContact : undefined
                     }

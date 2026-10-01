@@ -29,9 +29,10 @@ const apiBaseUrl = (process.env.VITE_API_URL?.trim() || "http://localhost:8000")
   "",
 );
 const schemaUrl = `${apiBaseUrl}/api/schema/`;
+const schemaSource = process.env.OPENAPI_SCHEMA_PATH?.trim() || schemaUrl;
 const result = spawnSync(
   process.execPath,
-  [executable, schemaUrl, "-o", "src/api/schema.d.ts"],
+  [executable, schemaSource, "-o", "src/api/schema.d.ts"],
   { stdio: "inherit", env: process.env },
 );
 

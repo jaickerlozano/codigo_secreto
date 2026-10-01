@@ -29,7 +29,7 @@ import { CartDrawer } from './CartDrawer'
 // is stubbed here.
 vi.mock('@/components/ui/slider', () => ({ Slider: () => <div /> }))
 
-const product = { id: 1, name: 'Producto de prueba', description: 'Descripción', icon: '✦', gradient: 'from-violet-900 to-purple-700' } as Product
+const product = { id: 1, name: 'Producto de prueba', description: 'Descripción', icon: '✦', gradient: 'from-violet-900 to-purple-700', availableStock: 10 } as Product
 
 function Wrapper({ children }: { children: ReactNode }) {
   return (
@@ -112,6 +112,29 @@ describe('CartDrawer', () => {
     )
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
     expect(screen.getAllByText('$29.990')).toHaveLength(1)
+  })
+
+  it('identifies unavailable items and blocks checkout and quantity increases', () => {
+    const unavailableProduct = { ...product, availableStock: 0 }
+    useCartStore.setState({
+      isOpen: true,
+      items: [{ product: unavailableProduct, quantity: 1 }],
+    })
+
+    render(<CartDrawer />, { wrapper: Wrapper })
+
+    expect(screen.getByText('No disponible: sin stock')).toBeDefined()
+    expect(
+      screen.getByRole('alert').textContent,
+    ).toContain('No puedes continuar al pago')
+    expect(
+      screen.getByRole('button', {
+        name: `Aumentar ${unavailableProduct.name}`,
+      }),
+    ).toHaveProperty('disabled', true)
+    expect(
+      screen.getByRole('button', { name: /Continuar al pago/ }),
+    ).toHaveProperty('disabled', true)
   })
 
   it('navigates to /checkout and closes the drawer from the CTA', async () => {
@@ -198,6 +221,7 @@ describe('CartDrawer', () => {
       description: 'Descripción',
       icon: '♥',
       gradient: 'from-cyan-900 to-teal-700',
+      availableStock: 10,
     } as Product
     useCartStore.setState({
       isOpen: true,

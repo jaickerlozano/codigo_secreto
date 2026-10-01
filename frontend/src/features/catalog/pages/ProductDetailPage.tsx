@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { ArrowLeft, Check, Heart, PackageX } from 'lucide-react'
@@ -69,6 +69,12 @@ export function ProductDetailPage() {
   const [wishlisted, setWishlisted] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
+  useEffect(() => {
+    if (product && product.availableStock > 0) {
+      setQuantity((current) => Math.min(current, product.availableStock))
+    }
+  }, [product])
+
   if (productLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
@@ -105,6 +111,8 @@ export function ProductDetailPage() {
     )
   }
 
+  const isUnavailable = product.availableStock === 0
+
   const discount =
     product.originalPrice && product.originalPrice > 0
       ? Math.round(
@@ -113,6 +121,7 @@ export function ProductDetailPage() {
       : 0
 
   const handleAddToCart = () => {
+    if (isUnavailable) return
     addItemWithQuantity(product, quantity)
     setAdded(true)
     setTimeout(() => setAdded(false), 1600)
@@ -188,6 +197,17 @@ export function ProductDetailPage() {
                   </>
                 )}
               </div>
+
+              {isUnavailable && (
+                <p
+                  className="mb-6 flex items-center gap-2 rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm font-semibold text-foreground"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <PackageX size={18} className="shrink-0 text-destructive" aria-hidden="true" />
+                  No disponible por el momento
+                </p>
+              )}
 
               <div
                 className="mb-6 flex gap-1 rounded-xl bg-secondary p-1"
@@ -282,33 +302,44 @@ export function ProductDetailPage() {
                 </AnimatePresence>
               </div>
 
-              <div className="mb-6 flex items-center gap-4">
-                <QuantitySelector
-                  value={quantity}
-                  onChange={setQuantity}
-                  min={1}
-                  max={10}
-                />
-                <span className="text-xs text-muted-foreground">
-                  Máx. 10 unidades
-                </span>
-              </div>
+              {!isUnavailable && (
+                <div className="mb-6 flex flex-wrap items-center gap-4">
+                  <QuantitySelector
+                    value={quantity}
+                    onChange={setQuantity}
+                    min={1}
+                    max={product.availableStock}
+                  />
+                  <span className="text-xs text-muted-foreground">
+                    Máx. {product.availableStock} unidades disponibles
+                  </span>
+                </div>
+              )}
 
               <div className="flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className={`flex-1 rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-                    added
-                      ? 'bg-neon-lime text-background'
-                      : 'text-white hover:shadow-[0_0_24px_rgba(255,43,214,0.45)]'
+                  disabled={isUnavailable}
+                  className={`min-h-12 flex-1 rounded-xl py-3.5 text-sm font-bold uppercase tracking-wide transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed ${
+                    isUnavailable
+                      ? 'border border-white/15 bg-secondary text-muted-foreground'
+                      : added
+                        ? 'bg-neon-lime text-background'
+                        : 'text-white hover:shadow-[0_0_24px_rgba(255,43,214,0.45)]'
                   }`}
                   style={
-                    added ? undefined : { background: 'var(--gradient-brand)' }
+                    isUnavailable || added
+                      ? undefined
+                      : { background: 'var(--gradient-brand)' }
                   }
                   aria-live="polite"
                 >
-                  {added ? (
+                  {isUnavailable ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <PackageX size={15} aria-hidden="true" /> No disponible
+                    </span>
+                  ) : added ? (
                     <span className="flex items-center justify-center gap-2">
                       <Check size={15} aria-hidden="true" /> Agregado
                     </span>
