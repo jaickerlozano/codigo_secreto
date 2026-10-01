@@ -134,6 +134,95 @@ describe('CheckoutPage', () => {
     expect(retry).toHaveBeenCalledOnce()
   })
 
+  it('scrolls to the top after each checkout step transition without scrolling on mount', () => {
+    const client = queryClient()
+    vi.mocked(useCheckout).mockReturnValue(checkoutState({ currentStep: 1 }))
+    vi.mocked(useCart).mockReturnValue({
+      mode: 'authenticated',
+      items: [
+        {
+          product: {
+            id: 1,
+            name: 'Producto disponible',
+            gradient: '',
+            icon: '✦',
+            availableStock: 2,
+          },
+          quantity: 1,
+        },
+      ],
+      isLoading: false,
+      error: null,
+      retry: vi.fn(),
+      addItem: vi.fn(),
+      addItemWithQuantity: vi.fn(),
+      removeItem: vi.fn(),
+      updateQuantity: vi.fn(),
+      clearCart: vi.fn(),
+      totalItems: 1,
+      subtotal: 1000,
+      shippingCost: 0,
+      total: 1000,
+      freeShippingProgress: 0,
+      freeShippingThreshold: 0,
+      hasShippingDestination: false,
+      quote: null,
+      quoteInput: { items: [] },
+      quoteIsLoading: false,
+      quoteIsError: false,
+      quoteError: null,
+      quoteIsStale: false,
+      retryQuote: vi.fn(),
+    } as unknown as UseCartResult)
+    vi.mocked(useAuth).mockReturnValue({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
+      authError: null,
+      retryAuth: vi.fn(),
+      isLoggingIn: false,
+      loginError: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+    })
+    const scrollTo = vi.mocked(window.scrollTo)
+    scrollTo.mockClear()
+    const view = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CheckoutPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    vi.mocked(useCheckout).mockReturnValue(checkoutState({ currentStep: 2 }))
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CheckoutPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+
+    vi.mocked(useCheckout).mockReturnValue(checkoutState({ currentStep: 4 }))
+    view.rerender(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CheckoutPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(scrollTo).toHaveBeenCalledTimes(2)
+    expect(scrollTo).toHaveBeenLastCalledWith({
+      top: 0,
+      left: 0,
+      behavior: 'smooth',
+    })
+  })
+
   it('shows an accessible inventory block for an unavailable cart item', async () => {
     vi.mocked(useCart).mockReturnValue({
       mode: 'guest',
