@@ -30,6 +30,12 @@ type CartPersistedState = Pick<CartState, 'items' | 'mode'>
 
 const STORAGE_KEY = 'cs-cart'
 
+function getAvailableStock(product: Product): number {
+  return Number.isFinite(product.availableStock)
+    ? Math.max(0, product.availableStock)
+    : 0
+}
+
 const conditionalStorage: PersistStorage<CartPersistedState> = {
   getItem: (name) => {
     try {
@@ -67,16 +73,21 @@ export const useCartStore = create<CartState>()(
       mode: 'guest',
 
       addItem: (product) => {
+        const availableStock = getAvailableStock(product)
+        if (availableStock === 0) return
+
         const items = get().items
         const existing = items.find(
           (item) => item.product.id === product.id,
         )
 
         if (existing) {
-          const quantity = existing.quantity + 1
+          const quantity = Math.min(existing.quantity + 1, availableStock)
           set({
             items: items.map((item) =>
-              item.product.id === product.id ? { ...item, quantity } : item,
+              item.product.id === product.id
+                ? { ...item, product, quantity }
+                : item,
             ),
             isOpen: true,
           })
@@ -89,18 +100,26 @@ export const useCartStore = create<CartState>()(
       },
 
       addItemWithQuantity: (product, quantity) => {
+        const availableStock = getAvailableStock(product)
+        const requestedQuantity = Math.max(0, quantity)
+        if (availableStock === 0 || requestedQuantity === 0) return
+
         const items = get().items
         const existing = items.find(
           (item) => item.product.id === product.id,
         )
 
         if (existing) {
-          const newQuantity = existing.quantity + quantity
+          const newQuantity = Math.min(
+            existing.quantity + requestedQuantity,
+            availableStock,
+          )
           set({
             items: items.map((item) =>
               item.product.id === product.id
                 ? {
                     ...item,
+                    product,
                     quantity: newQuantity,
                   }
                 : item,
@@ -109,7 +128,10 @@ export const useCartStore = create<CartState>()(
           })
         } else {
           set({
-            items: [...items, { product, quantity }],
+            items: [
+              ...items,
+              { product, quantity: Math.min(requestedQuantity, availableStock) },
+            ],
             isOpen: true,
           })
         }
@@ -128,9 +150,19 @@ export const useCartStore = create<CartState>()(
           get().removeItem(productId)
           return
         }
+
+        const items = get().items
+        const current = items.find((item) => item.product.id === productId)
+        if (!current) return
+
+        const availableStock = getAvailableStock(current.product)
+        if (availableStock === 0) return
+
         set({
-          items: get().items.map((item) =>
-            item.product.id === productId ? { ...item, quantity } : item,
+          items: items.map((item) =>
+            item.product.id === productId
+              ? { ...item, quantity: Math.min(quantity, availableStock) }
+              : item,
           ),
         })
       },

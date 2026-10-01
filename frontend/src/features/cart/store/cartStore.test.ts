@@ -16,6 +16,7 @@ const testProduct = {
   gradient: 'from-violet-900 to-purple-700',
   sku: '101',
   stock: 10,
+  availableStock: 10,
   image: null,
   images: [],
 }
