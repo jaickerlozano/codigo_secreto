@@ -21,7 +21,7 @@ import { scrollToPageTop } from '@/hooks/useScrollToTopOnNavigate'
 import { useInitiatePayment } from '../hooks/useInitiatePayment'
 import { CheckoutProgress } from '../components/CheckoutProgress'
 import { OrderSummary } from '../components/OrderSummary'
-import { StepData } from '../components/steps/StepData'
+import { StepData, type DataSection } from '../components/steps/StepData'
 import { StepPayment } from '../components/steps/StepPayment'
 import { StepReview } from '../components/steps/StepReview'
 import { StepShipping } from '../components/steps/StepShipping'
@@ -117,7 +117,13 @@ export function CheckoutPage() {
       quoteCurrent &&
       (confirmedRevision === null || confirmedRevision === quote.revision)
     )
+  const [dataEditSection, setDataEditSection] = useState<DataSection>()
   const previousStepRef = useRef(currentStep)
+
+  useEffect(() => {
+    // Review intent belongs to this visit only, never a later normal Back.
+    if (currentStep !== 1) setDataEditSection(undefined)
+  }, [currentStep])
 
   useEffect(() => {
     if (previousStepRef.current === currentStep) return
@@ -356,6 +362,7 @@ export function CheckoutPage() {
                 )}
                 {currentStep === 1 && (
                   <StepData
+                    initialSection={dataEditSection}
                     defaultValues={{
                       contact: data.contact,
                       address: data.address,
@@ -412,7 +419,10 @@ export function CheckoutPage() {
                     accountContact={
                       mode === 'authenticated' ? accountContact : undefined
                     }
-                    onEditStep={goToStep}
+                    onEditStep={(step, section) => {
+                      setDataEditSection(section)
+                      goToStep(step)
+                    }}
                     onTermsChange={setTermsAccepted}
                     onBack={prevStep}
                     onConfirm={handleConfirm}

@@ -108,6 +108,71 @@ describe('StepData (composed Data step)', () => {
     expect(screen.queryByLabelText(/Teléfono/)).toBeNull()
   })
 
+  it.each(['contact', 'address'] as const)('opens guest %s edit with retained values and accessible focus', async (initialSection) => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    const savedContact = { name: 'Juan Pérez', email: 'juan@example.com', phone: '+56 9 1234 5678', isGuest: true }
+    const savedAddress = { ...address, regionId: 13, regionName: 'Región Metropolitana', comunaId: 1, comunaName: 'Santiago', address: 'Calle 123', apartment: '301', postalCode: '1234567', notes: 'Portería' }
+    render(<QueryClientProvider client={queryClient()}><StepData initialSection={initialSection} defaultValues={{ contact: savedContact, address: savedAddress }} onSubmit={onSubmit} /></QueryClientProvider>)
+
+    const input = screen.getByLabelText(initialSection === 'contact' ? /Nombre completo/ : /Calle y número/)
+    expect(document.activeElement).toBe(input)
+    expect(input).toHaveProperty('value', initialSection === 'contact' ? savedContact.name : savedAddress.address)
+    if (initialSection === 'contact') {
+      expect(screen.getByLabelText(/Email/)).toHaveProperty('value', savedContact.email)
+      expect(screen.getByLabelText(/Teléfono/)).toHaveProperty('value', savedContact.phone)
+      await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+    }
+    expect(screen.getByLabelText(/Calle y número/)).toHaveProperty('value', savedAddress.address)
+    expect(document.activeElement).toBe(screen.getByLabelText(/Calle y número/))
+    await user.type(screen.getByLabelText(/Calle y número/), ' A')
+    await user.click(screen.getByRole('button', { name: 'Atrás' }))
+    expect(document.activeElement).toBe(screen.getByLabelText(/Nombre completo/))
+    await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+    expect(screen.getByLabelText(/Calle y número/)).toHaveProperty('value', 'Calle 123 A')
+    await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ contact: savedContact, address: { ...savedAddress, address: 'Calle 123 A' } }))
+  })
+
+  it('opens authenticated Contact as focused read-only account information without updates', async () => {
+    const user = userEvent.setup()
+    const onCompleteProfilePhone = vi.fn()
+    render(<QueryClientProvider client={queryClient()}><StepData initialSection="contact" defaultValues={{ contact, address }} authenticatedUser={authenticatedUser} onSubmit={vi.fn()} onCompleteProfilePhone={onCompleteProfilePhone} /></QueryClientProvider>)
+
+    expect(document.activeElement).toBe(screen.getByRole('group', { name: 'Datos de contacto' }))
+    expect(screen.getByText('María González')).toBeDefined()
+    expect(screen.getByText(authenticatedUser.email)).toBeDefined()
+    expect(screen.getByText(authenticatedUser.phone!)).toBeDefined()
+    expect(screen.queryByRole('textbox')).toBeNull()
+    expect(screen.queryByText('Continuar como invitado')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Siguiente' }))
+    expect(screen.getByRole('group', { name: 'Dirección de envío' })).toBeDefined()
+    expect(document.activeElement).toBe(screen.getByLabelText(/Calle y número/))
+    expect(onCompleteProfilePhone).not.toHaveBeenCalled()
+  })
+
+  it('opens authenticated Address directly and submits account contact, not stale guest values', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    const onCompleteProfilePhone = vi.fn()
+    const savedAddress = { ...address, regionId: 13, regionName: 'Región Metropolitana', comunaId: 1, comunaName: 'Santiago', address: 'Calle 123' }
+    render(<QueryClientProvider client={queryClient()}><StepData initialSection="address" defaultValues={{ contact, address: savedAddress }} authenticatedUser={authenticatedUser} onSubmit={onSubmit} onCompleteProfilePhone={onCompleteProfilePhone} /></QueryClientProvider>)
+
+    expect(document.activeElement).toBe(screen.getByLabelText(/Calle y número/))
+    expect(screen.queryByRole('button', { name: 'Atrás' })).toBeNull()
+    await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ contact: { name: 'María González', email: authenticatedUser.email, phone: authenticatedUser.phone, isGuest: false }, address: savedAddress }))
+    expect(onCompleteProfilePhone).not.toHaveBeenCalled()
+  })
+
+  it.each(['contact', 'address'] as const)('does not bypass missing profile phone on %s edit', (initialSection) => {
+    render(<QueryClientProvider client={queryClient()}><StepData initialSection={initialSection} defaultValues={{ contact, address }} authenticatedUser={{ ...authenticatedUser, phone: null }} onSubmit={vi.fn()} onCompleteProfilePhone={vi.fn()} /></QueryClientProvider>)
+
+    expect(document.activeElement).toBe(screen.getByLabelText(/Teléfono/))
+    expect(screen.queryByLabelText(/Nombre completo/)).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Dirección de envío' })).toBeNull()
+  })
+
   it('collects only a missing authenticated phone then continues to the address', async () => {
     const user = userEvent.setup()
     const onCompleteProfilePhone = vi.fn().mockResolvedValue({ ...authenticatedUser, phone: '+56 9 1234 5678' })
