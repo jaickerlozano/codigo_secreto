@@ -7,8 +7,12 @@ API REST con Django y Django REST Framework para el eCommerce.
 The supported backend toolchain is Python 3.12.x plus Pipenv on either native
 Windows or WSL/Linux. `Pipfile.lock` is the authoritative installation input;
 `requirements.txt` is its pinned default-and-development compatibility export.
-Use a separate external Pipenv environment on each platform. Never reuse,
-activate, modify, or delete the tracked legacy `backend/env/` directory.
+Use the Windows-only project environment at `backend/.venv`; keep WSL/Linux
+in an independent external environment or separate checkout. Never share an
+environment between platforms. The legacy tracked `backend/env/` was removed;
+do not reuse or version virtualenv directories. Preserve any previous external
+Windows environment until the local replacement has passed validation;
+cleanup needs separate path-specific authorization.
 
 ### Install dependencies
 
@@ -16,25 +20,69 @@ PowerShell, from `backend/` (a bare `pipenv` command is not required):
 
 ```powershell
 $env:PIPENV_DONT_LOAD_ENV = "1"
-$env:PIPENV_VENV_IN_PROJECT = "0"
+$env:DJANGO_READ_DOTENV = "0"
+$env:PIPENV_VENV_IN_PROJECT = "1"
 $env:PIPENV_IGNORE_VIRTUALENVS = "1"
 py -3.12 -m pipenv sync --dev
 py -3.12 -m pipenv --venv
 ```
 
+Windows Git Bash, from `backend/`:
+
+```bash
+export PIPENV_DONT_LOAD_ENV=1 DJANGO_READ_DOTENV=0
+export PIPENV_VENV_IN_PROJECT=1 PIPENV_IGNORE_VIRTUALENVS=1
+py -3.12 -m pipenv sync --dev
+py -3.12 -m pipenv --venv
+```
+
+The Windows path must end in `backend\.venv`. `sync --dev` installs the
+unchanged lockfile; do not use `pipenv install`, bare `venv`/`pip install`, or
+regenerate the lock just to move the environment. `.venv` is ignored by Git.
+If Windows path limits prevent setup, retain the external environment and
+report the exact error; do not change system policy as a workaround.
+
 WSL/Linux Bash, from `backend/`:
 
 ```bash
-export PIPENV_DONT_LOAD_ENV=1
+export PIPENV_DONT_LOAD_ENV=1 DJANGO_READ_DOTENV=0
 export PIPENV_VENV_IN_PROJECT=0
 export PIPENV_IGNORE_VIRTUALENVS=1
 python3.12 -m pipenv sync --dev
 python3.12 -m pipenv --venv
 ```
 
-The reported environment path must be outside the repository. Dependency
-updates must start in `Pipfile`, regenerate `Pipfile.lock` with Python 3.12, and
-refresh `requirements.txt` from that lock so all three declarations agree.
+The WSL/Linux path must be outside the repository and must not select the
+Windows `.venv`. Keep `PIPENV_VENV_IN_PROJECT=0` for every WSL command in this
+checkout, including `pipenv run`; alternatively use a separate checkout with
+its own environment. Dependency updates must start in `Pipfile`, regenerate
+`Pipfile.lock` with Python 3.12, and refresh `requirements.txt` from that lock
+so all three declarations agree.
+
+### Activate on Windows (optional)
+
+Git Bash, from `backend/`:
+
+```bash
+source .venv/Scripts/activate
+python -c "import sys; print(sys.executable); print(sys.prefix)"
+```
+
+PowerShell, from `backend/`:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -c "import sys; print(sys.executable); print(sys.prefix)"
+```
+
+Both interpreter paths must point into `backend/.venv`. Do not change system
+execution policy if PowerShell blocks activation; use the guarded
+`py -3.12 -m pipenv run` commands instead. `deactivate` exits the environment.
+
+Activation only selects the interpreter. It does **not** set Django's runtime
+security profile or replace the dotenv guards. Set `DJANGO_SETTINGS_MODULE`,
+`DJANGO_READ_DOTENV`, and `PIPENV_DONT_LOAD_ENV` explicitly as below before any
+Django command; `pipenv run` does not replace these guards either.
 
 ### Run without dotenv loading
 
@@ -51,8 +99,18 @@ PowerShell:
 $env:DJANGO_SETTINGS_MODULE = "core.settings_local"
 $env:DJANGO_READ_DOTENV = "0"
 $env:PIPENV_DONT_LOAD_ENV = "1"
-$env:PIPENV_VENV_IN_PROJECT = "0"
+$env:PIPENV_VENV_IN_PROJECT = "1"
 $env:PIPENV_IGNORE_VIRTUALENVS = "1"
+py -3.12 -m pipenv run python manage.py check
+py -3.12 -m pipenv run python manage.py runserver
+```
+
+Windows Git Bash uses the same runtime guards, with the Windows environment:
+
+```bash
+export DJANGO_SETTINGS_MODULE=core.settings_local
+export DJANGO_READ_DOTENV=0 PIPENV_DONT_LOAD_ENV=1
+export PIPENV_VENV_IN_PROJECT=1 PIPENV_IGNORE_VIRTUALENVS=1
 py -3.12 -m pipenv run python manage.py check
 py -3.12 -m pipenv run python manage.py runserver
 ```
