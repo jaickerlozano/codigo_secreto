@@ -5,6 +5,7 @@ import { formatCLP } from '@/lib/format'
 import { formatDispatchDate } from '../../lib/shipping-selection'
 import { PAYMENT_OPTIONS } from '../../data'
 import type { CheckoutData, CheckoutStep, ShippingData } from '../../types'
+import type { DataSection } from './StepData'
 
 interface StepReviewProps {
   data: CheckoutData
@@ -14,7 +15,7 @@ interface StepReviewProps {
   quoteReady: boolean
   inventoryBlocked?: boolean
   inventoryMessage?: string | null
-  onEditStep: (step: CheckoutStep) => void
+  onEditStep: (step: CheckoutStep, section?: DataSection) => void
   onTermsChange: (accepted: boolean) => void
   onBack: () => void
   onConfirm: () => void
@@ -51,17 +52,18 @@ export function StepReview({
   const paymentLabel =
     PAYMENT_OPTIONS.find((p) => p.id === data.payment.method)?.name ?? '—'
 
-  const summaryItems = [
-    { label: 'Contacto', value: accountContact ?? data.contact.email, step: 1 as CheckoutStep },
+  const summaryItems: { label: string; value: string; step: CheckoutStep; section?: DataSection }[] = [
+    { label: 'Contacto', value: accountContact ?? data.contact.email, step: 1, section: 'contact' },
     {
       label: 'Dirección',
       value: data.address.address
         ? `${data.address.address}${data.address.apartment ? `, ${data.address.apartment}` : ''}, ${data.address.comunaName || '—'}, ${data.address.regionName || '—'}`
         : '—',
-      step: 1 as CheckoutStep,
+      step: 1,
+      section: 'address',
     },
-    { label: 'Envío', value: shippingLabel, step: 2 as CheckoutStep },
-    { label: 'Pago', value: paymentLabel, step: 3 as CheckoutStep },
+    { label: 'Envío', value: shippingLabel, step: 2 },
+    { label: 'Pago', value: paymentLabel, step: 3 },
   ]
 
   return (
@@ -71,7 +73,7 @@ export function StepReview({
       </h2>
 
       <div className="mb-6 space-y-3">
-        {summaryItems.map(({ label, value, step }) => (
+        {summaryItems.map(({ label, value, step, section }) => (
           <div
             key={label}
             className="flex items-start justify-between rounded-2xl bg-secondary p-4"
@@ -84,8 +86,9 @@ export function StepReview({
             </div>
             <button
               type="button"
-              onClick={() => onEditStep(step)}
-              className="shrink-0 rounded text-xs text-neon-magenta hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => onEditStep(step, section)}
+              aria-label={`Editar ${label}`}
+              className="inline-flex min-h-12 min-w-12 shrink-0 items-center justify-center rounded text-xs text-neon-magenta hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               Editar
             </button>

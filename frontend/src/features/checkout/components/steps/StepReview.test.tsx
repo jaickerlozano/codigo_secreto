@@ -13,15 +13,15 @@ function renderReview(onEditStep = vi.fn()) {
 }
 
 describe('StepReview review map (four-step frame)', () => {
-  it('maps Contacto and Dirección edits to the Data step (1)', async () => {
+  it('maps Contacto and Dirección to distinct subsections in Data (1)', async () => {
     const onEditStep = vi.fn()
     const user = userEvent.setup()
     renderReview(onEditStep)
 
-    await user.click(screen.getAllByRole('button', { name: 'Editar' })[0])
-    expect(onEditStep).toHaveBeenLastCalledWith(1)
-    await user.click(screen.getAllByRole('button', { name: 'Editar' })[1])
-    expect(onEditStep).toHaveBeenLastCalledWith(1)
+    await user.click(screen.getByRole('button', { name: 'Editar Contacto' }))
+    expect(onEditStep).toHaveBeenLastCalledWith(1, 'contact')
+    await user.click(screen.getByRole('button', { name: 'Editar Dirección' }))
+    expect(onEditStep).toHaveBeenLastCalledWith(1, 'address')
   })
 
   it('maps Envío to step 2 and Pago to step 3', async () => {
@@ -29,10 +29,10 @@ describe('StepReview review map (four-step frame)', () => {
     const user = userEvent.setup()
     renderReview(onEditStep)
 
-    await user.click(screen.getAllByRole('button', { name: 'Editar' })[2])
-    expect(onEditStep).toHaveBeenLastCalledWith(2)
-    await user.click(screen.getAllByRole('button', { name: 'Editar' })[3])
-    expect(onEditStep).toHaveBeenLastCalledWith(3)
+    await user.click(screen.getByRole('button', { name: 'Editar Envío' }))
+    expect(onEditStep).toHaveBeenLastCalledWith(2, undefined)
+    await user.click(screen.getByRole('button', { name: 'Editar Pago' }))
+    expect(onEditStep).toHaveBeenLastCalledWith(3, undefined)
   })
 
   it('shows the destination-based Envío label instead of a frontend carrier name', () => {

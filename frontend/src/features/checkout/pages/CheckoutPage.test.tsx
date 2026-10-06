@@ -1,5 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -375,6 +375,138 @@ describe('CheckoutPage', () => {
     expect(
       screen.getByRole('button', { name: 'Confirmar pedido' }),
     ).toHaveProperty('disabled', true)
+  })
+
+  describe('review edit journeys with the real checkout state hook', () => {
+    const savedData: CheckoutData = {
+      contact: { name: 'Juan Pérez', email: 'juan@example.com', phone: '+56 9 1234 5678', isGuest: true },
+      address: { regionId: 13, regionName: 'Región Metropolitana', comunaId: 1, comunaName: 'Santiago', address: 'Calle 123', apartment: '301', postalCode: '1234567', notes: 'Portería' },
+      shipping: { deliveryKind: 'standard', requestedDispatchDate: '2026-08-25' },
+      payment: { method: 'webpay' },
+      termsAccepted: true,
+    }
+
+    async function renderJourney(authenticated: boolean) {
+      const actual = await vi.importActual<typeof import('../hooks/useCheckout')>('../hooks/useCheckout')
+      let state!: UseCheckoutReturn
+      vi.mocked(useCheckout).mockImplementation(() => {
+        state = actual.useCheckout()
+        return state
+      })
+      vi.mocked(useAuth).mockReturnValue({
+        user: authenticated ? { id: 1, first_name: 'María', last_name: 'González', email: 'maria@example.com', rut: null, phone: '+56 9 1234 5678', is_admin: false } : null,
+        isAuthenticated: authenticated, isLoading: false, authError: null, retryAuth: vi.fn(),
+        isLoggingIn: false, loginError: null, login: vi.fn(), logout: vi.fn(),
+      })
+      vi.mocked(useCart).mockReturnValue({
+        mode: authenticated ? 'authenticated' : 'guest',
+        items: [{ product: { id: 1, name: 'Producto disponible', gradient: '', icon: '✦', availableStock: 2 }, quantity: 1 }],
+        isLoading: false, error: null, retry: vi.fn(), addItem: vi.fn(), addItemWithQuantity: vi.fn(), removeItem: vi.fn(), updateQuantity: vi.fn(), clearCart: vi.fn(), totalItems: 1,
+        subtotal: 1000, shippingCost: 3500, total: 4500, freeShippingProgress: 0, freeShippingThreshold: 0, hasShippingDestination: true,
+        quote: null, quoteInput: { items: [] }, quoteIsLoading: false, quoteIsError: false, quoteError: null, quoteIsStale: false, retryQuote: vi.fn(),
+      } as unknown as UseCartResult)
+      render(<QueryClientProvider client={queryClient()}><MemoryRouter><CheckoutPage /></MemoryRouter></QueryClientProvider>)
+      act(() => {
+        state.setContact(savedData.contact)
+        state.setAddress(savedData.address)
+        state.setShipping(savedData.shipping)
+        state.setPayment(savedData.payment)
+        state.setTermsAccepted(true)
+        state.goToStep(4)
+      })
+      await waitFor(() => expect(useCart).toHaveBeenLastCalledWith({ comunaId: 1 }))
+      return { user: userEvent.setup(), state: () => state }
+    }
+
+    it.each([false, true])('retains data and clears repeated edit intent before normal Back/progression (authenticated=%s)', async (authenticated) => {
+      const { user, state } = await renderJourney(authenticated)
+      const next = () => user.click(screen.getByRole('button', { name: /Siguiente/ }))
+      const finishToReview = async () => {
+        await screen.findByRole('radio', { name: /25 de agosto/ })
+        await waitFor(() => expect(screen.getByRole('button', { name: /Siguiente/ })).toHaveProperty('disabled', false))
+        await next()
+        await next()
+        expect(screen.getByRole('heading', { name: 'Revisar y confirmar' })).toBeDefined()
+      }
+      const scrollTo = vi.mocked(window.scrollTo)
+      scrollTo.mockClear()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Dirección' }))
+      expect(state().currentStep).toBe(1)
+      expect(screen.queryByRole('group', { name: 'Datos de contacto' })).toBeNull()
+      expect(document.activeElement).toBe(screen.getByLabelText(/Calle y número/))
+      expect(screen.getByLabelText(/Calle y número/)).toHaveProperty('value', savedData.address.address)
+      expect(screen.getByLabelText(/Depto/)).toHaveProperty('value', savedData.address.apartment)
+      expect(screen.getByLabelText(/Notas/)).toHaveProperty('value', savedData.address.notes)
+      expect(scrollTo).toHaveBeenCalledOnce()
+      await next()
+      expect(state().data.shipping).toEqual(savedData.shipping)
+      await finishToReview()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Contacto' }))
+      const contactGroup = screen.getByRole('group', { name: 'Datos de contacto' })
+      expect(state().currentStep).toBe(1)
+      if (authenticated) {
+        expect(document.activeElement).toBe(contactGroup)
+        expect(screen.getByText('maria@example.com')).toBeDefined()
+        expect(screen.queryByRole('textbox')).toBeNull()
+      } else {
+        expect(document.activeElement).toBe(screen.getByLabelText(/Nombre completo/))
+        expect(screen.getByLabelText(/Email/)).toHaveProperty('value', savedData.contact.email)
+        await user.type(screen.getByLabelText(/Nombre completo/), ' Editado')
+      }
+      await next()
+      expect(document.activeElement).toBe(screen.getByLabelText(/Calle y número/))
+      await next()
+      await user.click(screen.getByRole('button', { name: 'Atrás' }))
+      // Normal Back chooses the original default, not the most recent edit.
+      expect(screen.getByRole('group', { name: authenticated ? 'Dirección de envío' : 'Datos de contacto' })).toBeDefined()
+      if (!authenticated) {
+        expect(screen.getByLabelText(/Nombre completo/)).toHaveProperty('value', 'Juan Pérez Editado')
+        await next()
+      }
+      expect(screen.getByLabelText(/Calle y número/)).toHaveProperty('value', savedData.address.address)
+      await next()
+      await finishToReview()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Dirección' }))
+      expect(document.activeElement).toBe(screen.getByLabelText(/Calle y número/))
+      await next()
+      await user.click(screen.getByRole('button', { name: 'Atrás' }))
+      expect(screen.getByRole('group', { name: authenticated ? 'Dirección de envío' : 'Datos de contacto' })).toBeDefined()
+      if (!authenticated) await next()
+      await next()
+      await finishToReview()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Envío' }))
+      expect(state().currentStep).toBe(2)
+      expect(screen.getByRole('group', { name: 'Envío' })).toBeDefined()
+      await finishToReview()
+      await user.click(screen.getByRole('button', { name: 'Editar Pago' }))
+      expect(state().currentStep).toBe(3)
+      expect(screen.getByRole('group', { name: 'Método de pago' })).toBeDefined()
+      expect(screen.getByRole('radio', { name: /Webpay/ })).toHaveProperty('checked', true)
+      expect(state().data.termsAccepted).toBe(true)
+      expect(useCreateOrder().mutate).not.toHaveBeenCalled()
+      expect(useInitiatePayment().mutate).not.toHaveBeenCalled()
+    })
+
+    it('preserves destination/quote invalidation when an edited address changes comuna', async () => {
+      const { user, state } = await renderJourney(false)
+      await user.click(screen.getByRole('button', { name: 'Editar Dirección' }))
+      const comuna = screen.getByLabelText(/Comuna/)
+      await waitFor(() => expect(comuna).toHaveProperty('disabled', false))
+      await user.click(comuna)
+      await user.click(await screen.findByRole('option', { name: 'Providencia' }))
+      await user.click(screen.getByRole('button', { name: /Siguiente/ }))
+
+      expect(state().data.address.comunaId).toBe(2)
+      expect(state().data.contact).toEqual(savedData.contact)
+      expect(state().data.shipping).toEqual({})
+      expect(state().data.payment).toEqual(savedData.payment)
+      expect(useCart).toHaveBeenLastCalledWith({ comunaId: 2 })
+      expect(state().currentStep).toBe(2)
+    })
   })
 
   it('waits for auth resolution instead of flashing guest checkout controls', () => {
