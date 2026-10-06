@@ -14,7 +14,7 @@ Monorepo del eCommerce de bienestar íntimo para Chile. Incluye catálogo de pro
 
 Use the same major-version contract on native Windows and WSL/Linux:
 
-- Python 3.12.x with Pipenv (separate external environment per platform)
+- Python 3.12.x with Pipenv (Windows: `backend/.venv`; WSL/Linux: separate external environment)
 - Node.js 22.x LTS
 - pnpm 10.x
 - Docker Desktop 4.x with Docker Compose v2
@@ -27,6 +27,32 @@ invoke Pipenv as `py -3.12 -m pipenv` rather than assuming it is on `PATH`.
 ## Inicio rápido
 
 ### Backend
+
+On Windows Git Bash, install the locked dependencies and activate from `backend/`:
+
+```bash
+cd backend
+export PIPENV_DONT_LOAD_ENV=1 DJANGO_READ_DOTENV=0
+export PIPENV_VENV_IN_PROJECT=1 PIPENV_IGNORE_VIRTUALENVS=1
+py -3.12 -m pipenv sync --dev
+source .venv/Scripts/activate
+python -c "import sys; print(sys.executable); print(sys.prefix)"
+```
+
+Both paths must point into `backend/.venv`. In PowerShell, set the same guards
+with `$env:NAME = "value"`, then use `py -3.12 -m pipenv sync --dev` and
+`.\.venv\Scripts\Activate.ps1` from `backend/`. Complete PowerShell commands
+are in [the backend guide](backend/README.md#install-dependencies).
+
+This is a Windows-only environment. Retain the existing external Windows
+environment; no cleanup is required. WSL/Linux must use
+`PIPENV_VENV_IN_PROJECT=0` with its own external environment, or a separate
+checkout/environment; never activate or select the Windows `.venv`.
+
+Activation selects Python; it does not select safe Django settings. Keep both
+dotenv guards and explicitly set `DJANGO_SETTINGS_MODULE=core.settings_local`
+before running Django, as shown in the backend guide. Do not use default
+settings as an activation check.
 
 Use the explicit read-only/offline local profile. It disables dotenv loading,
 connects only to loopback PostgreSQL, and routes transactional email only to the
