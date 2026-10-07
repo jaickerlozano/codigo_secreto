@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { components } from '@/api/schema.d.ts'
 
 import { useOrders } from '../hooks/useOrders'
+import { PendingOrderActions } from '../components/PendingOrderActions'
 import { formatOrderDate, formatOrderTotal, getOrderStatusLabel, getOrderTrackingHref, parseNewOrderParam } from '../lib/mappers'
 
 type Order = components['schemas']['Order']
@@ -64,9 +65,10 @@ export function OrdersPage() {
                         <p className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Número de pedido</p>
                         <p className="font-mono text-lg font-extrabold text-foreground">{order.order_number}</p>
                       </div>
-                      <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold ${badgeClass(order.status)}`}>{getOrderStatusLabel(order.status)}</span>
+                      <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold ${badgeClass(order.status)}`}>{getOrderStatusLabel(order.status, order.cancellation_reason)}</span>
                     </div>
                     <p className="mb-4 text-sm text-foreground">{formatOrderDate(order.created_at)} · <span className="font-semibold">{formatOrderTotal(order.total)}</span></p>
+                    {order.status === 'PENDING' && <PendingOrderActions key={order.order_number} order={order} />}
                     <Link to={getOrderTrackingHref(order.order_number)} className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-neon-cyan/40 px-4 py-2 text-sm font-bold uppercase tracking-wide text-neon-cyan transition-all hover:border-neon-cyan hover:bg-neon-cyan/8 focus-visible:ring-2 focus-visible:ring-neon-cyan"><Truck size={16} aria-hidden="true" /> Rastrear pedido</Link>
                   </article>
                 </li>

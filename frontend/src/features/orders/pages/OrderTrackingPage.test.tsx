@@ -57,6 +57,8 @@ describe('OrderTrackingPage', () => {
     expect(await screen.findByText('CS-123456')).toBeDefined()
     expect(screen.getByText('Vibrador de prueba')).toBeDefined()
     expect(screen.getByText('Pendiente de pago')).toBeDefined()
+    expect(screen.getByRole('link', { name: 'Continuar pago' }).getAttribute('href')).toBe('/checkout/payment/CS-123456')
+    expect(screen.getByRole('button', { name: 'Cancelar pedido' })).toBeDefined()
     expect(screen.getByText('Av. Providencia 1234')).toBeDefined()
   })
 
@@ -87,6 +89,37 @@ describe('OrderTrackingPage', () => {
 
     expect(await screen.findByText('CS-123456')).toBeDefined()
     expect(screen.getByText('Vibrador de prueba')).toBeDefined()
+  })
+
+  it('invalidates recovery caches after successful guest email-ticket exchange', async () => {
+    const client = queryClient()
+    client.setQueryData(['pending-order', 0], null)
+    client.setQueryData(['orders', 1], { results: [] })
+    server.use(http.get('http://localhost:8000/api/auth/me/', () => new HttpResponse(null, { status: 401 })))
+    const router = createMemoryRouter([{ path: '/order/:orderId', element: <OrderTrackingPage /> }], { initialEntries: ['/order/CS-123456#access=synthetic-ticket'] })
+    render(<QueryClientProvider client={client}><AuthProvider><RouterProvider router={router} /></AuthProvider></QueryClientProvider>)
+    expect(await screen.findByRole('link', { name: 'Continuar pago' })).toBeDefined()
+    expect(client.getQueryState(['pending-order', 0])?.isInvalidated).toBe(true)
+    expect(client.getQueryState(['orders', 1])?.isInvalidated).toBe(true)
+  })
+
+  it.each([401, 429])('does not offer actions when email-ticket exchange fails (%s)', async status => {
+    server.use(http.post('http://localhost:8000/api/orders/by-order-number/CS-123456/access/', () => HttpResponse.json({ detail: 'Enlace no válido' }, { status })))
+    const router = createMemoryRouter([{ path: '/order/:orderId', element: <OrderTrackingPage /> }], { initialEntries: ['/order/CS-123456#access=synthetic-ticket'] })
+    render(<RouterProvider router={router} />, { wrapper: Wrapper })
+    expect(await screen.findByRole('heading', { name: 'Pedido no encontrado' })).toBeDefined()
+    expect(screen.queryByRole('link', { name: 'Continuar pago' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).toBeNull()
+  })
+
+  it('shows expiry reason without payment/cancellation actions', async () => {
+    server.use(http.get('http://localhost:8000/api/orders/by-order-number/:orderNumber/', () => HttpResponse.json({ ...testOrder, status: 'CANCELLED', cancellation_reason: 'EXPIRED' })))
+    const router = createMemoryRouter([{ path: '/order/:orderId', element: <OrderTrackingPage /> }], { initialEntries: ['/order/CS-123456'] })
+    render(<RouterProvider router={router} />, { wrapper: Wrapper })
+    expect(await screen.findByText('Vencido — plazo de pago vencido')).toBeDefined()
+    expect(screen.getAllByText('Vencido').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('link', { name: 'Continuar pago' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).toBeNull()
   })
 
   it('shows the requested dispatch date without inventing an estimated delivery date', async () => {

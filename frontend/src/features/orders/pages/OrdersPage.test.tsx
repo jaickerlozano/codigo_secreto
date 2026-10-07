@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { queryClient } from '@/lib/query-client'
 import { server } from '@/test/setup'
+import { testOrder } from '@/test/handlers/orders'
 
 import { OrdersPage } from './OrdersPage'
 
@@ -35,6 +36,21 @@ describe('OrdersPage', () => {
     expect(await screen.findByText('Pagado / Listo para despacho')).toBeDefined()
     expect(screen.getByText('Enviado a destino')).toBeDefined()
     expect(screen.getByText('Pendiente de pago')).toBeDefined()
+  })
+
+  it('offers same-order payment and explicit cancellation only on the pending order', async () => {
+    render(<OrdersPage />, { wrapper: Wrapper })
+    const link = await screen.findByRole('link', { name: 'Continuar pago' })
+    expect(link.getAttribute('href')).toBe('/checkout/payment/CS-1003')
+    expect(screen.getAllByRole('button', { name: 'Cancelar pedido' })).toHaveLength(1)
+  })
+
+  it('labels quiet expiry as Vencido rather than manual Cancelado', async () => {
+    server.use(http.get('http://localhost:8000/api/orders/', () => HttpResponse.json({ count: 1, next: null, previous: null, results: [{ ...testOrder, status: 'CANCELLED', cancellation_reason: 'EXPIRED' }] })))
+    render(<OrdersPage />, { wrapper: Wrapper })
+    expect(await screen.findByText('Vencido')).toBeDefined()
+    expect(screen.queryByRole('link', { name: 'Continuar pago' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).toBeNull()
   })
 
   it('shows an accessible empty state for an empty list', async () => {
