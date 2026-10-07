@@ -77,7 +77,41 @@ export function extractErrorMessage(
   return fallback
 }
 
+async function prepareCsrf(): Promise<void> {
+  const { response } = await apiClient.GET('/api/auth/csrf/')
+  if (!response.ok) throw new Error('No se pudo preparar el pago seguro. Inténtalo de nuevo.')
+}
+
+export async function prepareCheckoutContext(): Promise<void> {
+  await prepareCsrf()
+  const { response } = await apiClient.POST('/api/orders/checkout-context/')
+  if (response.status !== 204) {
+    throw new OrderCreationError('No se pudo preparar el pago seguro. Inténtalo de nuevo.', response.status)
+  }
+}
+
+export async function getPendingOrder(signal?: AbortSignal): Promise<Order | null> {
+  const { data, error, response } = await apiClient.GET('/api/orders/pending/', { signal })
+  if (response.status === 204) return null
+  if (error || !data || !response.ok) {
+    throw new Error(extractErrorMessage(error, 'No pudimos consultar tu pedido pendiente.'))
+  }
+  return data
+}
+
+export async function cancelOrder(orderNumber: string): Promise<Order> {
+  await prepareCsrf()
+  const { data, error, response } = await apiClient.POST('/api/orders/by-order-number/{order_number}/cancel/', {
+    params: { path: { order_number: orderNumber } },
+  })
+  if (error || !data || !response.ok) {
+    throw new OrderCreationError(extractErrorMessage(error, 'No se pudo cancelar el pedido.'), response.status)
+  }
+  return data
+}
+
 export async function createOrder(input: CreateOrderInput): Promise<Order> {
+  await prepareCheckoutContext()
   const { data, error, response } = await apiClient.POST('/api/orders/', {
     body: input,
   })

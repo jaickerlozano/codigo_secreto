@@ -38,4 +38,15 @@ describe('useCreateOrder', () => {
     expect(result.current.data?.order_number).toBeDefined()
     expect(result.current.data?.order_number).toMatch(/^CS-\d{6}$/)
   })
+
+  it('invalidates recovery, history/detail, availability and cart/quote data after creation', async () => {
+    const client = queryClient()
+    const keys = ['pending-order', 'orders', 'order', 'products', 'product', 'cart', 'guest-quote', 'dispatch-options']
+    keys.forEach(key => client.setQueryData([key], null))
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    const { result } = renderHook(() => useCreateOrder(), { wrapper })
+    act(() => result.current.mutate(guestPayload))
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    keys.forEach(key => expect(client.getQueryState([key])?.isInvalidated).toBe(true))
+  })
 })

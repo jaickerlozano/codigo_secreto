@@ -20,8 +20,8 @@ export function parseNewOrderParam(params: URLSearchParams): string | undefined 
   return raw
 }
 
-export function getOrderStatusLabel(status: OrderStatus): string {
-  return STATUS_LABELS[status]
+export function getOrderStatusLabel(status: OrderStatus, reason?: components['schemas']['Order']['cancellation_reason']): string {
+  return status === 'CANCELLED' && reason === 'EXPIRED' ? 'Vencido' : STATUS_LABELS[status]
 }
 
 export function formatOrderDate(isoDate: string): string {
