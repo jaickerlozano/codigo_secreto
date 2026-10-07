@@ -1,6 +1,6 @@
 import { Link, useLocation, useParams } from 'react-router'
 import { motion } from 'motion/react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ErrorBoundary } from 'react-error-boundary'
 import {
   ArrowLeft,
@@ -21,17 +21,12 @@ import { useOrder } from '../hooks/useOrder'
 import { OrderTimeline, type TimelineStep } from '../components/OrderTimeline'
 import { exchangeOrderAccessFromLocation } from '../api/orders.api'
 import { ErrorFallback } from '@/components/ui/ErrorFallback'
+import { PendingOrderActions } from '../components/PendingOrderActions'
+import { getOrderStatusLabel } from '../lib/mappers'
+import { invalidateOrderWorkflow } from '../lib/pending-order'
 
 type OrderStatus = components['schemas']['OrderStatusEnum']
 type PaymentMethod = components['schemas']['Order']['payment_method']
-
-const STATUS_LABELS: Record<OrderStatus, string> = {
-  PENDING: 'Pendiente de pago',
-  PAID: 'Pagado / Listo para despacho',
-  SHIPPED: 'Enviado a destino',
-  DELIVERED: 'Entregado',
-  CANCELLED: 'Cancelado',
-}
 
 const PAYMENT_METHOD_LABELS: Record<NonNullable<PaymentMethod>, string> = {
   webpay: 'Webpay / Tarjeta bancaria',
@@ -53,6 +48,7 @@ function buildTimeline(
   createdAt: string,
   carrier: string,
   trackingNumber: string | null,
+  cancellationReason: components['schemas']['Order']['cancellation_reason'],
 ): TimelineStep[] {
   const cancelled = status === 'CANCELLED'
 
@@ -96,8 +92,8 @@ function buildTimeline(
   if (cancelled) {
     steps.push({
       id: 'cancelled',
-      title: 'Cancelado',
-      description: 'Este pedido fue cancelado.',
+      title: getOrderStatusLabel(status, cancellationReason),
+      description: cancellationReason === 'EXPIRED' ? 'El plazo de pago de este pedido venció.' : 'Este pedido fue cancelado.',
       completed: true,
       current: true,
     })
@@ -118,14 +114,14 @@ function OrderTrackingContent() {
   const { orderId: paramOrderId } = useParams<{ orderId: string }>()
   const location = useLocation()
   const orderNumber = paramOrderId || undefined
+  const queryClient = useQueryClient()
   const accessQuery = useQuery({
     queryKey: ['order-access', orderNumber, location.hash],
-    queryFn: () =>
-      exchangeOrderAccessFromLocation(
-        orderNumber!,
-        location,
-        globalThis.history,
-      ),
+    queryFn: async () => {
+      const exchanged = await exchangeOrderAccessFromLocation(orderNumber!, location, globalThis.history)
+      if (exchanged) await invalidateOrderWorkflow(queryClient)
+      return exchanged
+    },
     enabled: Boolean(orderNumber && location.hash),
     retry: false,
   })
@@ -202,6 +198,7 @@ function OrderTrackingContent() {
     order.created_at,
     order.carrier,
     order.tracking_number,
+    order.cancellation_reason,
   )
 
   return (
@@ -226,6 +223,8 @@ function OrderTrackingContent() {
             {order.order_number}
           </p>
         </motion.div>
+
+        {(order.status === 'PENDING' || order.status === 'CANCELLED') && <PendingOrderActions key={order.order_number} order={order} />}
 
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <motion.section
@@ -338,7 +337,7 @@ function OrderTrackingContent() {
                   : 'No especificado'}
               </p>
               <p className="text-xs text-muted-foreground">
-                {STATUS_LABELS[order.status]}
+                {getOrderStatusLabel(order.status, order.cancellation_reason)}
               </p>
             </motion.div>
 

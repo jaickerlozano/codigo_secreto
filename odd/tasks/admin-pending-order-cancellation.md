@@ -22,7 +22,7 @@ One delegated writer for admin/template/test edits; test-first remains disabled 
 - [x] AC-1: Map existing cancellation and confirm operator/pending-only scope.
 - [x] AC-2: Expose detail cancellation with confirmation, permissions, safe state handling and tests.
 - [x] AC-3: Run isolated Django checks/tests and independent verification as assessed; record gaps.
-- [ ] AC-4a: Save the authorized local behavior commit; commit identity is recorded in the final session checkpoint.
+- [x] AC-4a: Saved local behavior commit `a6eca1a39fc53865b8d1d9930d36b0765f91a93a` (397 diff lines including this task); later reason/email additions are in `4b6e9c9`.
 - [ ] AC-4b: Push/PR/merge only after a future separate authorization.
 
 ## Acceptance and verification
@@ -42,4 +42,4 @@ One delegated writer for admin/template/test edits; test-first remains disabled 
 User explicitly authorized local commits only to continue in a new session. The Admin index boundary excludes later reason/email changes; isolated index-projection tests verify the behavior against its actual staged dependencies. Working-tree source stays byte-for-byte unchanged. Fresh index export: isolated `python -m pytest -q apps/orders/tests/test_admin.py apps/orders/tests/test_inventory_cancellation.py` passed 17 tests in 3.99 seconds. Runtime boundary uses Django TestClient confirmation/CSRF/permissions/locked release; no live admin action. Rollback removes only Admin detail/template/test behavior. No push/PR/merge authority follows.
 
 ## Next step and limitations
-User confirmed local Admin cancellation succeeds; cancellation email is implemented and tracked separately in `cancelled-order-notification.md`. Browser/assistive-technology and real PostgreSQL concurrency checks were not performed by the agent. Existing bulk/customer callers still assume an inventory reservation; graceful missing-reservation handling is detail-route-only. No agent-initiated order/payment actions or commit/push; AC-4 requires fresh authorization. The separately approved follow-up applied only notification-event migrations 0011/0012 to local PostgreSQL.
+User confirmed local Admin cancellation succeeds; cancellation email is implemented and tracked separately in `cancelled-order-notification.md`. Browser/assistive-technology and real PostgreSQL concurrency checks were not performed by the agent. Existing bulk/customer callers still assume an inventory reservation; graceful missing-reservation handling is detail-route-only. No agent-initiated live order/payment actions. The explicitly authorized local commit is saved; push/PR/merge still require fresh authorization. Baseline SHA-256 comparison confirms all source and foreign files byte-identical; only the three authorized task documents changed during checkpointing. The separately approved follow-up applied only notification-event migrations 0011/0012 to local PostgreSQL.
