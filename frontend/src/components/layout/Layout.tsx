@@ -2,6 +2,7 @@ import { Outlet } from 'react-router'
 
 import { CartDrawer } from '@/features/cart'
 import { useCategories } from '@/features/catalog'
+import { PendingOrderNotice } from '@/features/orders/components/PendingOrderNotice'
 import { useScrollToTopOnNavigate } from '@/hooks/useScrollToTopOnNavigate'
 
 import { AgeGate } from './AgeGate'
@@ -25,6 +26,7 @@ export function Layout() {
       </a>
 
       <Header categories={categories ?? []} />
+      <PendingOrderNotice />
 
       <CartDrawer />
 
