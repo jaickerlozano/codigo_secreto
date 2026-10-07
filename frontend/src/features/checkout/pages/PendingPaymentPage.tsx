@@ -6,6 +6,8 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { formatCLP } from '@/lib/format'
 import { useOrder } from '@/features/orders/hooks/useOrder'
+import { PendingOrderActions } from '@/features/orders/components/PendingOrderActions'
+import { getPaymentHoldState, invalidateOrderWorkflow, usePaymentHoldState } from '@/features/orders/lib/pending-order'
 import { approvePayment, clampPollIntervalSeconds, initiatePayment, isSpecialDeliveryAgreementError } from '../api/payments.api'
 import { PAYMENT_OPTIONS } from '../data'
 
@@ -22,6 +24,8 @@ export function PendingPaymentPage() {
   const isDev = import.meta.env.MODE !== 'production'
   const [online, setOnline] = useState(() => navigator.onLine)
   const [wasBlocked, setWasBlocked] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const hold = usePaymentHoldState(order)
 
   const agreement = isSpecialDeliveryAgreementError(initiate.error) ? initiate.error : null
   const gateBlocked = order?.delivery_gate_status === 'blocked'
@@ -47,17 +51,20 @@ export function PendingPaymentPage() {
   // pending: polls at the backend-provided interval (clamped), and stops as
   // soon as the agreement resolves, the gate opens, or the page unmounts.
   useEffect(() => {
-    if (!agreement || !gateBlocked || order?.status !== 'PENDING') return
+    if (!agreement || !gateBlocked || hold !== 'active') return
     const seconds = clampPollIntervalSeconds(agreement.pollAfterSeconds)
     const id = window.setInterval(() => {
       void refetch()
     }, seconds * 1000)
     return () => window.clearInterval(id)
-  }, [agreement, gateBlocked, order?.status, refetch])
+  }, [agreement, gateBlocked, hold, refetch])
 
   useEffect(() => {
-    if (order && order.status !== 'PENDING') navigate(`/confirmation/${orderNumber}`, { replace: true })
-  }, [navigate, order, orderNumber])
+    if (order?.status === 'PAID' || order?.status === 'SHIPPED' || order?.status === 'DELIVERED') {
+      void invalidateOrderWorkflow(queryClient)
+      navigate(`/confirmation/${orderNumber}`, { replace: true })
+    }
+  }, [navigate, order?.status, orderNumber, queryClient])
 
   if (isLoading) return <main id="main-content" className="flex min-h-screen items-center justify-center px-4 py-16"><LoadingSpinner /></main>
 
@@ -79,8 +86,8 @@ export function PendingPaymentPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-neon-cyan/25 bg-neon-cyan/10"><CheckCircle2 size={26} className="text-neon-cyan" aria-hidden="true" /></div>
-          <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">Pago pendiente</h1>
-          <p className="text-sm leading-relaxed text-muted-foreground">Tu pedido está guardado y espera el pago. No se creará ningún duplicado al reintentar.</p>
+          <h1 className="mb-2 text-2xl font-extrabold uppercase tracking-wide text-foreground">{order.status === 'CANCELLED' ? (order.cancellation_reason === 'EXPIRED' ? 'Pedido vencido' : 'Pedido cancelado') : 'Pago pendiente'}</h1>
+          {order.status === 'PENDING' && <p className="text-sm leading-relaxed text-muted-foreground">Tu pedido está guardado y espera el pago. No se creará ningún duplicado al reintentar.</p>}
         </div>
         <div className="mb-5 space-y-3 rounded-2xl border border-white/[0.06] bg-card p-5">
           <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Número de pedido</span><span className="font-mono font-bold text-foreground">{order.order_number}</span></div>
@@ -88,11 +95,13 @@ export function PendingPaymentPage() {
           <div className="flex items-center justify-between text-sm"><span className="text-muted-foreground">Método</span><span className="font-semibold text-foreground">{methodName}</span></div>
         </div>
 
-        <div className="mb-5 flex items-start gap-3 rounded-2xl border border-neon-cyan/20 bg-neon-cyan/10 p-4"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-neon-cyan" aria-hidden="true" /><p className="text-xs leading-relaxed text-neon-cyan">Pago <strong>simulado</strong> — disponible solo en desarrollo para validar la compra.</p></div>
+        <PendingOrderActions order={order} showContinue={false} paymentBusy={initiate.isPending || approve.isPending} onCancellationPending={setCancelling} />
+
+        {hold === 'active' && <div className="mb-5 flex items-start gap-3 rounded-2xl border border-neon-cyan/20 bg-neon-cyan/10 p-4"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-neon-cyan" aria-hidden="true" /><p className="text-xs leading-relaxed text-neon-cyan">Pago <strong>simulado</strong> — disponible solo en desarrollo para validar la compra.</p></div>}
 
         {!online && <div className="mb-5 flex items-start gap-3 rounded-2xl border border-white/10 bg-secondary p-4" role="status"><WifiOff size={14} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" /><p className="text-xs text-muted-foreground">Sin conexión a internet. Revisa tu conexión y vuelve a intentarlo.</p></div>}
 
-        {gateBlocked && agreement && (
+        {hold === 'active' && gateBlocked && agreement && (
           <div className="mb-5 space-y-3 rounded-2xl border border-neon-magenta/20 bg-neon-magenta/10 p-4" role="status">
             <div className="flex items-start gap-3">
               <MessageCircle size={14} className="mt-0.5 shrink-0 text-neon-magenta" aria-hidden="true" />
@@ -106,25 +115,31 @@ export function PendingPaymentPage() {
           </div>
         )}
 
-        {gateBlocked && !agreement && (
+        {hold === 'active' && gateBlocked && !agreement && (
           <div className="mb-5 flex items-start gap-3 rounded-2xl border border-neon-magenta/20 bg-neon-magenta/10 p-4" role="status">
             <MessageCircle size={14} className="mt-0.5 shrink-0 text-neon-magenta" aria-hidden="true" />
             <p className="text-xs leading-relaxed text-foreground">Este pedido requiere coordinar la entrega especial antes del pago. Intenta continuar para ver las instrucciones.</p>
           </div>
         )}
 
-        {gateReady && wasBlocked && <div className="mb-5 flex items-start gap-3 rounded-2xl border border-neon-lime/25 bg-neon-lime/10 p-4" role="status"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-neon-lime" aria-hidden="true" /><p className="text-xs leading-relaxed text-foreground">Acuerdo registrado. Ya puedes continuar con el pago.</p></div>}
+        {hold === 'active' && gateReady && wasBlocked && <div className="mb-5 flex items-start gap-3 rounded-2xl border border-neon-lime/25 bg-neon-lime/10 p-4" role="status"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-neon-lime" aria-hidden="true" /><p className="text-xs leading-relaxed text-foreground">Acuerdo registrado. Ya puedes continuar con el pago.</p></div>}
 
-        {(!gateBlocked || !agreement) && isDev && (transactionId === null ? (
-          <button type="button" style={{ background: 'var(--gradient-brand)' }} disabled={!online || initiate.isPending} onClick={() => initiate.mutate({ order_id: order.id }, { onSuccess: (result) => setTransactionId(result.transaction_id), onError: () => void refetch() })} className={primaryClass}>
+        {hold === 'active' && (!gateBlocked || !agreement) && isDev && (transactionId === null ? (
+          <button type="button" style={{ background: 'var(--gradient-brand)' }} disabled={!online || cancelling || initiate.isPending} onClick={() => {
+            if (getPaymentHoldState(order) !== 'active') return
+            initiate.mutate({ order_id: order.id }, { onSuccess: (result) => setTransactionId(result.transaction_id), onError: () => void invalidateOrderWorkflow(queryClient) })
+          }} className={primaryClass}>
             {initiate.isPending && <Loader2 size={15} aria-hidden="true" className="animate-spin" />} Continuar pago
           </button>
         ) : (
-          <button type="button" style={{ background: 'var(--gradient-brand)' }} disabled={!online || approve.isPending} onClick={() => approve.mutate(transactionId, { onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['order', orderNumber] }), onError: () => void refetch() })} className={primaryClass}>
+          <button type="button" style={{ background: 'var(--gradient-brand)' }} disabled={!online || cancelling || approve.isPending} onClick={() => {
+            if (getPaymentHoldState(order) !== 'active') return
+            approve.mutate(transactionId, { onSuccess: () => void invalidateOrderWorkflow(queryClient), onError: () => void invalidateOrderWorkflow(queryClient) })
+          }} className={primaryClass}>
             {approve.isPending ? <Loader2 size={15} aria-hidden="true" className="animate-spin" /> : <Lock size={15} aria-hidden="true" />} Aprobar pago (simulado)
           </button>
         ))}
-        {!isDev && !gateBlocked && <div className="mb-5 flex items-start gap-3 rounded-2xl bg-secondary p-4" role="status"><ShieldAlert size={14} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" /><p className="text-xs text-muted-foreground">La aprobación simulada no está disponible en este entorno.</p></div>}
+        {hold === 'active' && !isDev && !gateBlocked && <div className="mb-5 flex items-start gap-3 rounded-2xl bg-secondary p-4" role="status"><ShieldAlert size={14} className="mt-0.5 shrink-0 text-muted-foreground" aria-hidden="true" /><p className="text-xs text-muted-foreground">La aprobación simulada no está disponible en este entorno.</p></div>}
         {failure && <p className="mb-5 flex items-center gap-1.5 text-xs text-destructive" role="alert"><AlertCircle size={11} aria-hidden="true" /> {failure.message}</p>}
         <Link to="/" className="block w-full rounded-xl border border-white/10 py-3.5 text-center text-sm font-bold uppercase tracking-wide text-muted-foreground transition-all hover:border-white/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Volver al inicio</Link>
       </div>

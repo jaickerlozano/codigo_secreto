@@ -94,6 +94,8 @@ User explicitly authorized local commits only. One dependency-aware pass found t
 
 - B: global discreet pending notice plus accessible inline cancellation (focus/Escape/double-submit/409). Rollback removes only shared notice/actions and Layout wiring. 313 source diff lines; fresh index export passed 18 tests/2 files in 27.17 seconds plus TypeScript/Vite build (1162 modules). TestClient/MSW/browser evidence is synthetic, not live cancellation.
 
+- C: recover the same payment route and block duplicate checkout confirmation while preserving four steps/drafts. Rollback only checkout/payment recovery wiring. 217 source diff lines; fresh index export passed 28 tests/2 files in 19.69 seconds plus TypeScript/Vite build (1164 modules). Existing act(...) test logs are non-failing warnings; no real checkout/payment.
+
 ## Next step and live limitations
 User freshly authorized only `orders.0013_order_cancellation_reason` (AddField) and `orders.0014_pending_payment_receipt` (two AlterField) on `codigo_secreto`, `127.0.0.1:5432`. The read-only preflight verified the actual database, read-only mode, applied 0011/0012 prerequisites and exact two-migration forward plan. A separate write-enabled process reverified target/plan/operations, applied only those migrations through Django's executor and confirmed that history gained exactly those two entries. The new column is varchar(10), NOT NULL. A fresh read-only connection confirmed both applied and no remaining plan to 0014. No post-migrate domain callbacks, other migrations or customer-data queries were executed.
 

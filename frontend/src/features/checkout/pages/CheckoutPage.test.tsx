@@ -3,6 +3,9 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { http, HttpResponse, delay } from 'msw'
+import { server } from '@/test/setup'
+import { testOrder } from '@/test/handlers/orders'
 
 import { useCart, type UseCartResult } from '@/features/cart'
 import { useAuth } from '@/features/auth'
@@ -506,6 +509,92 @@ describe('CheckoutPage', () => {
       expect(state().data.payment).toEqual(savedData.payment)
       expect(useCart).toHaveBeenLastCalledWith({ comunaId: 2 })
       expect(state().currentStep).toBe(2)
+    })
+  })
+
+  describe('pending-order resolution before another confirmation', () => {
+    function renderReview() {
+      const state = checkoutState({ currentStep: 4, data: {
+        ...checkoutData,
+        address: { regionId: 13, regionName: 'Región Metropolitana', comunaId: 1, comunaName: 'Santiago', address: 'Nueva dirección 456' },
+      } })
+      vi.mocked(useCheckout).mockReturnValue(state)
+      vi.mocked(useAuth).mockReturnValue({ user: null, isAuthenticated: false, isLoading: false, authError: null, retryAuth: vi.fn(), isLoggingIn: false, loginError: null, login: vi.fn(), logout: vi.fn() })
+      const clearCart = vi.fn()
+      vi.mocked(useCart).mockReturnValue({
+        mode: 'guest', items: [{ product: { id: 1, name: 'Producto disponible', gradient: '', icon: '✦', availableStock: 2 }, quantity: 1 }],
+        isLoading: false, error: null, retry: vi.fn(), addItem: vi.fn(), addItemWithQuantity: vi.fn(), removeItem: vi.fn(), updateQuantity: vi.fn(), clearCart, totalItems: 1,
+        subtotal: 1000, shippingCost: 3500, total: 4500, freeShippingProgress: 0, freeShippingThreshold: 0, hasShippingDestination: true,
+        quote: { items: [], subtotal: 1000, shipping_cost: 3500, total: 4500, revision: 'gq.synthetic' }, quoteInput: { items: [{ product_id: 1, quantity: 1 }], comuna: 1 },
+        quoteIsLoading: false, quoteIsError: false, quoteError: null, quoteIsStale: false, retryQuote: vi.fn(),
+      } as unknown as UseCartResult)
+      render(<QueryClientProvider client={queryClient()}><MemoryRouter initialEntries={['/checkout']}><Routes>
+        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/checkout/payment/:orderNumber" element={<p>Pago del pedido existente</p>} />
+      </Routes></MemoryRouter></QueryClientProvider>)
+      return { user: userEvent.setup(), state, clearCart }
+    }
+
+    it('blocks while discovery is unresolved, then permits normal creation after 204', async () => {
+      server.use(http.get('http://localhost:8000/api/orders/pending/', async () => { await delay(80); return new HttpResponse(null, { status: 204 }) }))
+      const { user } = renderReview()
+      const confirm = screen.getByRole('button', { name: 'Confirmar pedido' })
+      expect(confirm).toHaveProperty('disabled', true)
+      expect(screen.getByRole('status', { name: 'Buscando pedido pendiente' })).toBeDefined()
+      await waitFor(() => expect(confirm).toHaveProperty('disabled', false))
+      await user.click(confirm)
+      expect(useCreateOrder().mutate).toHaveBeenCalledOnce()
+    })
+
+    it('requires an explicit same-order choice and never creates on Continue with changed draft intent', async () => {
+      server.use(http.get('http://localhost:8000/api/orders/pending/', () => HttpResponse.json(testOrder)))
+      const { user, state, clearCart } = renderReview()
+      const link = await screen.findByRole('link', { name: 'Continuar pago' })
+      expect(link.getAttribute('href')).toBe(`/checkout/payment/${testOrder.order_number}`)
+      expect(screen.getByRole('button', { name: 'Confirmar pedido' })).toHaveProperty('disabled', true)
+      expect(screen.getByText(/Tus cambios de este checkout no se aplicarán/)).toBeDefined()
+      expect(state.setContact).not.toHaveBeenCalled()
+      expect(state.setShipping).not.toHaveBeenCalled()
+      expect(clearCart).not.toHaveBeenCalled()
+      await user.click(link)
+      expect(screen.getByText('Pago del pedido existente')).toBeDefined()
+      expect(useCreateOrder().mutate).not.toHaveBeenCalled()
+      expect(useInitiatePayment().mutate).not.toHaveBeenCalled()
+    })
+
+    it('blocks on discovery error and permits confirmation only after explicit retry resolves absence', async () => {
+      let fail = true
+      server.use(http.get('http://localhost:8000/api/orders/pending/', () => fail ? HttpResponse.json({ detail: 'No disponible' }, { status: 500 }) : new HttpResponse(null, { status: 204 })))
+      const { user } = renderReview()
+      expect(await screen.findByRole('alert')).toBeDefined()
+      expect(screen.getByRole('button', { name: 'Confirmar pedido' })).toHaveProperty('disabled', true)
+      fail = false
+      await user.click(screen.getByRole('button', { name: 'Reintentar consulta' }))
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar pedido' })).toHaveProperty('disabled', false))
+      expect(useCreateOrder().mutate).not.toHaveBeenCalled()
+    })
+
+    it('shows cancellation and keeps drafts/cart; another order still needs a new explicit confirmation', async () => {
+      let order: typeof testOrder | null = { ...testOrder, order_number: 'CS-CHECKOUT' }
+      server.use(
+        http.get('http://localhost:8000/api/orders/pending/', () => order ? HttpResponse.json(order) : new HttpResponse(null, { status: 204 })),
+        http.post('http://localhost:8000/api/orders/by-order-number/CS-CHECKOUT/cancel/', () => {
+          const cancelled = { ...order!, status: 'CANCELLED' as const, cancellation_reason: 'BUYER' as const }
+          order = null
+          return HttpResponse.json(cancelled)
+        }),
+      )
+      const { user, clearCart } = renderReview()
+      await user.click(await screen.findByRole('button', { name: 'Cancelar pedido' }))
+      await user.click(screen.getByRole('button', { name: 'Sí, cancelar pedido' }))
+      expect(await screen.findByText('Cancelado')).toBeDefined()
+      expect(screen.getByRole('button', { name: 'Ver carrito' })).toBeDefined()
+      expect(screen.getByText('Nueva dirección 456, Santiago, Región Metropolitana')).toBeDefined()
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Confirmar pedido' })).toHaveProperty('disabled', false))
+      expect(useCreateOrder().mutate).not.toHaveBeenCalled()
+      expect(clearCart).not.toHaveBeenCalled()
+      await user.click(screen.getByRole('button', { name: 'Confirmar pedido' }))
+      expect(useCreateOrder().mutate).toHaveBeenCalledOnce()
     })
   })
 

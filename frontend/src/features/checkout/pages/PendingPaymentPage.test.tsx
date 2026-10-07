@@ -150,6 +150,49 @@ describe('PendingPaymentPage', () => {
     await new Promise((resolve) => setTimeout(resolve, 5600))
     expect(orderGets).toBe(getsAtRecovery)
   }, 15000)
+  it.each([
+    { status: 'CANCELLED' as const, cancellation_reason: 'BUYER' as const },
+    { status: 'CANCELLED' as const, cancellation_reason: 'EXPIRED' as const },
+    { payment_expires_at: '2000-01-01T00:00:00Z' },
+    { payment_expires_at: null },
+  ])('never initiates/approves payment for a terminal or invalid hold: %j', async overrides => {
+    const initiate = vi.fn()
+    const approve = vi.fn()
+    server.use(
+      http.get(orderUrl('CS-INVALID'), () => HttpResponse.json(pending('CS-INVALID', overrides))),
+      http.post(initiateUrl, initiate),
+      http.post('http://localhost:8000/api/payments/7/mock-approve/', approve),
+    )
+    setup('/checkout/payment/CS-INVALID', { transactionId: 7 })
+    await screen.findByText('CS-INVALID')
+    expect(screen.queryByRole('button', { name: 'Continuar pago' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Aprobar pago (simulado)' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cancelar pedido' })).toBeNull()
+    expect(initiate).not.toHaveBeenCalled()
+    expect(approve).not.toHaveBeenCalled()
+    expect(useCartStore.getState().items).toHaveLength(1)
+  })
+  it('offers explicit cancellation on the payment page without automatic recreation', async () => {
+    let order = pending('CS-CANCEL')
+    const create = vi.fn()
+    server.use(
+      http.get(orderUrl('CS-CANCEL'), () => HttpResponse.json(order)),
+      http.post('http://localhost:8000/api/orders/by-order-number/CS-CANCEL/cancel/', () => {
+        order = { ...order, status: 'CANCELLED', cancellation_reason: 'BUYER' }
+        return HttpResponse.json(order)
+      }),
+      http.post('http://localhost:8000/api/orders/', create),
+    )
+    const user = setup('/checkout/payment/CS-CANCEL', { transactionId: 7 })
+    await user.click(await screen.findByRole('button', { name: 'Cancelar pedido' }))
+    await user.click(screen.getByRole('button', { name: 'Sí, cancelar pedido' }))
+    expect(await screen.findByRole('heading', { name: 'Pedido cancelado' })).toBeDefined()
+    expect(screen.getByText('Cancelado')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Ver carrito' })).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Aprobar pago (simulado)' })).toBeNull()
+    expect(create).not.toHaveBeenCalled()
+    expect(useCartStore.getState().items).toHaveLength(1)
+  })
   it('shows an offline notice and disables payment actions while offline', async () => {
     Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
     window.dispatchEvent(new Event('offline'))
