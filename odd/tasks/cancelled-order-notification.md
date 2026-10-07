@@ -18,14 +18,14 @@ Subject states the order number was cancelled. Body confirms cancellation and th
 - Preserve existing WIP and unrelated bytecode/.codegraph/recovery tasks; parent owns ODD task docs.
 
 ## Work units and budget
-New email slice forecast 100–250 changed lines, separate from prior Admin cancellation unit (352 source/test lines + task document). Preserve user-selected `stacked-to-main` delivery strategy for future small review slices; no delivery now authorized. Strict TDD remains disabled per session; ordinary deterministic checks mandatory.
+New email slice forecast 100–250 changed lines, separate from prior Admin cancellation unit (352 source/test lines + task document). Preserve user-selected `stacked-to-main` delivery strategy for future small review slices; no remote delivery authorized; the later local checkpoint permission is recorded below. Strict TDD remains disabled per session; ordinary deterministic checks mandatory.
 
 ## Tasks
 - [x] CN-1: Map notification pipeline and specify neutral notice and recipient policy.
 - [x] CN-2: Add event/subject/body/service scheduling, migration and focused regression coverage.
 - [x] CN-3: Verify with Django runner and pytest, migration drift and independent assessment fallback as required.
 - [x] CN-4: Apply explicitly authorized local migrations 0011 (pending prerequisite) and 0012; verify exact target and history.
-- [ ] CN-5a: Save the freshly authorized local notification/reason commit.
+- [x] CN-5a: Saved local notification/reason commit `4b6e9c994cbd3911d21208141ab0a9849aae34eb` (352 diff lines including task evidence).
 - [ ] CN-5b: Push/PR/merge only after future separate authorization.
 
 ## Verification and acceptance
@@ -41,4 +41,4 @@ Tests: successful cancellation for guest/auth recipients, after-commit only, uni
 The user authorized local commits only. This unit includes the trusted BUYER/ADMIN reason field and migration 0013 alongside cancellation event 0012 because the final cancellation regressions verify those reasons. Pending receipt/SKIPPED and expiry/context/recovery stay in the following coupled unit. Rollback boundary: manual cancellation notice/reason policy and its tests/migrations; preserve the Admin confirmation unit. Fresh isolated index projection: `python -m pytest -q apps/orders/tests/test_cancellation_notifications.py apps/orders/tests/test_inventory_cancellation.py apps/orders/tests/test_migrations.py` passed 25 tests in 6.03 seconds. Runtime verification uses locmem and Django/API test clients, never real SMTP/orders.
 
 ## Next step and limitations
-User tests a new pending-order cancellation and checks local Mailpit at http://localhost:8025. Existing cancelled orders are not backfilled. Agent did not send real emails or cancel orders; tests used locmem. Live SMTP/Mailpit, browser and PostgreSQL concurrency checks remain unperformed. CN-5 commit/push awaits fresh authorization; all prior Admin/checkout and unrelated local WIP preserved.
+User tests a new pending-order cancellation and checks local Mailpit at http://localhost:8025. Existing cancelled orders are not backfilled. Agent did not send real emails or cancel orders; tests used locmem. Live SMTP/Mailpit, browser and PostgreSQL concurrency checks remain unperformed. Local CN-5a is complete; CN-5b push/PR/merge remains unauthorized. All prior Admin/checkout and unrelated local WIP are preserved. The final source and foreign file hashes match the pre-checkpoint baseline.

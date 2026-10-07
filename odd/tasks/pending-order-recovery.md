@@ -4,7 +4,7 @@
 User approved the proposed full flow: customers recover the same unpaid order instead of recreating it; explicit cancellation is self-service; abandoned orders expire without requiring customer contact. Authenticated and guest buyers supported. Pending receipt with secure recovery link; no cancellation email for expiry. Paid cancellations/refunds remain excluded.
 
 ## Existing evidence
-Confirmation creates a 15-minute ACTIVE inventory hold, not physical-stock deduction. Payment commits physical stock. Availability ignores expired holds, but orders may remain PENDING. Existing payment URL and payment initiation support resume; orders/tracking lack recovery actions and guest navigation lacks discovery. Frontend creation does not use backend checkout_key idempotency. Signed guest_order_access cookie already carries number/version/expiry and covers `/`; guest cart has no backend identity. Guest replay currently rotates capabilities; avoid breaking recovery on retries. Existing Admin cancellation and cancellation-email work is uncommitted; notification choices migrations 0011/0012 are already applied locally.
+Confirmation creates a 15-minute ACTIVE inventory hold, not physical-stock deduction. Payment commits physical stock. Availability ignores expired holds, but orders may remain PENDING. Existing payment URL and payment initiation support resume; orders/tracking lack recovery actions and guest navigation lacks discovery. Frontend creation does not use backend checkout_key idempotency. Signed guest_order_access cookie already carries number/version/expiry and covers `/`; guest cart has no backend identity. Guest replay currently rotates capabilities; avoid breaking recovery on retries. At initial discovery, Admin cancellation and cancellation-email work was uncommitted; notification choices migrations 0011/0012 were already applied locally. The final local checkpoint is recorded below.
 
 ## Contract and security decisions
 - Backend issues a random signed HttpOnly checkout-attempt cookie before creation; no deterministic identity hash of email/cart. Stable for retries/reloads, actor-bound, protected expiry and signature. Neither tokens nor checkout session data go in localStorage/sessionStorage.
@@ -18,7 +18,7 @@ Confirmation creates a 15-minute ACTIVE inventory hold, not physical-stock deduc
 - Every API contract update precedes frontend usage: export backend/schema.yaml and regenerate frontend/src/api/schema.d.ts offline. No manual API interfaces or any.
 
 ## Work units and workload
-Strategy: user-selected stacked-to-main; expected new workflow roughly 900–1500 authored/generated diff lines. One honest slicing pass below; keep tests/docs with behavior, never compress or remove coverage for the advisory ~400-line target. If a cohesive slice exceeds it, report the smallest honest size rather than repeated reshaping. Prior Admin/cancelmail slices remain separate. No commit/push/PR/merge authorized now.
+Strategy: user-selected stacked-to-main; expected new workflow roughly 900–1500 authored/generated diff lines. One honest slicing pass below; keep tests/docs with behavior, never compress or remove coverage for the advisory ~400-line target. If a cohesive slice exceeds it, report the smallest honest size rather than repeated reshaping. Prior Admin/cancelmail slices remain separate. Initially no commit/push/PR/merge was authorized; later permission allows only the local checkpoints below, not remote delivery.
 
 | Unit | Behavior | Forecast |
 |---|---|---|
@@ -41,7 +41,7 @@ Dependency: existing checkout/Admin/mail → PR-1 → PR-2 → PR-3 → PR-5 →
 - [x] PR-6: Full isolated backend/frontend checks, independent verification and synthetic Chrome behavior checks.
 - [x] PR-7a: Apply only authorized local orders 0013/0014 and verify target, exact history additions and a fresh read-only empty plan.
 - [ ] PR-7b: Execute/activate expiry processing only after a future exact authorization; user explicitly deferred it.
-- [ ] PR-8a: Save freshly authorized local behavior commits and a session checkpoint.
+- [x] PR-8a: Saved seven freshly authorized local behavior commits plus this session checkpoint; see identities below.
 - [ ] PR-8b: Push/PR/merge only after future separate authorization.
 
 ## Verification and non-goals
@@ -49,7 +49,7 @@ Backend: existing .venv/Scripts/python.exe, PYTHONDONTWRITEBYTECODE=1 DJANGO_SET
 Frontend: LOCAL_NO_DOTENV=1, pnpm tests/build/check:schema with offline schema path; synthetic no-real-order browser only via named fresh Chrome CLI session and verified temporary profile. Preserve palette, 48px controls, keyboard focus, error/loading states and no pricing math. No real login/order/payment/email actions, .env/secret reads, resets/seeds, Docker operations, alias/profile edits or external environment deletion. App credentials remain opaque if separately authorized live migrations use standard Django settings; never print secrets.
 
 ## Final verification evidence
-Implementation and independent functional verification are complete. Local activation and delivery remain separate, unauthorized steps.
+Implementation and independent functional verification are complete. Exact local migrations and local-only commits were authorized/completed separately; expiry activation and remote delivery remain unauthorized.
 
 | Check | Observed result |
 |---|---|
@@ -73,7 +73,7 @@ A production preview built without `VITE_API_URL` intentionally fails the public
 Native ASSESS remains unavailable due untracked declarations. The required independent fallback is complete; no native approval receipt is claimed. Reviewed non-blocking observations: duplicate recovery CTA on `/checkout`, a render-time WeakMap update without a reproduced leak, and brief confirmation lockout during background refetch.
 
 ## Honest review slices
-Backend new workload approximately 1400 changed lines: PR-1 470, PR-2 375, PR-3 370, PR-5 185. PR-1's cohesive proof/intent/security-test slice exceeds the advisory target after one honest slicing pass.
+Pre-checkpoint backend estimates were approximately 1400 changed lines: PR-1 470, PR-2 375, PR-3 370, PR-5 185. These are planning estimates, not independently stageable PR claims: the dependency pass below found the actual coherent local core boundary is 1502 diff lines. Future remote review slicing remains unresolved/unauthorized; no size exception is implied.
 
 Frontend PR-4 is 1031 changed lines across 26 source/test files, excluding 98 generated-contract lines belonging with PR-2. One honest behavior split, with tests alongside code:
 
@@ -103,4 +103,24 @@ User freshly authorized only `orders.0013_order_cancellation_reason` (AddField) 
 
 User then explicitly selected **prepared, without execution** for expiry. `expire_pending_orders` runs one bounded batch by default; `--watch --interval 60 --batch-size 100` is an optional portable foreground process. Either execution can cancel existing due PENDING orders, so still requires a future separate exact approval. It does not cancel PAID orders, move physical stock, send expiry emails or install a machine scheduler. Expired holds already stop counting toward availability; terminal CANCELLED/EXPIRED records require processor execution. No live expiry, backfill or real order/payment/email test occurred.
 
-Work branch `feat/admin-pending-order-cancellation` remains at `5a98073`; no new commits, pushes, PRs or merges. PR-7b activation and PR-8 delivery remain open. For manual testing, start the usual local backend with its existing per-terminal write opt-in and the frontend development server; the owned synthetic test servers were closed.
+Work branch `feat/admin-pending-order-cancellation` now contains the local commits listed below, based on the previously published checkout boundary `5a98073`. No push, PR or merge was performed. `main` and `origin/main` remain `75a8321595dde3b1e18d597299f7d50625b279e8`. PR-7b activation and PR-8b remote delivery remain open. For manual testing, start the usual local backend with its existing per-terminal write opt-in and the frontend development server; the owned synthetic test servers were closed.
+
+## Local commit identities and continuation
+Base: `5a980735ad376a33458372f8adf59d2d6f2d7080`. Seven behavior commits follow in order; the final documentation checkpoint records this registry (eight local commits total). These are checkpoints, not published chained PRs or native-approved delivery receipts.
+
+| Commit | Behavior | Actual diff lines, including task evidence |
+|---|---|---|
+| `a6eca1a39fc53865b8d1d9930d36b0765f91a93a` | Admin detail cancellation | 397 |
+| `4b6e9c994cbd3911d21208141ab0a9849aae34eb` | Manual cancellation notice + trusted reasons/0012/0013 | 352 |
+| `ac1166f9621493d2142fd391736bfc64fb8e10ba` | Coupled private context/replay/recovery/quiet expiry/receipt/0014 + generated contracts | 1502 |
+| `511bd18d3edd58578eb86dfc8b6224337c7bf531` | Frontend API/domain/hooks A | 416 |
+| `9283111c5f472c57f222913674efc16b9b6b3e41` | Shared notice/cancellation B | 315 |
+| `86e0c88e35630a767d36a75e96db73266d2f2a7c` | Checkout/payment recovery C | 219 |
+| `8fc0358781e78442ad6e61a0199a7e2d196f9d97` | List/tracking recovery D | 90 |
+
+SHA-256 baseline checks over 67 initially changed/untracked files confirm all source, both foreign tracked pyc files and both restore tasks remain byte-identical. Only these three authorized task documents were edited during checkpointing. All 63 committed paths are explicitly scoped source/tests/contracts/task evidence; no secrets, .env, caches, node_modules, .codegraph, browser artifacts or restore tasks were staged. Final worktree intentionally retains only the two unrelated pyc changes, .codegraph and the two restore tasks; this is not a globally clean-worktree claim. Temporary index exports/build output remain outside the repository.
+
+**Recommended next-session phrase:**
+> Retoma Código Secreto desde Engram y `odd/tasks/pending-order-recovery.md`. Hay ocho commits locales sin push; migraciones 0013/0014 aplicadas y vencimiento inactivo. Revisemos los pendientes y definamos la próxima mejora, sin activar procesos ni publicar sin autorización.
+
+Next agent: read memory and the three task documents, inspect current Git status/branch before editing, preserve foreign changes and `.venv`/external environment, and ask what improvement the user wants. Future remote review must account for the actual 1502-line coupled core and 416-line A checkpoint rather than resurrecting the earlier optimistic slice forecasts. Expiry execution/watch/scheduler, real transactions/mail/login, remote delivery and deletion of the external venv each still require distinct authorization.
