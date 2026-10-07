@@ -56,7 +56,7 @@ class OrderAdmin(admin.ModelAdmin):
         'guest_access_digest', 'guest_access_issued_at', 'guest_access_expires_at',
         'guest_access_revoked_at', 'guest_access_version',
         # Campos de ciclo de vida: solo cambian mediante la acción de despacho
-        'status', 'dispatched_at', 'delivered_at',
+        'status', 'cancellation_reason', 'dispatched_at', 'delivered_at',
     )
     actions = (
         'revoke_guest_access', 'rotate_guest_access', 'cancel_pending_orders',
@@ -88,7 +88,7 @@ class OrderAdmin(admin.ModelAdmin):
         if request.method == "POST" and "_confirm_cancel" in request.POST:
             try:
                 with transaction.atomic():
-                    cancelled = cancel_pending_order(order_id=order.pk)
+                    cancelled = cancel_pending_order(order_id=order.pk, reason='ADMIN')
                     self.log_change(request, cancelled, "Pedido pendiente cancelado; reserva liberada.")
             except Order.DoesNotExist as error:
                 raise Http404 from error
@@ -216,7 +216,7 @@ class OrderAdmin(admin.ModelAdmin):
         cancelled = 0
         for order in queryset:
             try:
-                cancel_pending_order(order_id=order.id)
+                cancel_pending_order(order_id=order.id, reason='ADMIN')
                 cancelled += 1
             except PendingCancellationError:
                 continue

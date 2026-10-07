@@ -144,6 +144,8 @@ class AdminDetailInventoryCancellationTests(TestCase):
         log = LogEntry.objects.get(object_id=str(order.pk))
         self.assertIn("Pedido pendiente cancelado", log.change_message)
         self.assertTrue(log.is_change())
+        delivery = apps.get_model("orders", "NotificationDelivery").objects.get(order=order)
+        self.assertEqual((delivery.event, delivery.status, delivery.attempts), ("cancelled", "PENDING", 0))
 
     def test_missing_reservation_reports_error_without_mutation_on_repeated_attempts(self):
         product = ProductFactory(current_stock=4)
@@ -184,6 +186,8 @@ class AdminDetailInventoryCancellationTests(TestCase):
         self.assertEqual((pending.status, self.Reservation.objects.get(order_id=pending.pk).status),
                          ("CANCELLED", "RELEASED"))
         self.assertEqual((paid.status, self.Reservation.objects.get(order_id=paid.pk).status), ("PAID", "ACTIVE"))
+        self.assertEqual(apps.get_model("orders", "NotificationDelivery").objects.get(order=pending).event, "cancelled")
+        self.assertFalse(apps.get_model("orders", "NotificationDelivery").objects.filter(order=paid).exists())
         for product in (pending_product, paid_product):
             product.refresh_from_db()
             self.assertEqual(product.current_stock, 4)

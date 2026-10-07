@@ -30,6 +30,12 @@ class Order(models.Model):
         ('CANCELLED', 'Cancelado / Anulado'),
     )
 
+    CANCELLATION_REASON_CHOICES = (
+        ('BUYER', 'Comprador'), ('ADMIN', 'Administración'), ('EXPIRED', 'Plazo expirado'),
+    )
+
+    cancellation_reason = models.CharField(max_length=10, blank=True, default='', choices=CANCELLATION_REASON_CHOICES)
+
     PAYMENT_METHOD_CHOICES = (
         ('webpay', 'Webpay'),
         ('flow', 'Flow'),
@@ -235,6 +241,7 @@ class NotificationDelivery(models.Model):
         ('payment_confirmation', 'Confirmación de Pago'),
         ('dispatch', 'Despacho del Pedido'),
         ('delivered', 'Entrega del Pedido'),
+        ('cancelled', 'Cancelación del Pedido'),
     )
     STATUS_CHOICES = (
         ('PENDING', 'Pendiente'),
