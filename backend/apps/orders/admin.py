@@ -1,7 +1,16 @@
 from django import forms
 from django.contrib import admin, messages
-from django.http import HttpResponseRedirect
+from django.contrib.admin.utils import quote, unquote
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.http import Http404, HttpResponseRedirect
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_http_methods
+
+from apps.products.services import InventoryReservationError
 
 from .models import NotificationDelivery, Order, OrderItem
 from .notifications import retry_delivery
@@ -54,7 +63,65 @@ class OrderAdmin(admin.ModelAdmin):
         'dispatch_orders', 'mark_orders_delivered',
     )
 
+    def get_urls(self):
+        return [
+            path(
+                "<path:object_id>/cancel/",
+                self.admin_site.admin_view(self.cancel_view),
+                name="orders_order_cancel",
+            ),
+        ] + super().get_urls()
+
+    @method_decorator(require_http_methods(["GET", "POST"]))
+    def cancel_view(self, request, object_id):
+        order = self.get_object(request, unquote(object_id))
+        if order is None:
+            raise Http404
+        if not self.has_change_permission(request, order):
+            raise PermissionDenied
+        change_url = reverse(
+            f"{self.admin_site.name}:orders_order_change", args=[quote(order.pk)]
+        )
+        if order.status != "PENDING":
+            self.message_user(request, "Solo se pueden cancelar pedidos pendientes de pago.", messages.ERROR)
+            return HttpResponseRedirect(change_url)
+        if request.method == "POST" and "_confirm_cancel" in request.POST:
+            try:
+                with transaction.atomic():
+                    cancelled = cancel_pending_order(order_id=order.pk)
+                    self.log_change(request, cancelled, "Pedido pendiente cancelado; reserva liberada.")
+            except Order.DoesNotExist as error:
+                raise Http404 from error
+            except PendingCancellationError:
+                self.message_user(
+                    request, "No se pudo cancelar: el pedido ya no está pendiente de pago.", messages.ERROR
+                )
+            except InventoryReservationError:
+                self.message_user(
+                    request,
+                    "No se pudo cancelar: la reserva de inventario es inconsistente. "
+                    "El pedido no fue modificado.",
+                    messages.ERROR,
+                )
+            else:
+                self.message_user(
+                    request, f"Pedido {cancelled.order_number} cancelado correctamente.", messages.SUCCESS
+                )
+            return HttpResponseRedirect(change_url)
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Cancelar pedido",
+            "opts": self.model._meta,
+            "original": order,
+            "change_url": change_url,
+        }
+        request.current_app = self.admin_site.name
+        return TemplateResponse(request, "admin/orders/order/cancel_confirmation.html", context)
+
     def render_change_form(self, request, context, add=False, change=False, form_url="", obj=None):
+        context["show_cancel_order"] = bool(
+            change and obj and obj.status == "PENDING" and self.has_change_permission(request, obj)
+        )
         context["show_save_and_dispatch"] = bool(
             change
             and obj
@@ -144,7 +211,7 @@ class OrderAdmin(admin.ModelAdmin):
         else:
             self.message_user(request, "No se seleccionaron pedidos.")
 
-    @admin.action(description="Cancel pending orders")
+    @admin.action(description="Cancelar pedidos pendientes")
     def cancel_pending_orders(self, request, queryset):
         cancelled = 0
         for order in queryset:
@@ -153,7 +220,7 @@ class OrderAdmin(admin.ModelAdmin):
                 cancelled += 1
             except PendingCancellationError:
                 continue
-        self.message_user(request, f"{cancelled} pending order(s) cancelled.")
+        self.message_user(request, f"{cancelled} pedido(s) pendiente(s) cancelado(s).")
 
     def buyer_display(self, obj):
         # Muestra el nombre real ya sea que compre un cliente registrado o un invitado

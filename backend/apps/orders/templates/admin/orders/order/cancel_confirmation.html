@@ -1,0 +1,28 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls static %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Inicio</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; <a href="{{ change_url }}">{{ original }}</a>
+  &rsaquo; Cancelar pedido
+</div>
+{% endblock %}
+
+{% block content %}
+<p>¿Confirmas la cancelación del pedido {{ original.order_number }}?</p>
+<p>Solo se cancelan pedidos pendientes de pago. Se liberará la reserva de inventario sin modificar el stock físico. Esta acción no realiza reembolsos.</p>
+<form method="post">{% csrf_token %}
+  <div class="submit-row">
+    <input type="submit" name="_confirm_cancel" value="Confirmar cancelación" class="default">
+    <a href="{{ change_url }}" class="button">Volver sin cancelar</a>
+  </div>
+</form>
+{% endblock %}

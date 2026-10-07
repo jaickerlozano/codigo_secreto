@@ -1,9 +1,13 @@
 from datetime import timedelta
 
 import pytest
+from django.apps import apps
+from django.contrib.admin.models import LogEntry
 from django.contrib.admin.sites import AdminSite
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.db import transaction
+from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -11,6 +15,8 @@ from rest_framework.test import APIClient
 from apps.authentication.tests.factories import UserFactory
 from apps.orders.admin import OrderAdmin
 from apps.orders.models import Order
+from apps.orders.tests.factories import OrderFactory, OrderItemFactory
+from apps.products.tests.factories import ProductFactory
 from apps.products.models import InventoryReservation, StockMovement
 from apps.products.services import ReservationLineInput, reserve
 
@@ -93,3 +99,92 @@ def test_admin_cancellation_releases_only_pending_orders(
     paid.refresh_from_db()
     assert (pending.status, InventoryReservation.objects.get(order_id=pending.id).status) == ("CANCELLED", "RELEASED")
     assert (paid.status, InventoryReservation.objects.get(order_id=paid.id).status) == ("PAID", "ACTIVE")
+
+
+class AdminDetailInventoryCancellationTests(TestCase):
+    def setUp(self):
+        self.client.force_login(UserFactory(is_staff=True, is_superuser=True))
+        self.Reservation = apps.get_model("products", "InventoryReservation")
+        self.Movement = apps.get_model("products", "StockMovement")
+
+    def reserved_order(self):
+        return _reserved_order(OrderFactory, OrderItemFactory, ProductFactory)
+
+    def test_confirmation_and_repeated_posts_release_once_without_stock_or_metadata_changes(self):
+        order, product = self.reserved_order()
+        cancel_url = reverse("admin:orders_order_cancel", args=[order.pk])
+        change_url = reverse("admin:orders_order_change", args=[order.pk])
+        original_metadata = (order.carrier, order.payment_method, order.guest_access_version)
+        response = self.client.get(cancel_url)
+        self.assertContains(response, "Confirmar cancelación")
+        self.assertContains(response, "Volver sin cancelar")
+        self.assertContains(response, 'method="post"')
+        order.refresh_from_db()
+        reservation = self.Reservation.objects.get(order_id=order.pk)
+        self.assertEqual((order.status, reservation.status), ("PENDING", "ACTIVE"))
+        self.assertFalse(LogEntry.objects.filter(object_id=str(order.pk)).exists())
+
+        response = self.client.post(cancel_url, {
+            "_confirm_cancel": "1", "carrier": "", "payment_method": "forged", "status": "PAID",
+        }, follow=True)
+        self.assertContains(response, "cancelado correctamente")
+        order.refresh_from_db()
+        reservation.refresh_from_db()
+        self.assertEqual((order.status, reservation.status, reservation.release_reason),
+                         ("CANCELLED", "RELEASED", "CANCELLED"))
+        self.assertEqual((order.carrier, order.payment_method, order.guest_access_version), original_metadata)
+        released_at = reservation.transitioned_at
+        self.assertIsNotNone(released_at)
+        self.assertRedirects(self.client.post(cancel_url, {"_confirm_cancel": "1"}), change_url)
+        reservation.refresh_from_db()
+        self.assertEqual(reservation.transitioned_at, released_at)
+        product.refresh_from_db()
+        self.assertEqual(product.current_stock, 4)
+        self.assertFalse(self.Movement.objects.filter(product=product).exists())
+        log = LogEntry.objects.get(object_id=str(order.pk))
+        self.assertIn("Pedido pendiente cancelado", log.change_message)
+        self.assertTrue(log.is_change())
+
+    def test_missing_reservation_reports_error_without_mutation_on_repeated_attempts(self):
+        product = ProductFactory(current_stock=4)
+        order = OrderFactory(status="PENDING")
+        OrderItemFactory(order=order, product=product, price=product.price)
+        original_updated_at = order.updated_at
+        cancel_url = reverse("admin:orders_order_cancel", args=[order.pk])
+        change_url = reverse("admin:orders_order_change", args=[order.pk])
+        self.assertContains(self.client.get(cancel_url), "Confirmar cancelación")
+
+        for attempt in range(2):
+            with self.subTest(attempt=attempt):
+                response = self.client.post(cancel_url, {"_confirm_cancel": "1"})
+                self.assertRedirects(response, change_url, fetch_redirect_response=False)
+                detail = self.client.get(change_url)
+                self.assertContains(detail, "la reserva de inventario es inconsistente")
+                self.assertContains(detail, "El pedido no fue modificado")
+                order.refresh_from_db()
+                product.refresh_from_db()
+                self.assertEqual((order.status, order.updated_at), ("PENDING", original_updated_at))
+                self.assertEqual(product.current_stock, 4)
+                self.assertFalse(self.Reservation.objects.filter(order_id=order.pk).exists())
+                self.assertFalse(self.Movement.objects.filter(product=product).exists())
+                self.assertFalse(LogEntry.objects.filter(object_id=str(order.pk)).exists())
+                self.assertFalse(apps.get_model("orders", "NotificationDelivery").objects.filter(order=order).exists())
+
+    def test_bulk_cancellation_still_releases_only_pending_reservations(self):
+        pending, pending_product = self.reserved_order()
+        paid, paid_product = self.reserved_order()
+        Order.objects.filter(pk=paid.pk).update(status="PAID")
+        response = self.client.post(reverse("admin:orders_order_changelist"), {
+            "action": "cancel_pending_orders", "_selected_action": [str(pending.pk), str(paid.pk)],
+            "index": "0", "select_across": "0",
+        }, follow=True)
+        self.assertContains(response, "1 pedido(s) pendiente(s) cancelado(s)")
+        pending.refresh_from_db()
+        paid.refresh_from_db()
+        self.assertEqual((pending.status, self.Reservation.objects.get(order_id=pending.pk).status),
+                         ("CANCELLED", "RELEASED"))
+        self.assertEqual((paid.status, self.Reservation.objects.get(order_id=paid.pk).status), ("PAID", "ACTIVE"))
+        for product in (pending_product, paid_product):
+            product.refresh_from_db()
+            self.assertEqual(product.current_stock, 4)
+            self.assertFalse(self.Movement.objects.filter(product=product).exists())
