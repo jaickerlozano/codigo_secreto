@@ -30,6 +30,7 @@ def test_order_throttle_reset_removes_prior_test_history(
 
     reset_order_throttle_cache()
 
+    assert authenticated_client.post('/api/orders/checkout-context/').status_code == 204
     response = authenticated_client.post(
         "/api/orders/",
         {

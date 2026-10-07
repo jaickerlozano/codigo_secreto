@@ -3,12 +3,14 @@ from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.authentication import SessionAuthentication
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, PolymorphicProxySerializer
 
 from apps.shipping.services import DeliveryValidationError, StaleDeliveryOptionError
 
 from .models import Order
+from .checkout_context import COOKIE_NAME, load_attempt, new_attempt, set_attempt_cookie
 from .serializers import (
     GuestQuoteResponseSerializer,
     OrderCreateSerializer,
@@ -25,11 +27,14 @@ from .services import (
     GuestQuoteValidationError,
     InsufficientAvailableStock,
     PendingCancellationError,
+    OrderExpiredError,
     authorize_order_access,
     authorize_order_email_access,
     cancel_pending_order,
     calculate_guest_quote,
     issue_guest_access_cookie,
+    recover_pending_order,
+    _verify_cookie,
 )
 
 
@@ -49,7 +54,7 @@ class OrderViewSet(mixins.CreateModelMixin,
         o consultar el estado de un pedido por su número de orden.
         Pero exige estar Autenticado para ver la lista de pedidos del historial.
         """
-        if self.action in ('create', 'by_order_number', 'access', 'cancel', 'quote'):
+        if self.action in ('create', 'by_order_number', 'access', 'cancel', 'quote', 'checkout_context', 'pending'):
             return [AllowAny()]
         return [IsAuthenticated()]
 
@@ -67,9 +72,10 @@ class OrderViewSet(mixins.CreateModelMixin,
     def get_queryset(self):
         # Los administradores ven todo. Los clientes registrados solo ven lo suyo.
         # Los invitados no tienen historial ejecutable por GET masivo.
+        queryset = Order.objects.select_related('comuna__region', 'user').prefetch_related('items')
         if self.request.user.is_staff:
-            return Order.objects.all()
-        return Order.objects.filter(user=self.request.user)
+            return queryset
+        return queryset.filter(user=self.request.user)
 
     @extend_schema(
         request=OrderCreateSerializer,
@@ -82,11 +88,15 @@ class OrderViewSet(mixins.CreateModelMixin,
                 description="Clave de idempotencia del checkout (máx. 64 caracteres).",
             ),
         ],
-        responses={201: OrderSerializer, 400: QuoteRevisionStaleSerializer, 409: QuoteErrorSerializer},
+        responses={201: OrderSerializer, 400: PolymorphicProxySerializer(
+            component_name='CheckoutValidationError',
+            serializers=[QuoteRevisionStaleSerializer, QuoteErrorSerializer], resource_type_field_name=None,
+        ), 409: QuoteErrorSerializer},
     )
     def create(self, request, *args, **kwargs):
         try:
-            return super().create(request, *args, **kwargs)
+            response = super().create(request, *args, **kwargs)
+            return self._restore_guest_cookie(response, self._created_order)
         except GuestQuoteRevisionStale as error:
             return Response({
                 'code': 'quote_revision_stale',
@@ -95,6 +105,8 @@ class OrderViewSet(mixins.CreateModelMixin,
                     error.quote.as_dict()
                 ).data,
             }, status=status.HTTP_400_BAD_REQUEST)
+        except OrderExpiredError:
+            return Response({'code': 'order_expired', 'detail': 'The payment deadline has expired.'}, status=status.HTTP_409_CONFLICT)
         except CheckoutKeyConflictError:
             return Response({
                 'code': 'checkout_key_conflict',
@@ -115,6 +127,47 @@ class OrderViewSet(mixins.CreateModelMixin,
                 'code': 'delivery_schedule_ineligible',
                 'detail': str(error),
             }, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(request=None, responses={204: None, 403: OpenApiResponse(description='CSRF verification failed.')})
+    @action(detail=False, methods=['post'], url_path='checkout-context')
+    def checkout_context(self, request):
+        # DRF's ordinary CSRF check only protects authenticated sessions.
+        # This endpoint also needs it for anonymous browser attempts.
+        SessionAuthentication().enforce_csrf(request)
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        key = load_attempt(request.COOKIES.get(COOKIE_NAME), request.user)
+        terminal = key and Order.objects.filter(checkout_key=key).exclude(status='PENDING').exists()
+        if not key or terminal:
+            set_attempt_cookie(response, new_attempt(request.user))
+        return response
+
+    @extend_schema(request=None, responses={200: OrderSerializer, 204: None})
+    @action(detail=False, methods=['get'], url_path='pending')
+    def pending(self, request):
+        order = recover_pending_order(user=request.user,
+            attempt_key=load_attempt(request.COOKIES.get(COOKIE_NAME), request.user),
+            access_cookie=request.COOKIES.get(GUEST_ACCESS_COOKIE_NAME))
+        if order is None:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return self._restore_guest_cookie(Response(self.get_serializer(order).data), order)
+
+    def perform_create(self, serializer):
+        self._created_order = serializer.save()
+
+    def _restore_guest_cookie(self, response, order):
+        if order.user_id is not None:
+            return response
+        existing = self.request.COOKIES.get(GUEST_ACCESS_COOKIE_NAME)
+        if existing and _verify_cookie(order, existing):
+            return response
+        cookie_value = issue_guest_access_cookie(order)
+        if cookie_value and not order.guest_access_revoked_at:
+            simple_jwt = getattr(settings, 'SIMPLE_JWT', {})
+            response.set_cookie(GUEST_ACCESS_COOKIE_NAME, cookie_value,
+                max_age=GUEST_ACCESS_COOKIE_MAX_AGE, httponly=True,
+                secure=getattr(settings, 'GUEST_ORDER_ACCESS_COOKIE_SECURE', simple_jwt.get('JWT_COOKIE_SECURE', False)),
+                samesite=getattr(settings, 'GUEST_ORDER_ACCESS_COOKIE_SAMESITE', 'Strict'), path='/')
+        return response
 
     @extend_schema(
         request=QuoteSerializer,

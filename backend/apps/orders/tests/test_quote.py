@@ -17,7 +17,9 @@ from apps.orders.services import (
 from apps.shipping.services import future_dispatch_dates
 from apps.shipping.tests.factories import RegionFactory, RegionalShippingOptionFactory
 
-pytestmark = pytest.mark.django_db
+from .test_checkout_context import prepared_context
+
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures('prepared_context')]
 
 
 def items(*pairs):

@@ -3,6 +3,7 @@ from datetime import timedelta
 
 import pytest
 from django.core.cache import cache
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -137,13 +138,14 @@ def test_auth_race_replay_resolves_or_conflicts(
                              price=1000, quantity=2)
 
     delivery = DeliverySnapshot("standard", None, "Chilexpress", 3000)
-    assert _race_replay_auth(KEY, user.id, comuna.id, cart.items.all(), delivery).id == winner.id
-    with pytest.raises(CheckoutKeyConflictError):
-        _race_replay_auth(KEY, UserFactory.create().id, comuna.id, cart.items.all(), delivery)
+    with transaction.atomic():
+        assert _race_replay_auth(KEY, user.id, comuna.id, cart.items.all(), delivery).id == winner.id
+        with pytest.raises(CheckoutKeyConflictError):
+            _race_replay_auth(KEY, UserFactory.create().id, comuna.id, cart.items.all(), delivery)
     assert Order.objects.count() == 1
 
 
-def test_guest_replay_returns_same_order_and_rotates_capability(api_client, product_factory, comuna_factory):
+def test_guest_replay_returns_same_order_without_rotating_capability(api_client, product_factory, comuna_factory):
     """A retry with the same key and purchase intent returns the existing order."""
     product = product_factory(price=1000, current_stock=10)
     comuna = comuna_factory(shipping_cost=3000)
@@ -157,10 +159,12 @@ def test_guest_replay_returns_same_order_and_rotates_capability(api_client, prod
     assert order.checkout_key == KEY
     assert Order.objects.count() == 1 and order.items.count() == 1 and order.items.get().quantity == 2
     assert InventoryReservation.objects.filter(order_id=order.id).count() == 1
-    first_token, second_token = first.json()["guest_access"]["token"], second.json()["guest_access"]["token"]
-    assert second_token != first_token and order.guest_access_version == 2
-    assert order.guest_access_digest == hashlib.sha256(second_token.encode()).hexdigest()
-    assert not order.verify_guest_access(first_token)
+    first_token = first.json()['guest_access']['token']
+    assert second.json()['guest_access'] is None and order.guest_access_version == 1
+    assert order.guest_access_digest == hashlib.sha256(first_token.encode()).hexdigest()
+    assert order.verify_guest_access(first_token)
+    assert 'guest_order_access' not in second.cookies
+    assert api_client.cookies['guest_order_access'].value == first.cookies['guest_order_access'].value
 
 
 def test_guest_replay_with_stale_revision_returns_frozen_order(api_client, product_factory, comuna_factory):
@@ -236,7 +240,7 @@ def test_checkout_reserves_atomically_and_rejects_unavailable_inventory(
     assert Order.objects.count() == InventoryReservation.objects.count() == 1
 
 
-def test_expired_key_retains_failed_order_then_replaces_after_revalidation(
+def test_expired_key_stays_terminal_without_silent_replacement(
         authenticated_client, cart_factory, cart_item_factory, product_factory, user, comuna_factory):
     cart = cart_factory(user=user)
     product = product_factory(price=1000, current_stock=1, supplier__phone="56912345678")
@@ -263,8 +267,7 @@ def test_expired_key_retains_failed_order_then_replaces_after_revalidation(
     replacement = _post(authenticated_client, payload, KEY)
 
     old.refresh_from_db()
-    new = Order.objects.get(id=replacement.json()["id"])
-    assert replacement.status_code == status.HTTP_201_CREATED
-    assert (old.status, old.checkout_key) == ("CANCELLED", None)
-    assert new.id != old.id and new.checkout_key == KEY
-    assert InventoryReservation.objects.get(order_id=new.id).status == "ACTIVE"
+    assert replacement.status_code == status.HTTP_409_CONFLICT
+    assert replacement.json()['code'] == 'order_expired'
+    assert (old.status, old.checkout_key, old.cancellation_reason) == ('CANCELLED', KEY, 'EXPIRED')
+    assert Order.objects.count() == InventoryReservation.objects.count() == 1

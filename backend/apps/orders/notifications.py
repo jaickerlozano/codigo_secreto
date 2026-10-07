@@ -13,7 +13,7 @@ from .models import NotificationDelivery
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EVENTS = frozenset({"payment_confirmation", "dispatch", "delivered", "cancelled"})
+SUPPORTED_EVENTS = frozenset({"payment_confirmation", "dispatch", "delivered", "cancelled", "pending_payment_receipt"})
 RETRY_DELAY_MINUTES = (15, 60, 240, 720)
 STALE_PENDING_MINUTES = 15
 MAX_ERROR_LENGTH = 500
@@ -24,6 +24,8 @@ def _recipient_email(order):
 
 
 def _subject(event, order):
+    if event == 'pending_payment_receipt':
+        return f'Tu pedido {order.order_number} está pendiente de pago'
     if event == "cancelled":
         return f"Tu pedido {order.order_number} fue cancelado"
     if event == "dispatch":
@@ -45,6 +47,12 @@ def _tracking_url(order):
 
 
 def _body(event, order):
+    if event == 'pending_payment_receipt':
+        from .services import payment_deadlines
+        deadline = payment_deadlines([order.id])[order.id].expires_at
+        return (f'Hola, tu pedido {order.order_number} está pendiente de pago.\n'
+                f'La reserva dura 15 minutos y vence el {deadline.isoformat()}.\n'
+                f'Retoma tu pedido: {_tracking_url(order)}')
     if event == "cancelled":
         return (f"Hola, tu pedido {order.order_number} fue cancelado.\n"
                 "Este pedido no será despachado.")
@@ -72,7 +80,7 @@ def schedule_delivery(order, event):
         logger.warning("Unsupported notification event ignored: order=%s event=%s", order.order_number, event)
         return None
     delivery, _ = NotificationDelivery.objects.get_or_create(order=order, event=event)
-    if delivery.status != "SENT":
+    if delivery.status not in {'SENT', 'SKIPPED'}:
         transaction.on_commit(lambda: attempt_delivery(delivery.id, trigger="initial"))
     return delivery
 
@@ -94,8 +102,21 @@ def attempt_delivery(delivery_id, trigger="automatic", now=None):
                 NotificationDelivery.objects.filter(pk=delivery.pk).update(attempts=models.F("attempts"))
                 delivery = NotificationDelivery.objects.get(id=delivery_id)
                 order = delivery.order
-            if delivery.status == "SENT":
+            if delivery.status in {'SENT', 'SKIPPED'}:
                 return delivery
+            if delivery.event == 'pending_payment_receipt':
+                from .services import payment_deadlines
+                # Pure reads: Delivery -> Order locks would invert the domain's
+                # Order -> Delivery scheduling path. Never lock Order here.
+                deadline = payment_deadlines([order.id]).get(order.id)
+                obsolete = (order.status != 'PENDING' or deadline is None
+                    or deadline.status != 'ACTIVE' or deadline.expires_at <= now
+                    or (order.user_id is None and (order.guest_access_revoked_at or order.guest_email_access_revoked_at)))
+                if obsolete:
+                    delivery.status, delivery.next_retry_at = 'SKIPPED', None
+                    delivery.last_error = None
+                    delivery.save(update_fields=['status', 'next_retry_at', 'last_error', 'updated_at'])
+                    return delivery
             eligible = False
             if trigger == "manual":
                 eligible = delivery.status == "FAILED"

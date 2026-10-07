@@ -11,7 +11,9 @@ from apps.shipping.services import future_dispatch_dates
 from core.tests.test_security_settings import run_production_script
 
 
-pytestmark = pytest.mark.django_db
+from .test_checkout_context import prepared_context
+
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures('prepared_context')]
 
 
 PRODUCTION_GUEST_COOKIE_SNAPSHOT = """

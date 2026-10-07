@@ -352,6 +352,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/orders/checkout-context/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["orders_checkout_context_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/orders/pending/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["orders_pending_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/orders/quote/": {
         parameters: {
             query?: never;
@@ -614,6 +646,15 @@ export interface components {
             product_id: number;
             quantity: number;
         };
+        /** @enum {unknown} */
+        BlankEnum: "";
+        /**
+         * @description * `BUYER` - Comprador
+         *     * `ADMIN` - Administración
+         *     * `EXPIRED` - Plazo expirado
+         * @enum {string}
+         */
+        CancellationReasonEnum: "BUYER" | "ADMIN" | "EXPIRED";
         Cart: {
             readonly id: number;
             /**
@@ -655,6 +696,7 @@ export interface components {
             parent?: number | null;
             readonly subcategories: string;
         };
+        CheckoutValidationError: components["schemas"]["QuoteRevisionStale"] | components["schemas"]["QuoteError"];
         Comuna: {
             readonly id: number;
             /** Nombre */
@@ -784,6 +826,9 @@ export interface components {
          */
         MovementTypeEnum: "IN" | "OUT";
         Order: {
+            /** Format: date-time */
+            readonly payment_expires_at: string | null;
+            readonly cancellation_reason: components["schemas"]["CancellationReasonEnum"] | components["schemas"]["BlankEnum"];
             readonly id: number;
             readonly order_number: string;
             phone?: string;
@@ -1739,7 +1784,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["QuoteRevisionStale"];
+                    "application/json": components["schemas"]["CheckoutValidationError"];
                 };
             };
             409: {
@@ -1852,6 +1897,57 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["QuoteError"];
                 };
+            };
+        };
+    };
+    orders_checkout_context_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CSRF verification failed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    orders_pending_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Order"];
+                };
+            };
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

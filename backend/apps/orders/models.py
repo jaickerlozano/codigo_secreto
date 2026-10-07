@@ -242,11 +242,13 @@ class NotificationDelivery(models.Model):
         ('dispatch', 'Despacho del Pedido'),
         ('delivered', 'Entrega del Pedido'),
         ('cancelled', 'Cancelación del Pedido'),
+        ('pending_payment_receipt', 'Pedido Pendiente de Pago'),
     )
     STATUS_CHOICES = (
         ('PENDING', 'Pendiente'),
         ('SENT', 'Enviado'),
         ('FAILED', 'Fallido'),
+        ('SKIPPED', 'Omitido'),
     )
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='notifications', verbose_name='pedido')

@@ -151,6 +151,45 @@ def reserve(*, order_id: int, lines, expires_at) -> ReservationSnapshot:
     return _snapshot(reservation)
 
 
+@dataclass(frozen=True, slots=True)
+class ReservationDeadline:
+    status: str
+    expires_at: datetime
+    release_reason: str | None
+
+
+def reservation_deadlines(order_ids):
+    """Pure, batched read; unlike inspect, never locks or expires a hold."""
+    return {order_id: ReservationDeadline(status, expires_at, reason)
+            for order_id, status, expires_at, reason in InventoryReservation.objects.filter(
+                order_id__in=order_ids).values_list('order_id', 'status', 'expires_at', 'release_reason')}
+
+
+def due_reservation_order_ids(*, at, after_id=0, batch_size=100):
+    """Bounded keyset scan: skipped legacy/paid orders cannot starve later rows."""
+    return list(InventoryReservation.objects.filter(
+        Q(status='ACTIVE') | Q(status='RELEASED', release_reason='EXPIRED'),
+        expires_at__lte=at, order_id__gt=after_id,
+    ).order_by('order_id').values_list('order_id', flat=True)[:batch_size])
+
+
+def release_due_reservation(*, order_id, expected_lines, at):
+    """Called only after Order lock. Skip missing/inconsistent legacy holds."""
+    _require_atomic_for_update()
+    reservation = InventoryReservation.objects.select_for_update().filter(order_id=order_id).first()
+    if reservation is None:
+        return False
+    snapshot = _snapshot(reservation)
+    if not expected_lines or snapshot.lines != tuple(sorted(expected_lines, key=lambda line: line.product_id)):
+        return False
+    if snapshot.expires_at > at:
+        return False
+    if snapshot.status == 'ACTIVE':
+        _expire_if_due(reservation, at)
+        return True
+    return snapshot.status == 'RELEASED' and snapshot.release_reason == 'EXPIRED'
+
+
 def inspect(*, order_id: int, at=None) -> ReservationSnapshot:
     _require_atomic_for_update()
     reservation = _locked_reservation(order_id)

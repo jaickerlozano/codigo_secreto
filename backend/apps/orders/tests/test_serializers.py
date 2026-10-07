@@ -6,7 +6,9 @@ from apps.orders.services import calculate_guest_quote
 from apps.shipping.services import future_dispatch_dates
 
 
-pytestmark = pytest.mark.django_db
+from .test_checkout_context import prepared_context
+
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures('prepared_context')]
 
 
 def _order_payload(comuna, **overrides):
@@ -41,6 +43,8 @@ def test_create_order_authenticated(authenticated_client, cart_factory, cart_ite
     assert order.total == 5000  # (2*1000) + 3000
     assert order.user == user
     assert response.json()["guest_access"] is None
+    assert order.cancellation_reason == ""
+    assert response.json()["cancellation_reason"] == ""
 
 
 def test_authenticated_order_snapshots_normalized_profile_phone_and_ignores_client_phone(

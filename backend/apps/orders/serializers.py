@@ -3,12 +3,14 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema_field
 
 from .models import Order, OrderItem
+from .checkout_context import COOKIE_NAME, load_attempt
 from .services import (
     EmptyCartError,
     GuestQuoteValidationError,
     InvalidCheckoutKeyError,
     create_order,
     normalize_checkout_key,
+    payment_deadlines,
 )
 from apps.shipping.services import (
     DISPATCH_KIND_SPECIAL,
@@ -97,7 +99,18 @@ class QuoteRevisionStaleSerializer(serializers.Serializer):
     refreshed_quote = GuestQuoteResponseSerializer()
 
 
+class OrderListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        orders = list(data.all() if hasattr(data, 'all') else data)
+        snapshots = payment_deadlines([order.id for order in orders])
+        for order in orders:
+            snapshot = snapshots.get(order.id)
+            order._payment_expires_at = snapshot.expires_at if snapshot else None
+        return super().to_representation(orders)
+
+
 class OrderSerializer(serializers.ModelSerializer):
+    payment_expires_at = serializers.SerializerMethodField()
     items = OrderItemSerializer(many=True, read_only=True)
     order_number = serializers.CharField(read_only=True)
     guest_access = GuestAccessSerializer(read_only=True, required=False, allow_null=True)
@@ -139,8 +152,9 @@ class OrderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
+        list_serializer_class = OrderListSerializer
         fields = [
-            'id', 'order_number', 'phone', 'comuna', 'comuna_name', 'comuna_display', 'region_name',
+            'payment_expires_at', 'cancellation_reason', 'id', 'order_number', 'phone', 'comuna', 'comuna_name', 'comuna_display', 'region_name',
             'shipping_address', 'apartment_office',
             'guest_email', 'guest_name', 'guest_items', 'confirmed_revision', 'payment_method',
             'guest_access',
@@ -151,10 +165,20 @@ class OrderSerializer(serializers.ModelSerializer):
             'shipping_option_id',
         ]
         read_only_fields = [
-            'order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
+            'cancellation_reason', 'order_number', 'subtotal', 'shipping_cost', 'total', 'status', 'created_at',
             'comuna_display', 'carrier', 'tracking_number',
             'estimated_delivery_date', 'dispatched_at',
         ]
+        # DRF strips model-derived allow_blank on read-only fields; retain the
+        # empty reason actually returned for orders that have not been cancelled.
+        extra_kwargs = {'cancellation_reason': {'allow_blank': True}}
+
+    @extend_schema_field(serializers.DateTimeField(allow_null=True))
+    def get_payment_expires_at(self, obj):
+        if not hasattr(obj, '_payment_expires_at'):
+            snapshot = payment_deadlines([obj.id]).get(obj.id)
+            obj._payment_expires_at = snapshot.expires_at if snapshot else None
+        return serializers.DateTimeField().to_representation(obj._payment_expires_at) if obj._payment_expires_at else None
 
     def get_comuna_display(self, obj):
         return str(obj.comuna) if obj.comuna else None
@@ -274,6 +298,17 @@ class OrderSerializer(serializers.ModelSerializer):
         except InvalidCheckoutKeyError:
             raise serializers.ValidationError({'detail': 'Invalid idempotency key.'})
 
+        request = self.context['request']
+        attempt_key = load_attempt(request.COOKIES.get(COOKIE_NAME), user)
+        if request.COOKIES.get(COOKIE_NAME) and not attempt_key:
+            raise serializers.ValidationError({'code': 'checkout_context_required', 'detail': 'Prepare a valid checkout context.'})
+        if not checkout_key and not attempt_key:
+            raise serializers.ValidationError({'code': 'checkout_context_required', 'detail': 'Prepare a checkout context first.'})
+        # A valid browser attempt is authoritative; the legacy header is fallback only.
+        checkout_key = attempt_key or checkout_key
+        replay_proof = dict(attempt_key=attempt_key, access_cookie=request.COOKIES.get('guest_order_access'),
+                            capability=request.headers.get('X-Order-Capability'))
+
         delivery_kind = validated_data.pop('delivery_kind', 'standard')
         requested_dispatch_date = validated_data.pop('requested_dispatch_date', None)
         shipping_option_id = validated_data.pop('shipping_option_id', None)
@@ -285,6 +320,7 @@ class OrderSerializer(serializers.ModelSerializer):
             try:
                 return create_order(
                     checkout_key=checkout_key,
+                    replay_proof=replay_proof,
                     guest_email=validated_data.get('guest_email'),
                     guest_name=validated_data.get('guest_name'),
                     phone=validated_data['phone'],

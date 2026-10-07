@@ -9,8 +9,7 @@ from urllib.parse import quote
 from django.conf import settings
 from django.db import IntegrityError, transaction
 
-from apps.orders.models import Order
-from apps.orders.notifications import schedule_delivery
+from apps.orders.services import lock_order, expire_locked_pending_order, schedule_delivery
 from apps.products.services import InventoryReservationError, commit as commit_inventory
 from apps.shipping.services import (
     DISPATCH_KIND_SPECIAL,
@@ -82,6 +81,14 @@ def _replay_conflict(existing, method):
 
 
 def initiate_payment(*, order, idempotency_key):
+    result = _initiate_payment(order=order, idempotency_key=idempotency_key)
+    if result is None:
+        # Raise outside atomic so the quiet expiry remains durable.
+        raise PaymentStateError('Cancelado / Anulado')
+    return result
+
+
+def _initiate_payment(*, order, idempotency_key):
     """Create a PENDING transaction or replay the owned order's attempt for
     the same key; fails closed when the mock provider is not enabled."""
     provider = _select_provider(order)
@@ -89,7 +96,9 @@ def initiate_payment(*, order, idempotency_key):
         raise PaymentProviderUnavailableError()
     method = _normalize_method(order.payment_method)
     with transaction.atomic():
-        order = Order.objects.select_for_update().get(id=order.id)
+        order = lock_order(order.id)
+        if expire_locked_pending_order(order):
+            return None
         if order.status != "PENDING":
             raise PaymentStateError(order.get_status_display())
         decision = evaluate_requested_dispatch_date(
@@ -151,6 +160,13 @@ def _clear_purchased_cart_quantities(order):
 
 
 def approve_payment(*, order, transaction_id):
+    result = _approve_payment(order=order, transaction_id=transaction_id)
+    if result is None:
+        raise PaymentStateError('Cancelado / Anulado')
+    return result
+
+
+def _approve_payment(*, order, transaction_id):
     """Approve an owned PENDING mock transaction exactly once.
 
     Under one atomic lock, the PENDING->APPROVED transaction and PENDING->PAID
@@ -162,8 +178,10 @@ def approve_payment(*, order, transaction_id):
     if provider is None:
         raise PaymentProviderUnavailableError()
     with transaction.atomic():
-        order = Order.objects.select_for_update().get(id=order.id)
+        order = lock_order(order.id)
         attempt = Transaction.objects.select_for_update().get(id=transaction_id, order=order)
+        if expire_locked_pending_order(order):
+            return None
         if attempt.status == "APPROVED" and order.status == "PAID":
             return attempt, order
         if attempt.status != "PENDING" or attempt.provider != MOCK_PROVIDER_ID:
@@ -185,8 +203,8 @@ def approve_payment(*, order, transaction_id):
             schedule_delivery(order, "payment_confirmation")
             return attempt, order
         if reservation.release_reason == "EXPIRED":
-            order.status = "CANCELLED"
-            order.save(update_fields=["status", "updated_at"])
+            order.status, order.cancellation_reason = "CANCELLED", 'EXPIRED'
+            order.save(update_fields=["status", "cancellation_reason", "updated_at"])
         else:
             raise PaymentApprovalError()
     raise PaymentStateError(order.get_status_display())

@@ -2,12 +2,37 @@ from pathlib import Path
 
 import yaml
 from drf_spectacular.generators import SchemaGenerator
+from jsonschema import Draft7Validator
+
+from apps.orders.models import Order
+from apps.orders.serializers import OrderSerializer
 
 _SCHEMA_FILE = Path(__file__).resolve().parents[3] / "schema.yaml"
 
 
 def _committed_schema():
     return yaml.safe_load(_SCHEMA_FILE.read_text())
+
+
+def test_order_cancellation_reason_schema_accepts_runtime_blank_and_known_reasons():
+    field = OrderSerializer().fields['cancellation_reason']
+    runtime_blank = field.to_representation(Order().cancellation_reason)
+    assert runtime_blank == ''
+    assert field.read_only is True
+
+    for schema in (SchemaGenerator().get_schema(request=None, public=True), _committed_schema()):
+        reason = schema['components']['schemas']['Order']['properties']['cancellation_reason']
+        validator = Draft7Validator({**reason, 'components': schema['components']})
+        assert reason['readOnly'] is True
+        assert validator.is_valid(runtime_blank)
+        for value in ('BUYER', 'ADMIN', 'EXPIRED'):
+            assert validator.is_valid(value)
+        for value in (None, 'UNKNOWN', 'buyer'):
+            assert not validator.is_valid(value)
+        assert reason['oneOf'] == [
+            {'$ref': '#/components/schemas/CancellationReasonEnum'},
+            {'$ref': '#/components/schemas/BlankEnum'},
+        ]
 
 
 def test_committed_schema_exposes_dispatch_options_contract():
@@ -119,6 +144,14 @@ def test_order_creation_schema_uses_typed_guest_items_request():
     ]
     assert confirmed_revision['type'] == 'string'
     assert confirmed_revision['writeOnly'] is True
+    for contract in (schema, _committed_schema()):
+        assert contract['paths']['/api/orders/checkout-context/']['post']['responses']['204'] == {'description': 'No response body'}
+        pending = contract['paths']['/api/orders/pending/']['get']
+        assert set(pending['responses']) == {'200', '204'}
+        assert 'parameters' not in pending
+        properties = contract['components']['schemas']['Order']['properties']
+        assert properties['payment_expires_at'] == {'type': 'string', 'format': 'date-time', 'readOnly': True, 'nullable': True}
+        assert properties['cancellation_reason']['readOnly'] is True
     assert schema['components']['schemas']['GuestOrderItem']['properties'] == {
         'product_id': {'type': 'integer', 'minimum': 1},
         'quantity': {'type': 'integer', 'minimum': 1},

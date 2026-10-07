@@ -43,6 +43,8 @@ function makeOrder(
     shipping_cost: body.shipping_cost ?? 0,
     total: body.total ?? 29990,
     status: body.status ?? 'PENDING',
+    payment_expires_at: body.payment_expires_at === undefined ? new Date(Date.now() + 15 * 60 * 1000).toISOString() : body.payment_expires_at,
+    cancellation_reason: body.cancellation_reason ?? '',
     created_at: new Date().toISOString(),
     carrier: 'Chilexpress',
     tracking_number: 'CHX-9988776655',
@@ -85,6 +87,19 @@ export const testOrder: Order = makeOrder(
 )
 
 export const orderHandlers = [
+  http.get('http://localhost:8000/api/auth/csrf/', () => new HttpResponse(null, { status: 204 })),
+  http.post('http://localhost:8000/api/orders/checkout-context/', () => new HttpResponse(null, { status: 204 })),
+  http.get('http://localhost:8000/api/orders/pending/', () => new HttpResponse(null, { status: 204 })),
+  http.post('http://localhost:8000/api/orders/by-order-number/:orderNumber/cancel/', ({ params }) => {
+    const orderNumber = String(params.orderNumber)
+    const order = trackedOrders.get(orderNumber) ?? { ...testOrder, order_number: orderNumber }
+    if (order.status !== 'PENDING' || !order.payment_expires_at || Date.parse(order.payment_expires_at) <= Date.now()) {
+      return HttpResponse.json({ detail: 'El estado del pedido cambió.' }, { status: 409 })
+    }
+    const cancelled: Order = { ...order, status: 'CANCELLED', cancellation_reason: 'BUYER' }
+    trackedOrders.set(orderNumber, cancelled)
+    return HttpResponse.json(cancelled)
+  }),
   http.post('http://localhost:8000/api/orders/quote/', async ({ request }) => {
     const body = (await request.json()) as GuestQuoteInput
     const [item] = body.items

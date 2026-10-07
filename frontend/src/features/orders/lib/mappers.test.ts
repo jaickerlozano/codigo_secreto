@@ -29,6 +29,9 @@ describe('order presentation helpers', () => {
     expect(getOrderStatusLabel('SHIPPED')).toBe('Enviado a destino')
     expect(getOrderStatusLabel('DELIVERED')).toBe('Entregado')
     expect(getOrderStatusLabel('CANCELLED')).toBe('Cancelado')
+    expect(getOrderStatusLabel('CANCELLED', 'EXPIRED')).toBe('Vencido')
+    expect(getOrderStatusLabel('CANCELLED', 'BUYER')).toBe('Cancelado')
+    expect(getOrderStatusLabel('CANCELLED', 'ADMIN')).toBe('Cancelado')
   })
 
   it('formats backend values without calculating them', () => {
