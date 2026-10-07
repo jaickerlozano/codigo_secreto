@@ -13,7 +13,7 @@ from .models import NotificationDelivery
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_EVENTS = frozenset({"payment_confirmation", "dispatch", "delivered"})
+SUPPORTED_EVENTS = frozenset({"payment_confirmation", "dispatch", "delivered", "cancelled"})
 RETRY_DELAY_MINUTES = (15, 60, 240, 720)
 STALE_PENDING_MINUTES = 15
 MAX_ERROR_LENGTH = 500
@@ -24,6 +24,8 @@ def _recipient_email(order):
 
 
 def _subject(event, order):
+    if event == "cancelled":
+        return f"Tu pedido {order.order_number} fue cancelado"
     if event == "dispatch":
         return f"Tu pedido {order.order_number} fue despachado"
     if event == "delivered":
@@ -43,6 +45,9 @@ def _tracking_url(order):
 
 
 def _body(event, order):
+    if event == "cancelled":
+        return (f"Hola, tu pedido {order.order_number} fue cancelado.\n"
+                "Este pedido no será despachado.")
     if event == "dispatch":
         tracking = f"\nNúmero de seguimiento: {order.tracking_number}" if order.tracking_number else ""
         return (f"Hola, tu pedido {order.order_number} fue despachado con {order.carrier}.{tracking}\n"

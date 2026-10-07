@@ -473,14 +473,17 @@ def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shippin
     return order
 
 
-def cancel_pending_order(*, order_id: int):
+def cancel_pending_order(*, order_id: int, reason='BUYER'):
+    if reason not in {'BUYER', 'ADMIN'}:
+        raise ValueError('Invalid manual cancellation reason.')
     with transaction.atomic():
         order = Order.objects.select_for_update().get(id=order_id)
         if order.status != "PENDING":
             raise PendingCancellationError()
         release_reservation(order_id=order.id, reason="CANCELLED")
-        order.status = "CANCELLED"
-        order.save(update_fields=["status", "updated_at"])
+        order.status, order.cancellation_reason = "CANCELLED", reason
+        order.save(update_fields=["status", "cancellation_reason", "updated_at"])
+        schedule_delivery(order, "cancelled")
         return order
 
 
