@@ -12,8 +12,12 @@ import {
   exchangeOrderAccess,
   OrderCreationError,
   type CreateOrderInput,
+  type Order,
 } from '@/features/orders/api/orders.api'
 import { useCreateOrder } from '@/features/orders/hooks/useCreateOrder'
+import { usePendingOrder } from '@/features/orders/hooks/usePendingOrder'
+import { PendingOrderActions } from '@/features/orders/components/PendingOrderActions'
+import { invalidateOrderWorkflow } from '@/features/orders/lib/pending-order'
 import { guestQuoteQueryKey } from '@/features/cart/api/quote.api'
 import { useComunas, useRegions } from '@/features/shipping'
 import { scrollToPageTop } from '@/hooks/useScrollToTopOnNavigate'
@@ -32,6 +36,11 @@ export function CheckoutPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { user, isLoading: isAuthLoading } = useAuth()
+  const pending = usePendingOrder()
+  const [cancelledRecovery, setCancelledRecovery] = useState<{ scope: number; order: Order } | null>(null)
+  const [recoveryError, setRecoveryError] = useState<string | null>(null)
+  const pendingReady = pending.isResolved && !pending.data
+  const recoveryOrder = pending.data ?? (cancelledRecovery?.scope === pending.actorScope ? cancelledRecovery.order : null)
   const {
     currentStep,
     data,
@@ -217,8 +226,10 @@ export function CheckoutPage() {
   }
 
   const handleConfirm = () => {
+    if (!pendingReady || createOrder.isPending || initiatePayment.isPending) return
     if (hasInventoryIssues || inventoryError) return
     if (mode === 'guest' && !quoteReady) return
+    setRecoveryError(null)
 
     const payload = {
       shipping_address: data.address.address,
@@ -249,11 +260,10 @@ export function CheckoutPage() {
     createOrder.mutate(payload, {
       onSuccess: async (order) => {
         try {
-          if (mode === 'guest' && order.guest_access)
-            await exchangeOrderAccess(
-              order.order_number,
-              order.guest_access.token
-            )
+          if (mode === 'guest' && order.guest_access) {
+            await exchangeOrderAccess(order.order_number, order.guest_access.token)
+            await invalidateOrderWorkflow(queryClient)
+          }
           initiatePayment.mutate(
             { order_id: order.id },
             {
@@ -312,10 +322,14 @@ export function CheckoutPage() {
           toast.error('El total cambió. Revisa y confirma nuevamente.')
           return
         }
+        if (error instanceof OrderCreationError && ['checkout_key_conflict', 'checkout_context_required', 'order_expired'].includes(error.code ?? '')) {
+          setRecoveryError('No se creó otro pedido. Revisa el pedido pendiente o reintenta la consulta antes de confirmar nuevamente.')
+          void invalidateOrderWorkflow(queryClient)
+          return
+        }
         if (
           error instanceof OrderCreationError &&
-          (error.code === 'checkout_key_conflict' ||
-            error.code === 'delivery_option_stale' ||
+          (error.code === 'delivery_option_stale' ||
             error.code === 'delivery_schedule_ineligible')
         ) {
           setShipping({})
@@ -346,6 +360,18 @@ export function CheckoutPage() {
       <main id="main-content" className="min-h-screen py-8 px-4">
         <div className="mx-auto max-w-5xl">
           <CheckoutProgress currentStep={currentStep} />
+
+          <section aria-label="Resolver pedido anterior" className="mb-6 text-base-100">
+            {pending.isDiscovering && <div role="status" aria-label="Buscando pedido pendiente"><Skeleton className="h-12 w-full" /><span className="sr-only">Buscando un pedido pendiente antes de confirmar…</span></div>}
+            {pending.discoveryError && <div className="space-y-3 rounded-xl border border-error-500/50 bg-base-900 p-4">
+              <p role="alert">No pudimos comprobar si tienes un pedido pendiente. {pending.discoveryError.message}</p>
+              <button type="button" onClick={() => void pending.retryDiscovery()} className="min-h-12 rounded-lg border border-neon-cyan/50 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-cyan">Reintentar consulta</button>
+            </div>}
+            {pending.data && <p>Ya tienes un pedido pendiente. Continúa su pago o cancélalo antes de confirmar otro. Tus cambios de este checkout no se aplicarán al pedido anterior.</p>}
+            {recoveryOrder && <PendingOrderActions key={`${pending.actorScope}:${recoveryOrder.order_number}`} order={recoveryOrder} paymentBusy={createOrder.isPending || initiatePayment.isPending} onCancelled={order => setCancelledRecovery({ scope: pending.actorScope, order })} />}
+            {!pending.isDiscovering && !pending.discoveryError && !pending.isResolved && <p role="status">Actualizando el estado del pedido pendiente…</p>}
+            {recoveryError && <p role="alert">{recoveryError}</p>}
+          </section>
 
           <div className="grid gap-8 lg:grid-cols-3">
             <div className="lg:col-span-2">
@@ -413,7 +439,7 @@ export function CheckoutPage() {
                     subtotal={subtotal}
                     shippingCost={shippingCost}
                     total={total}
-                    quoteReady={quoteReady}
+                    quoteReady={quoteReady && pendingReady}
                     inventoryBlocked={hasInventoryIssues || Boolean(inventoryError)}
                     inventoryMessage={inventoryError}
                     accountContact={
