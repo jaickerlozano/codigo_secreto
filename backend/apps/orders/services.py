@@ -13,10 +13,12 @@ from apps.products.services import (
     InsufficientAvailableStock,
     ProductSnapshotResolutionError,
     ReservationLineInput,
-    inspect as inspect_reservation,
+    due_reservation_order_ids,
+    release_due_reservation,
     release as release_reservation,
     reserve as reserve_inventory,
     resolve_product_price_snapshot,
+    reservation_deadlines,
 )
 from apps.shipping.services import (
     ShippingSnapshotResolutionError,
@@ -234,6 +236,45 @@ def authorize_order_access(order_number=None, *, order_id=None, user=None, capab
     return None
 
 
+def payment_deadlines(order_ids):
+    return reservation_deadlines(order_ids)
+
+
+def recover_pending_order(*, user=None, attempt_key=None, access_cookie=None):
+    """Authorize the root order before serialization; this read never expires it."""
+    queryset = Order.objects.select_related('comuna__region', 'user').prefetch_related('items')
+    order = None
+    if user and user.is_authenticated:
+        owned = queryset.filter(user_id=user.pk, status='PENDING')
+        order = owned.filter(checkout_key=attempt_key).first() if attempt_key else owned.first()
+    else:
+        if attempt_key:
+            candidate = queryset.filter(checkout_key=attempt_key, status='PENDING').first()
+            if candidate:
+                try:
+                    _ensure_guest_proof(candidate, {'attempt_key': attempt_key})
+                except CheckoutKeyConflictError:
+                    pass
+                else:
+                    order = candidate
+        if order is None and access_cookie:
+            try:
+                payload = signing.loads(access_cookie, salt=GUEST_ACCESS_COOKIE_SALT, max_age=GUEST_ACCESS_COOKIE_MAX_AGE)
+            except signing.BadSignature:
+                payload = None
+            if isinstance(payload, dict) and isinstance(payload.get('order_number'), str):
+                candidate = queryset.filter(order_number=payload['order_number'], user__isnull=True, status='PENDING').first()
+                if candidate and _verify_cookie(candidate, access_cookie):
+                    order = candidate
+    if order is None:
+        return None
+    snapshot = reservation_deadlines([order.id]).get(order.id)
+    if snapshot and (snapshot.status != 'ACTIVE' or snapshot.expires_at <= timezone.now()):
+        return None
+    order._payment_expires_at = snapshot.expires_at if snapshot else None
+    return order
+
+
 # --- Idempotent checkout (Idempotency-Key header, stored as Order.checkout_key) ---
 
 CHECKOUT_KEY_MAX_LENGTH = 64  # mirrors Order.checkout_key max_length
@@ -242,6 +283,7 @@ CHECKOUT_KEY_MAX_LENGTH = 64  # mirrors Order.checkout_key max_length
 class InvalidCheckoutKeyError(ValueError): """The Idempotency-Key header cannot be used safely."""
 class CheckoutKeyConflictError(ValueError): """A checkout key was reused for a different purchase intent."""
 class PendingCancellationError(ValueError): """The order is not pending and cannot be cancelled."""
+class OrderExpiredError(ValueError): """The checkout attempt is terminal; start a new attempt explicitly."""
 
 
 def normalize_checkout_key(raw):
@@ -269,21 +311,85 @@ def _reserve_order(order, lines):
     )
 
 
-def _replay_or_replace(existing):
-    snapshot = inspect_reservation(order_id=existing.id)
-    if existing.status == "PENDING" and snapshot.status == "ACTIVE":
-        return existing
-    if snapshot.status == "RELEASED" and snapshot.release_reason == "EXPIRED":
-        if existing.status == "PENDING":
-            existing.status = "CANCELLED"
-            existing.save(update_fields=["status", "updated_at"])
-        return None
+def lock_order(order_id):
+    """Orders-owned lock boundary used by Payments; Order precedes reservation."""
+    return Order.objects.select_for_update().get(id=order_id)
+
+
+def expire_locked_pending_order(order, *, at=None):
+    """Quiet terminal transition; caller holds Order lock in an atomic block."""
+    if order.status != 'PENDING':
+        return False
+    at = at or timezone.now()
+    expected = tuple(ReservationLineInput(item.product_id, item.quantity) for item in order.items.all()
+                     if item.product_id is not None)
+    if not release_due_reservation(order_id=order.id, expected_lines=expected, at=at):
+        return False
+    order.status, order.cancellation_reason = 'CANCELLED', 'EXPIRED'
+    order.save(update_fields=['status', 'cancellation_reason', 'updated_at'])
+    return True
+
+
+def expire_pending_batch(*, batch_size=100, at=None):
+    at = at or timezone.now()
+    after_id = count = 0
+    while True:
+        ids = due_reservation_order_ids(at=at, after_id=after_id, batch_size=batch_size)
+        if not ids:
+            return count
+        for order_id in ids:
+            with transaction.atomic():
+                order = Order.objects.select_for_update().filter(id=order_id).first()
+                if order and expire_locked_pending_order(order, at=at):
+                    count += 1
+        after_id = ids[-1]
+
+
+def _replay_existing(existing):
+    # Never silently re-quote or replace a terminal attempt with a new hold.
+    expire_locked_pending_order(existing)
     return existing
 
 
 def _guest_intent(quote, guest_email, delivery):
     return ((guest_email or "").casefold(), quote.comuna_id, _canonical_items(quote.items),
             _delivery_intent(delivery))
+
+
+def _contact_intent(guest_name, phone, shipping_address, apartment_office, payment_method):
+    return (guest_name, phone, shipping_address, apartment_office or '', payment_method)
+
+
+def _ensure_contact(existing, contact):
+    frozen = _contact_intent(existing.guest_name, existing.phone, existing.shipping_address,
+                             existing.apartment_office, existing.payment_method)
+    if contact is not None and frozen != contact:
+        raise CheckoutKeyConflictError()
+
+
+def _ensure_basic_replay(existing, comuna_id, items, contact, kind, dispatch_date):
+    _ensure_contact(existing, contact)
+    if (existing.comuna_id != comuna_id or _canonical_items(existing.items.all()) != _canonical_items(items)
+            or (existing.delivery_kind, existing.requested_dispatch_date) != (kind, dispatch_date)):
+        raise CheckoutKeyConflictError()
+
+
+def _ensure_guest_proof(existing, proof):
+    proof = proof or {}
+    # Attempt proof may recover a dropped creation response, but never undo a revocation.
+    if (existing.user_id is not None or existing.guest_access_revoked_at
+            or not existing.guest_access_expires_at or existing.guest_access_expires_at <= timezone.now()):
+        raise CheckoutKeyConflictError()
+    if (proof.get('attempt_key') == existing.checkout_key and existing.checkout_key
+            and existing.guest_access_version == 1):
+        # Explicit Admin rotation invalidates the original attempt's recovery proof.
+        return
+    if proof.get('access_cookie') and _verify_cookie(existing, proof['access_cookie']):
+        return
+    capability = proof.get('capability')
+    if capability and (existing.verify_guest_access(capability) or verify_guest_email_access_ticket(existing, capability)):
+        return
+    raise CheckoutKeyConflictError()
 
 
 def _ensure_guest_replay(existing, quote, guest_email, delivery):
@@ -294,12 +400,13 @@ def _ensure_guest_replay(existing, quote, guest_email, delivery):
         raise CheckoutKeyConflictError()
 
 
-def _race_replay(checkout_key, quote, guest_email, delivery):
+def _race_replay(checkout_key, quote, guest_email, delivery, contact=None, proof=None):
     """Resolve a same-key IntegrityError (concurrent double-submit) to a replay."""
     existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().get()
+    _ensure_guest_proof(existing, proof)
     _ensure_guest_replay(existing, quote, guest_email, delivery)
-    existing._guest_access_token = existing.rotate_guest_access()
-    return existing
+    _ensure_contact(existing, contact)
+    return _replay_existing(existing)
 
 
 class EmptyCartError(ValueError): """The authenticated cart cannot produce an order."""
@@ -317,11 +424,12 @@ def _ensure_auth_replay(existing, user_id, comuna_id, cart_items, delivery):
         raise CheckoutKeyConflictError()
 
 
-def _race_replay_auth(checkout_key, user_id, comuna_id, cart_items, delivery):
+def _race_replay_auth(checkout_key, user_id, comuna_id, cart_items, delivery, contact=None):
     """Resolve a same-key IntegrityError to a verified replay or a masked conflict."""
     existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().get()
     _ensure_auth_replay(existing, user_id, comuna_id, cart_items, delivery)
-    return existing
+    _ensure_contact(existing, contact)
+    return _replay_existing(existing)
 
 
 def _resolve_delivery(comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id):
@@ -339,17 +447,17 @@ def _create_authenticated_order(*, user, checkout_key, phone, shipping_address,
     ``checkout_key``. The cart is preserved until payment approval; totals are
     backend-computed from live product rows and frozen into the order."""
     unavailable = None
+    contact = _contact_intent(None, phone, shipping_address, apartment_office, payment_method)
     with transaction.atomic():
+        existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().first() if checkout_key else None
+        if existing is not None and existing.user_id != user.id:
+            raise CheckoutKeyConflictError()
         cart_items = list(user.cart.items.select_for_update().all())
-        existing = None
-        if checkout_key:
-            existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().first()
-            if existing is not None:
-                delivery = _resolve_delivery(comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
-                _ensure_auth_replay(existing, user.id, comuna_id, cart_items, delivery)
-                replay = _replay_or_replace(existing)
-                if replay is not None:
-                    return replay
+        if existing is not None:
+            _ensure_basic_replay(existing, comuna_id, cart_items, contact, delivery_kind, requested_dispatch_date)
+            delivery = _resolve_delivery(comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
+            _ensure_auth_replay(existing, user.id, comuna_id, cart_items, delivery)
+            return _replay_existing(existing)
         if not cart_items:
             raise EmptyCartError()
         delivery = _resolve_delivery(comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
@@ -359,7 +467,7 @@ def _create_authenticated_order(*, user, checkout_key, phone, shipping_address,
                 order = Order.objects.create(
                     user=user, comuna_id=comuna_id, phone=phone,
                     shipping_address=shipping_address, apartment_office=apartment_office,
-                    payment_method=payment_method, checkout_key=None if existing else checkout_key,
+                    payment_method=payment_method, checkout_key=checkout_key,
                     subtotal=subtotal, shipping_cost=delivery.shipping_price,
                     total=subtotal + delivery.shipping_price,
                     delivery_kind=delivery.delivery_kind,
@@ -373,66 +481,67 @@ def _create_authenticated_order(*, user, checkout_key, phone, shipping_address,
                     for item in cart_items
                 ])
                 _reserve_order(order, cart_items)
+                schedule_delivery(order, 'pending_payment_receipt')
         except InsufficientAvailableStock as error:
             unavailable = error
         except IntegrityError:
             if not checkout_key:
                 raise
-            return _race_replay_auth(checkout_key, user.id, comuna_id, cart_items, delivery)
-        else:
-            if existing is not None:
-                existing.checkout_key = None
-                existing.save(update_fields=["checkout_key", "updated_at"])
-                order.checkout_key = checkout_key
-                order.save(update_fields=["checkout_key", "updated_at"])
+            return _race_replay_auth(checkout_key, user.id, comuna_id, cart_items, delivery, contact)
     if unavailable is not None:
         raise unavailable
     return order
 
 
-def create_order(*, user=None, checkout_key=None, guest_email=None, guest_name=None, phone=None,
+def create_order(*, user=None, checkout_key=None, replay_proof=None, guest_email=None, guest_name=None, phone=None,
                  shipping_address=None, apartment_office="", payment_method="webpay",
                  guest_items=None, confirmed_revision=None, comuna_selector=None,
                  comuna_id=None, shipping_cost=None,
                  delivery_kind="standard", requested_dispatch_date=None, shipping_option_id=None):
     """Create an order or replay it by ``checkout_key``. Authenticated orders
     use the server-side cart (never cleared here); guest orders use the
-    client-side list and rotate their raw capability on replay. Totals are
+    client-side list and require private proof on replay (without rotation). Totals are
     backend-computed and frozen; conflicting reuse fails."""
     if user is not None and user.is_authenticated:
-        return _create_authenticated_order(
+        order = _create_authenticated_order(
             user=user, checkout_key=checkout_key, phone=phone,
             shipping_address=shipping_address, apartment_office=apartment_office,
             payment_method=payment_method, comuna_id=comuna_id, shipping_cost=shipping_cost,
             delivery_kind=delivery_kind, requested_dispatch_date=requested_dispatch_date,
             shipping_option_id=shipping_option_id,
         )
-    return _create_guest_order(
-        checkout_key=checkout_key, guest_email=guest_email, guest_name=guest_name,
+        if order.status == 'CANCELLED' and order.cancellation_reason == 'EXPIRED':
+            raise OrderExpiredError()
+        return order
+    order = _create_guest_order(
+        checkout_key=checkout_key, replay_proof=replay_proof, guest_email=guest_email, guest_name=guest_name,
         phone=phone, shipping_address=shipping_address, apartment_office=apartment_office,
         payment_method=payment_method, guest_items=guest_items,
         confirmed_revision=confirmed_revision, comuna_selector=comuna_selector,
         delivery_kind=delivery_kind, requested_dispatch_date=requested_dispatch_date,
         shipping_option_id=shipping_option_id,
     )
+    if order.status == 'CANCELLED' and order.cancellation_reason == 'EXPIRED':
+        raise OrderExpiredError()
+    return order
 
 
-def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shipping_address,
+def _create_guest_order(*, checkout_key, replay_proof, guest_email, guest_name, phone, shipping_address,
                         apartment_office, payment_method, guest_items, confirmed_revision,
                         comuna_selector, delivery_kind, requested_dispatch_date, shipping_option_id):
     unavailable = None
+    contact = _contact_intent(guest_name, phone, shipping_address, apartment_office, payment_method)
     with transaction.atomic():
-        quote = calculate_guest_quote(guest_items, comuna_selector=comuna_selector, lock=True)
-        existing = None
-        if checkout_key:
-            existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().first()
-            if existing is not None:
-                delivery = _resolve_delivery(quote.comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
-                _ensure_guest_replay(existing, quote, guest_email, delivery)
-                replay = _replay_or_replace(existing)
-                if replay is not None:
-                    replay._guest_access_token = replay.rotate_guest_access()
-                    return replay
+        # Lock the order before inventory/product rows on replay.
+        existing = Order.objects.filter(checkout_key=checkout_key).select_for_update().first() if checkout_key else None
+        if existing is not None:
+            _ensure_guest_proof(existing, replay_proof)
+        quote = calculate_guest_quote(guest_items, comuna_selector=comuna_selector, lock=existing is None)
+        if existing is not None:
+            _ensure_basic_replay(existing, quote.comuna_id, quote.items, contact, delivery_kind, requested_dispatch_date)
+            delivery = _resolve_delivery(quote.comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
+            _ensure_guest_replay(existing, quote, guest_email, delivery)
+            return _replay_existing(existing)
         if not quote_revision_matches(confirmed_revision, quote):
             raise GuestQuoteRevisionStale(quote)
         delivery = _resolve_delivery(quote.comuna_id, delivery_kind, requested_dispatch_date, shipping_option_id)
@@ -442,7 +551,7 @@ def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shippin
                     user=None, guest_email=guest_email, guest_name=guest_name, phone=phone,
                     comuna_id=quote.comuna_id, shipping_address=shipping_address,
                     apartment_office=apartment_office, payment_method=payment_method,
-                    checkout_key=None if existing else checkout_key, subtotal=quote.subtotal,
+                    checkout_key=checkout_key, subtotal=quote.subtotal,
                     shipping_cost=quote.shipping_cost, total=quote.total,
                     delivery_kind=delivery.delivery_kind,
                     requested_dispatch_date=delivery.requested_dispatch_date,
@@ -460,14 +569,10 @@ def _create_guest_order(*, checkout_key, guest_email, guest_name, phone, shippin
         except IntegrityError:
             if not checkout_key:
                 raise
-            return _race_replay(checkout_key, quote, guest_email, delivery)
+            return _race_replay(checkout_key, quote, guest_email, delivery, contact, replay_proof)
         else:
-            if existing is not None:
-                existing.checkout_key = None
-                existing.save(update_fields=["checkout_key", "updated_at"])
-                order.checkout_key = checkout_key
-                order.save(update_fields=["checkout_key", "updated_at"])
             order._guest_access_token = order.issue_guest_access()
+            schedule_delivery(order, 'pending_payment_receipt')
     if unavailable is not None:
         raise unavailable
     return order
@@ -477,7 +582,7 @@ def cancel_pending_order(*, order_id: int, reason='BUYER'):
     if reason not in {'BUYER', 'ADMIN'}:
         raise ValueError('Invalid manual cancellation reason.')
     with transaction.atomic():
-        order = Order.objects.select_for_update().get(id=order_id)
+        order = lock_order(order_id)
         if order.status != "PENDING":
             raise PendingCancellationError()
         release_reservation(order_id=order.id, reason="CANCELLED")

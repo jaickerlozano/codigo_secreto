@@ -122,12 +122,8 @@ def test_guest_journey_purchase_approve_dispatch_and_notify(
     assert (order_data["subtotal"], order_data["shipping_cost"], order_data["total"]) == (20000, 3000, 23000)
     first_token = order_data["guest_access"]["token"]
 
-    # 4. Replay: same order, rotated capability, no duplicate. Replay contract:
-    # every stable field matches the initial response byte-for-byte, and the
-    # ONLY intentional difference is the rotated guest capability — the design
-    # says "guest replay rotates its raw capability": rotate_guest_access
-    # revokes the previous token and issues a fresh one. The expiry may tie at
-    # the platform clock's resolution, but it must never move backwards.
+    # 4. Proof-verified retry keeps every frozen field and the working capability.
+    # Raw access is returned only on fresh creation, never disclosed by replay.
     replayed = api_client.post("/api/orders/", _guest_payload(product.id, comuna.id, quote["revision"]),
                                format="json", HTTP_IDEMPOTENCY_KEY=KEY)
     assert replayed.status_code == status.HTTP_201_CREATED
@@ -136,9 +132,11 @@ def test_guest_journey_purchase_approve_dispatch_and_notify(
     del stable_initial["guest_access"]
     replayed_capability = replayed_data.pop("guest_access")
     assert replayed_data == stable_initial
-    second_token = replayed_capability["token"]
-    assert second_token != first_token
-    assert replayed_capability["expires_at"] >= order_data["guest_access"]["expires_at"]
+    assert replayed_capability is None
+    second_token = first_token
+    replayed_order = Order.objects.get(pk=order_data['id'])
+    assert replayed_order.guest_access_version == 1
+    assert replayed_order.verify_guest_access(first_token)
     assert Order.objects.count() == 1
 
     # 5. Capability exchange issues the access cookie (guest ownership).
@@ -148,12 +146,11 @@ def test_guest_journey_purchase_approve_dispatch_and_notify(
     assert exchange.status_code == status.HTTP_204_NO_CONTENT
     api_client.cookies["guest_order_access"] = exchange.cookies["guest_order_access"].value
 
-    # 5b. Rotation revoked the PREVIOUS capability: the replacement token is
-    # valid (5) while the old one is denied — masked 404 on a cookie-less client.
+    # 5b. A tampered capability is masked on a cookie-less connection.
     stale = APIClient()
     revoked = stale.post(
         f"/api/orders/by-order-number/{order_data['order_number']}/access/",
-        {}, format="json", HTTP_X_ORDER_CAPABILITY=first_token)
+        {}, format="json", HTTP_X_ORDER_CAPABILITY=first_token + 'tampered')
     assert revoked.status_code == status.HTTP_404_NOT_FOUND
 
     # 6. Owned lookup succeeds; a stranger without capability is masked 404.

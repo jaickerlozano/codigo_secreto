@@ -18,7 +18,7 @@ TARGET_0009 = ("orders", "0009_order_delivered_at")
 TARGET_0010 = ("orders", "0010_order_guest_email_access")
 TARGET_0011 = ("orders", "0011_alter_notificationdelivery_event")
 TARGET_0012 = ("orders", "0012_alter_notificationdelivery_event")
-LATEST = ('orders', '0013_order_cancellation_reason')
+LATEST = ('orders', '0014_pending_payment_receipt')
 TARGET_0013 = ('orders', '0013_order_cancellation_reason')
 INDEX_NAME = "orders_notif_status_next_retry"
 
@@ -203,5 +203,37 @@ def test_orders_0012_adds_cancelled_event_without_backfill_and_is_reversible():
         assert "cancelled" not in dict(delivery_model._meta.get_field("event").choices)
         assert delivery_model.objects.filter(pk=cancelled.pk, event="cancelled").exists()
         assert delivery_model.objects.filter(pk=existing.pk, status="SENT").exists()
+    finally:
+        MigrationExecutor(connection).migrate([LATEST])
+
+
+@pytest.mark.django_db(transaction=True)
+def test_orders_0013_0014_reversible_no_backfill_and_preserve_delivery_rows():
+    try:
+        executor = MigrationExecutor(connection)
+        executor.migrate([TARGET_0012])
+        assert 'cancellation_reason' not in _table_columns('orders_order')
+        OrderModel = executor.loader.project_state([TARGET_0012]).apps.get_model('orders', 'Order')
+        order = OrderModel.objects.create(comuna_id=ComunaFactory().pk, phone='56912345678',
+            shipping_address='Test 123', subtotal=1000, shipping_cost=1000, total=2000, status='CANCELLED')
+        executor = MigrationExecutor(connection)
+        executor.migrate([LATEST])
+        state = executor.loader.project_state([LATEST])
+        OrderModel = state.apps.get_model('orders', 'Order')
+        Delivery = state.apps.get_model('orders', 'NotificationDelivery')
+        assert OrderModel.objects.get(pk=order.pk).cancellation_reason == ''
+        assert not Delivery.objects.exists()
+        assert 'pending_payment_receipt' in dict(Delivery._meta.get_field('event').choices)
+        assert 'SKIPPED' in dict(Delivery._meta.get_field('status').choices)
+        notice = Delivery.objects.create(order_id=order.pk, event='pending_payment_receipt', status='SKIPPED')
+        executor = MigrationExecutor(connection)
+        executor.migrate([TARGET_0013])
+        state = executor.loader.project_state([TARGET_0013])
+        Delivery = state.apps.get_model('orders', 'NotificationDelivery')
+        assert 'pending_payment_receipt' not in dict(Delivery._meta.get_field('event').choices)
+        assert 'SKIPPED' not in dict(Delivery._meta.get_field('status').choices)
+        assert Delivery.objects.get(pk=notice.pk).status == 'SKIPPED'
+        MigrationExecutor(connection).migrate([TARGET_0012])
+        assert 'cancellation_reason' not in _table_columns('orders_order')
     finally:
         MigrationExecutor(connection).migrate([LATEST])

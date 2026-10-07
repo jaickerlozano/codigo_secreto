@@ -14,7 +14,9 @@ from apps.shipping.services import resolve_shipping_price as resolve_shipping
 from apps.shipping.services import future_dispatch_dates
 
 
-pytestmark = pytest.mark.django_db
+from .test_checkout_context import prepared_context
+
+pytestmark = [pytest.mark.django_db, pytest.mark.usefixtures('prepared_context')]
 
 
 def _items(*pairs):
@@ -194,7 +196,11 @@ def test_creation_schema_describes_stale_quote_response():
     schema = SchemaGenerator().get_schema(request=None, public=True)
     operation = schema["paths"]["/api/orders/"]["post"]
     response = operation["responses"]["400"]["content"]["application/json"]["schema"]
-    assert response["$ref"] == "#/components/schemas/QuoteRevisionStale"
+    assert response['$ref'] == '#/components/schemas/CheckoutValidationError'
+    assert schema['components']['schemas']['CheckoutValidationError']['oneOf'] == [
+        {'$ref': '#/components/schemas/QuoteRevisionStale'},
+        {'$ref': '#/components/schemas/QuoteError'},
+    ]
     assert schema["components"]["schemas"]["QuoteRevisionStale"]["properties"][
         "refreshed_quote"
     ]["$ref"] == "#/components/schemas/GuestQuoteResponse"

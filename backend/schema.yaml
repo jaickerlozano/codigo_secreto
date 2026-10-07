@@ -515,7 +515,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QuoteRevisionStale'
+                $ref: '#/components/schemas/CheckoutValidationError'
           description: ''
         '409':
           content:
@@ -624,6 +624,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuoteError'
           description: ''
+  /api/orders/checkout-context/:
+    post:
+      operationId: orders_checkout_context_create
+      tags:
+      - orders
+      security:
+      - {}
+      responses:
+        '204':
+          description: No response body
+        '403':
+          description: CSRF verification failed.
+  /api/orders/pending/:
+    get:
+      operationId: orders_pending_retrieve
+      tags:
+      - orders
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+          description: ''
+        '204':
+          description: No response body
   /api/orders/quote/:
     post:
       operationId: orders_quote_create
@@ -1247,6 +1275,19 @@ components:
       required:
       - product_id
       - quantity
+    BlankEnum:
+      enum:
+      - ''
+    CancellationReasonEnum:
+      enum:
+      - BUYER
+      - ADMIN
+      - EXPIRED
+      type: string
+      description: |-
+        * `BUYER` - Comprador
+        * `ADMIN` - Administración
+        * `EXPIRED` - Plazo expirado
     Cart:
       type: object
       properties:
@@ -1347,6 +1388,10 @@ components:
       - id
       - name
       - subcategories
+    CheckoutValidationError:
+      oneOf:
+      - $ref: '#/components/schemas/QuoteRevisionStale'
+      - $ref: '#/components/schemas/QuoteError'
     Comuna:
       type: object
       properties:
@@ -1622,6 +1667,16 @@ components:
     Order:
       type: object
       properties:
+        payment_expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          readOnly: true
+        cancellation_reason:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/CancellationReasonEnum'
+          - $ref: '#/components/schemas/BlankEnum'
         id:
           type: integer
           readOnly: true
@@ -1744,6 +1799,7 @@ components:
           writeOnly: true
           nullable: true
       required:
+      - cancellation_reason
       - carrier
       - comuna_display
       - created_at
@@ -1754,6 +1810,7 @@ components:
       - id
       - items
       - order_number
+      - payment_expires_at
       - shipping_address
       - shipping_cost
       - status
